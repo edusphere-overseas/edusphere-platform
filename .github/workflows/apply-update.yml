@@ -1,0 +1,90 @@
+# Applies an update bundle prepared by Claude (files in updates/), refreshes
+# package-lock.json, removes the bundle and commits the result to main.
+# Triggered by committing updates/APPLY. Safe to leave in place.
+name: Apply update bundle
+
+on:
+  push:
+    branches: [main]
+    paths: ["updates/APPLY"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: apply-update
+  cancel-in-progress: false
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Unpack bundle
+        run: |
+          python3 - <<'PY'
+          import pathlib, sys
+          root = pathlib.Path('.').resolve()
+          parts = sorted(pathlib.Path('updates').glob('part-*.txt'))
+          if not parts:
+              sys.exit('No bundle parts found in updates/')
+          text = ''.join(p.read_text(encoding='utf-8') for p in parts)
+          MARK = '#==EDU:'
+          current, buf, written, deleted = None, [], 0, 0
+
+          def safe(path):
+              p = (root / path).resolve()
+              if root not in p.parents or path.startswith(('updates/', '.git/')):
+                  sys.exit(f'Refusing path outside the project: {path}')
+              return p
+
+          def flush():
+              global written
+              if current is None:
+                  return
+              p = safe(current)
+              p.parent.mkdir(parents=True, exist_ok=True)
+              p.write_text(''.join(buf), encoding='utf-8')
+              written += 1
+
+          for line in text.splitlines(keepends=True):
+              if line.startswith(MARK):
+                  flush()
+                  buf = []
+                  kind, path = line[len(MARK):].strip().split(' ', 1)
+                  if kind == 'FILE':
+                      current = path
+                  elif kind == 'DELETE':
+                      current = None
+                      p = safe(path)
+                      if p.exists():
+                          p.unlink()
+                          deleted += 1
+                  elif kind == 'END':
+                      current = None
+                  else:
+                      sys.exit(f'Unknown bundle instruction: {kind}')
+              else:
+                  buf.append(line)
+          flush()
+          print(f'Wrote {written} files, deleted {deleted}.')
+          PY
+
+      - name: Refresh package-lock.json
+        run: npm install --package-lock-only --no-audit --no-fund
+
+      - name: Commit
+        run: |
+          msg="$(head -n 1 updates/APPLY)"
+          rm -rf updates
+          git config user.name "edusphere-overseas"
+          git config user.email "edusphereoverseas@gmail.com"
+          git add -A
+          git commit -m "${msg:-Apply update bundle}"
+          git push
