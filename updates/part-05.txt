@@ -1,0 +1,613 @@
+#==EDU:FILE src/config/site.ts
+/**
+ * Site-wide settings for Step 1.
+ *
+ * In Step 2 these values move into Sanity (Content area of the admin portal):
+ * Offices, Contact details and Site settings. Until then, edit them here.
+ */
+
+export type Office = {
+  id: string;
+  name: string;
+  legalName: string;
+  countryCode: string; // flag file in /public/flags
+  country: string;
+  addressLines: string[];
+  mapQuery: string;
+  googleBusinessUrl?: string;
+  timeZone: string;
+  phones: { label: string; display: string; tel: string }[];
+  emails: { label: string; address: string }[];
+  showOnWebsite: boolean;
+};
+
+const MANGALORE_ADDRESS =
+  "1st Floor, Empire Mall, MG Rd, Kodailbail, Mangaluru, Karnataka 575003";
+
+export const site = {
+  name: "Edusphere Overseas",
+  legalName: "Edusphere Overseas Pvt. Ltd.",
+  tagline: "Your Guide to Study Abroad",
+  url: "https://www.edusphereoverseas.com",
+  description:
+    "Personal study abroad guidance for the UK, Europe, Australia, New Zealand, the USA and Canada, from your first question to your first day on campus.",
+  whatsapp: {
+    number: "918129440282",
+    defaultMessage:
+      "Hi Edusphere, I'd like to know more about studying abroad.",
+  },
+  social: [
+    {
+      id: "instagram",
+      label: "Instagram",
+      handle: "@edusphere_overseas",
+      url: "https://www.instagram.com/edusphere_overseas/",
+    },
+    {
+      id: "linkedin",
+      label: "LinkedIn",
+      handle: "Edusphere Overseas",
+      url: "https://www.linkedin.com/company/edusphere-overseas",
+    },
+  ],
+} as const;
+
+export const offices: Office[] = [
+  {
+    id: "mangalore",
+    name: "Mangaluru",
+    legalName: "Edusphere Overseas Pvt. Ltd.",
+    countryCode: "in",
+    country: "India",
+    addressLines: [
+      "1st Floor, Empire Mall, MG Rd",
+      "Kodailbail, Mangaluru",
+      "Karnataka 575003",
+    ],
+    mapQuery: `Edusphere Overseas Pvt. Ltd., ${MANGALORE_ADDRESS}`,
+    googleBusinessUrl: "https://www.google.com/search?kgmid=%2Fg%2F11kh_rb7qt",
+    timeZone: "Asia/Kolkata",
+    phones: [{ label: "Admissions", display: "+91 81294 40282", tel: "+918129440282" }],
+    emails: [{ label: "General enquiries", address: "edusphereoverseas@gmail.com" }],
+    showOnWebsite: true,
+  },
+];
+
+export const visibleOffices = offices.filter((o) => o.showOnWebsite);
+
+export function whatsappLink(message: string = site.whatsapp.defaultMessage) {
+  return `https://wa.me/${site.whatsapp.number}?text=${encodeURIComponent(message)}`;
+}
+
+export function googleDirections(query: string) {
+  return `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(query)}`;
+}
+
+export function appleDirections(query: string) {
+  return `https://maps.apple.com/?daddr=${encodeURIComponent(query)}`;
+}
+
+export function googleMapEmbed(query: string) {
+  return `https://maps.google.com/maps?q=${encodeURIComponent(query)}&z=16&output=embed`;
+}
+
+export type Destination = {
+  id: string;
+  name: string;
+  flag: string;
+  intakes: string;
+  line: string;
+};
+
+/** Destination cards on the home page. Country pages arrive in Step 2. */
+export const destinations: Destination[] = [
+  {
+    id: "uk",
+    name: "United Kingdom",
+    flag: "gb",
+    intakes: "Main intakes: September and January",
+    line: "World-ranked universities and one-year master's degrees.",
+  },
+  {
+    id: "europe",
+    name: "Europe",
+    flag: "eu",
+    intakes: "Main intake: September and October",
+    line: "Germany, France, Ireland, the Netherlands and more.",
+  },
+  {
+    id: "australia",
+    name: "Australia",
+    flag: "au",
+    intakes: "Main intakes: February and July",
+    line: "Practical degrees and a welcoming student life.",
+  },
+  {
+    id: "new-zealand",
+    name: "New Zealand",
+    flag: "nz",
+    intakes: "Main intakes: February and July",
+    line: "Small classes, safe cities and stunning landscapes.",
+  },
+  {
+    id: "usa",
+    name: "United States",
+    flag: "us",
+    intakes: "Main intakes: Fall (August) and Spring (January)",
+    line: "Flexible programmes across thousands of institutions.",
+  },
+  {
+    id: "canada",
+    name: "Canada",
+    flag: "ca",
+    intakes: "Main intakes: September, January and May",
+    line: "Respected qualifications in a diverse, friendly country.",
+  },
+];
+
+/** Flags that loop along the bottom of the hero. */
+export const flagStrip: { code: string; name: string }[] = [
+  { code: "gb", name: "United Kingdom" },
+  { code: "ie", name: "Ireland" },
+  { code: "de", name: "Germany" },
+  { code: "fr", name: "France" },
+  { code: "nl", name: "Netherlands" },
+  { code: "es", name: "Spain" },
+  { code: "it", name: "Italy" },
+  { code: "au", name: "Australia" },
+  { code: "nz", name: "New Zealand" },
+  { code: "us", name: "United States" },
+  { code: "ca", name: "Canada" },
+];
+
+/** News ticker. In Step 2 these come from Sanity with start and end dates. */
+export const tickerItems: { tag: string; text: string; href?: string }[] = [
+  { tag: "Counselling", text: "Free one-to-one counselling sessions in Mangaluru, online or in person" },
+  { tag: "Destinations", text: "Personal guidance for the UK, Europe, Australia, New Zealand, the USA and Canada" },
+  { tag: "UK onshore", text: "Already studying in the UK? Ask us about onshore programmes" },
+  { tag: "Instagram", text: "Follow @edusphere_overseas for admission and visa updates", href: "https://www.instagram.com/edusphere_overseas/" },
+];
+
+export const journeySteps = [
+  { title: "Counselling", text: "A free conversation about your goals, budget and timeline." },
+  { title: "Shortlist", text: "Countries, universities and courses that genuinely fit you." },
+  { title: "Apply", text: "Applications, statements and documents prepared with care." },
+  { title: "Offer", text: "We help you compare offers and secure your place." },
+  { title: "Visa", text: "A clear checklist and guidance through every visa step." },
+  { title: "Fly", text: "Pre-departure support, accommodation and airport pickup." },
+];
+
+/** Student services. Icons map to the pick-list in the Content area. */
+export const defaultServices: { title: string; description: string; icon: string }[] = [
+  {
+    title: "Counselling and shortlisting",
+    description: "An honest conversation about your goals, then a shortlist of courses and universities that genuinely suit you.",
+    icon: "messages",
+  },
+  {
+    title: "University applications",
+    description: "Applications, statements of purpose and references prepared carefully, and submitted on time.",
+    icon: "graduation",
+  },
+  {
+    title: "Visa guidance",
+    description: "A clear document checklist, financial planning and interview preparation for your student visa.",
+    icon: "file-check",
+  },
+  {
+    title: "Scholarship assistance",
+    description: "We look for scholarships and fee awards you may qualify for and help you put your best case forward.",
+    icon: "award",
+  },
+  {
+    title: "Accommodation abroad",
+    description: "Help finding safe, well-located student housing before you leave home.",
+    icon: "bed",
+  },
+  {
+    title: "Airport pickup and drop",
+    description: "A friendly face when you land, and a smooth start to your first week.",
+    icon: "plane",
+  },
+  {
+    title: "Post-study work visa",
+    description: "Guidance on staying on to work after your degree, through appropriately regulated advisers where required.",
+    icon: "briefcase",
+  },
+  {
+    title: "UK onshore programmes",
+    description: "Already in the UK? Onshore admission options alongside your post-study plans.",
+    icon: "landmark",
+  },
+];
+
+export const defaultHero = {
+  eyebrow: "Study abroad consultancy · Head office in Mangaluru",
+  titleLine1: "Your future,",
+  titleLine2: "mapped out.",
+  intro:
+    "Personal guidance for studying in the UK, Europe, Australia, New Zealand, the USA and Canada. From your first question to your first day on campus, one team walks the whole way with you.",
+  note: "Free first consultation · In person in Mangaluru or online, wherever you are",
+};
+
+export const defaultBanners: { eyebrow: string; title: string; subtitle: string; flag?: string; ctaLabel: string; ctaLink: string }[] = [
+  {
+    eyebrow: "Free consultation",
+    title: "Plan your study abroad journey with us",
+    subtitle: "One-to-one guidance on countries, courses, costs and visas, in Mangaluru or online.",
+    ctaLabel: "Book a free consultation",
+    ctaLink: "/#contact",
+  },
+  {
+    eyebrow: "UK onshore",
+    title: "Already studying in the UK?",
+    subtitle: "Ask us about onshore admission programmes and planning your next step after your course.",
+    flag: "gb",
+    ctaLabel: "Find out more",
+    ctaLink: "/#uk-onshore",
+  },
+];
+#==EDU:FILE src/lib/content.ts
+import type { PortableTextBlock } from "next-sanity";
+import {
+  defaultBanners,
+  defaultHero,
+  defaultServices,
+  destinations as defaultDestinations,
+  offices as defaultOffices,
+  site,
+  tickerItems as defaultTicker,
+} from "@/config/site";
+import { sanityQuery } from "@/sanity/fetch";
+import { SITE_QUERY } from "@/sanity/queries";
+
+export type ContactPoint = { kind: "phone" | "whatsapp" | "email"; label: string; value: string; primary?: boolean };
+export type SocialLink = { platform: string; handle?: string; url: string };
+export type SanityPhoto = {
+  _type?: string;
+  alt: string;
+  caption?: string | null;
+  asset?: { _id: string; url: string; metadata?: { dimensions?: { width: number; height: number }; lqip?: string } } | null;
+  crop?: unknown;
+  hotspot?: unknown;
+};
+
+export type Office = {
+  id: string;
+  name: string;
+  legalName?: string | null;
+  isHeadOffice?: boolean | null;
+  country: string;
+  countryCode: string;
+  addressLines: string[];
+  mapQuery: string;
+  googleBusinessUrl?: string | null;
+  contacts: ContactPoint[];
+  photos: SanityPhoto[];
+};
+
+export type Banner = {
+  id: string;
+  eyebrow?: string | null;
+  title: string;
+  subtitle?: string | null;
+  flag?: string | null;
+  ctaLabel?: string | null;
+  ctaLink?: string | null;
+  image?: SanityPhoto | null;
+};
+
+export type OpenNowItem = {
+  _id: string;
+  title: string;
+  kind: "visa" | "scholarship" | "other";
+  country?: string | null;
+  flag?: string | null;
+  summary: string;
+  details?: PortableTextBlock[] | null;
+  opensAt?: string | null;
+  closesAt?: string | null;
+  officialLink?: string | null;
+  lastChecked?: string | null;
+  ctaLabel?: string | null;
+};
+
+export type Sections = {
+  ticker: boolean;
+  banners: boolean;
+  openNow: boolean;
+  destinations: boolean;
+  services: boolean;
+  journey: boolean;
+  ukOnshore: boolean;
+  courseFinder: boolean;
+  team: boolean;
+  gallery: boolean;
+};
+
+export type SiteContent = {
+  fromCms: boolean;
+  companyName: string;
+  legalName: string;
+  tagline: string;
+  description: string;
+  whatsappNumber: string; // digits only, for wa.me links
+  whatsappMessage: string;
+  contacts: ContactPoint[];
+  socialLinks: SocialLink[];
+  hero: typeof defaultHero;
+  sections: Sections;
+  offices: Office[];
+  ticker: { tag: string; text: string; link?: string | null }[];
+  banners: Banner[];
+  destinations: { id: string; name: string; flag: string; summary: string; intakes?: string | null }[];
+  services: { title: string; description: string; icon?: string | null }[];
+  openNow: OpenNowItem[];
+  onshore: { _id: string; title: string; provider?: string | null; location?: string | null; summary?: string | null; intakes?: string | null }[];
+  team: { _id: string; name: string; role: string; bio?: string | null; languages?: string[] | null; office?: string | null; photo?: SanityPhoto | null }[];
+};
+
+const defaultSections: Sections = {
+  ticker: true,
+  banners: true,
+  openNow: false,
+  destinations: true,
+  services: true,
+  journey: true,
+  ukOnshore: true,
+  courseFinder: false,
+  team: true,
+  gallery: true,
+};
+
+const digits = (v: string) => v.replace(/\D/g, "");
+
+/** Built-in content used until the Content area has been set up. */
+function defaults(): SiteContent {
+  const head = defaultOffices[0];
+  return {
+    fromCms: false,
+    companyName: site.name,
+    legalName: site.legalName,
+    tagline: site.tagline,
+    description: site.description,
+    whatsappNumber: site.whatsapp.number,
+    whatsappMessage: site.whatsapp.defaultMessage,
+    contacts: [
+      ...head.phones.map((p) => ({ kind: "phone" as const, label: p.label, value: p.display, primary: true })),
+      ...head.emails.map((e) => ({ kind: "email" as const, label: e.label, value: e.address, primary: true })),
+    ],
+    socialLinks: [
+      ...site.social.map((s) => ({ platform: s.id, handle: s.handle, url: s.url })),
+      { platform: "google", handle: "Edusphere Overseas", url: head.googleBusinessUrl ?? "" },
+    ],
+    hero: defaultHero,
+    sections: defaultSections,
+    offices: defaultOffices
+      .filter((o) => o.showOnWebsite)
+      .map((o) => ({
+        id: o.id,
+        name: o.name,
+        legalName: o.legalName,
+        isHeadOffice: o.id === "mangalore",
+        country: o.country,
+        countryCode: o.countryCode,
+        addressLines: o.addressLines,
+        mapQuery: o.mapQuery,
+        googleBusinessUrl: o.googleBusinessUrl,
+        contacts: [
+          ...o.phones.map((p) => ({ kind: "phone" as const, label: p.label, value: p.display })),
+          ...o.emails.map((e) => ({ kind: "email" as const, label: e.label, value: e.address })),
+        ],
+        photos: [],
+      })),
+    ticker: defaultTicker.map((t) => ({ tag: t.tag, text: t.text, link: t.href })),
+    banners: defaultBanners.map((b, i) => ({ id: `default-${i}`, ...b })),
+    destinations: defaultDestinations.map((d) => ({ id: d.id, name: d.name, flag: d.flag, summary: d.line, intakes: d.intakes })),
+    services: defaultServices,
+    openNow: [],
+    onshore: [],
+    team: [],
+  };
+}
+
+type QueryResult = {
+  settings: {
+    companyName?: string;
+    legalName?: string;
+    tagline?: string;
+    description?: string;
+    whatsappNumber?: string;
+    whatsappMessage?: string;
+    contacts?: ContactPoint[] | null;
+    socialLinks?: SocialLink[] | null;
+    heroEyebrow?: string;
+    heroTitleLine1?: string;
+    heroTitleLine2?: string;
+    heroIntro?: string;
+    heroNote?: string;
+    sections?: Partial<Sections> | null;
+  } | null;
+  offices: (Omit<Office, "id" | "contacts" | "photos" | "mapQuery"> & {
+    _id: string;
+    mapQuery?: string | null;
+    contacts?: ContactPoint[] | null;
+    photos?: SanityPhoto[] | null;
+  })[];
+  ticker: SiteContent["ticker"];
+  banners: (Omit<Banner, "id"> & { _id: string })[];
+  destinations: SiteContent["destinations"];
+  services: SiteContent["services"];
+  openNow: OpenNowItem[];
+  onshore: SiteContent["onshore"];
+  team: SiteContent["team"];
+};
+
+/**
+ * All site content. Comes from the Content area (Sanity) once "Website settings"
+ * exists there; until then the built-in defaults keep the site complete.
+ */
+export async function getSiteContent(): Promise<SiteContent> {
+  const data = await sanityQuery<QueryResult>(SITE_QUERY);
+  if (!data?.settings) return defaults();
+
+  const fallback = defaults();
+  const s = data.settings;
+  return {
+    fromCms: true,
+    companyName: s.companyName || fallback.companyName,
+    legalName: s.legalName || s.companyName || fallback.legalName,
+    tagline: s.tagline || fallback.tagline,
+    description: s.description || fallback.description,
+    whatsappNumber: s.whatsappNumber ? digits(s.whatsappNumber) : fallback.whatsappNumber,
+    whatsappMessage: s.whatsappMessage || fallback.whatsappMessage,
+    contacts: s.contacts ?? [],
+    socialLinks: (s.socialLinks ?? []).filter((l) => l.url),
+    hero: {
+      eyebrow: s.heroEyebrow ?? fallback.hero.eyebrow,
+      titleLine1: s.heroTitleLine1 || fallback.hero.titleLine1,
+      titleLine2: s.heroTitleLine2 ?? fallback.hero.titleLine2,
+      intro: s.heroIntro ?? fallback.hero.intro,
+      note: s.heroNote ?? fallback.hero.note,
+    },
+    sections: { ...defaultSections, ...(s.sections ?? {}) },
+    offices: (data.offices ?? []).map((o) => ({
+      ...o,
+      id: o._id,
+      mapQuery: o.mapQuery || [o.legalName, ...o.addressLines].filter(Boolean).join(", "),
+      contacts: o.contacts ?? [],
+      photos: (o.photos ?? []).filter((p) => p?.asset?.url),
+    })),
+    ticker: data.ticker ?? [],
+    banners: (data.banners ?? []).map((b) => ({ ...b, id: b._id, image: b.image?.asset?.url ? b.image : null })),
+    destinations: (data.destinations ?? []).filter((d) => d.id),
+    services: data.services ?? [],
+    openNow: data.openNow ?? [],
+    onshore: data.onshore ?? [],
+    team: (data.team ?? []).map((t) => ({ ...t, photo: t.photo?.asset?.url ? t.photo : null })),
+  };
+}
+
+export { telHref, whatsappHref } from "./links";
+#==EDU:FILE src/lib/links.ts
+/** Link helpers that are safe to use in both server and client components. */
+const digits = (v: string) => v.replace(/\D/g, "");
+
+export const telHref = (value: string) => `tel:${value.replace(/[^\d+]/g, "")}`;
+
+export const whatsappHref = (number: string, message?: string) =>
+  `https://wa.me/${digits(number)}${message ? `?text=${encodeURIComponent(message)}` : ""}`;
+#==EDU:FILE src/sanity/client.ts
+import { createClient } from "next-sanity";
+import { apiVersion, dataset, projectId } from "./env";
+
+/** Read-only client for published content (the dataset is public; no token needed). */
+export const client = createClient({
+  projectId,
+  dataset,
+  apiVersion,
+  useCdn: true,
+  perspective: "published",
+});
+#==EDU:FILE src/sanity/env.ts
+/** Sanity project settings. The project ID is not secret; env vars can override it. */
+export const projectId = process.env.NEXT_PUBLIC_SANITY_PROJECT_ID || "wuskruh6";
+export const dataset = process.env.NEXT_PUBLIC_SANITY_DATASET || "production";
+export const apiVersion = "2026-11-01";
+export const studioBasePath = "/admin/content";
+#==EDU:FILE src/sanity/fetch.ts
+import { cacheLife, cacheTag } from "next/cache";
+import { client } from "./client";
+import { SANITY_TAG } from "./tags";
+
+/**
+ * Cached Sanity query. Results are shared by every visitor and refreshed about
+ * once a minute, or immediately when the Sanity webhook calls /api/revalidate.
+ * Returns null if Sanity can't be reached, so the site falls back to defaults.
+ */
+export async function sanityQuery<T>(query: string, params: Record<string, unknown> = {}): Promise<T | null> {
+  "use cache";
+  cacheTag(SANITY_TAG);
+  cacheLife("minutes");
+  try {
+    return await client.fetch<T>(query, params);
+  } catch (error) {
+    console.error("[sanity] query failed:", error instanceof Error ? error.message : error);
+    return null;
+  }
+}
+#==EDU:FILE src/sanity/options.ts
+/** Shared pick-lists used by several content types. */
+
+export const flagOptions = [
+  { title: "United Kingdom", value: "gb" },
+  { title: "Europe (EU flag)", value: "eu" },
+  { title: "Ireland", value: "ie" },
+  { title: "Germany", value: "de" },
+  { title: "France", value: "fr" },
+  { title: "Netherlands", value: "nl" },
+  { title: "Spain", value: "es" },
+  { title: "Italy", value: "it" },
+  { title: "Australia", value: "au" },
+  { title: "New Zealand", value: "nz" },
+  { title: "United States", value: "us" },
+  { title: "Canada", value: "ca" },
+  { title: "India", value: "in" },
+  { title: "United Arab Emirates", value: "ae" },
+];
+
+export const timeZoneOptions = [
+  { title: "India (Asia/Kolkata)", value: "Asia/Kolkata" },
+  { title: "United Kingdom (Europe/London)", value: "Europe/London" },
+  { title: "UAE (Asia/Dubai)", value: "Asia/Dubai" },
+];
+
+export const serviceIconOptions = [
+  { title: "Conversation (counselling)", value: "messages" },
+  { title: "Graduation cap (applications)", value: "graduation" },
+  { title: "Document check (visa)", value: "file-check" },
+  { title: "Award (scholarships)", value: "award" },
+  { title: "Bed (accommodation)", value: "bed" },
+  { title: "Plane (airport pickup)", value: "plane" },
+  { title: "Briefcase (work visa)", value: "briefcase" },
+  { title: "Landmark (UK onshore)", value: "landmark" },
+  { title: "Globe", value: "globe" },
+  { title: "Wallet (finance)", value: "wallet" },
+];
+#==EDU:FILE src/sanity/queries.ts
+import { defineQuery } from "next-sanity";
+
+const scheduled = `active != false && (!defined(startsAt) || startsAt <= now()) && (!defined(endsAt) || endsAt > now())`;
+const photoFields = `{ ..., "alt": coalesce(alt, ""), "caption": caption, asset->{ _id, url, metadata { dimensions, lqip } } }`;
+const contact = `{ kind, label, value, primary }`;
+
+/** Everything the site layout and home page need, in one request. */
+export const SITE_QUERY = defineQuery(`{
+  "settings": *[_id == "siteSettings"][0]{
+    companyName, legalName, tagline, description, whatsappNumber, whatsappMessage,
+    "contacts": contacts[show != false]${contact},
+    "socialLinks": socialLinks[show != false]{ platform, handle, url },
+    heroEyebrow, heroTitleLine1, heroTitleLine2, heroIntro, heroNote,
+    sections
+  },
+  "offices": *[_type == "office" && showOnWebsite == true && count(addressLines) > 0] | order(isHeadOffice desc, order asc){
+    _id, name, legalName, isHeadOffice, country, countryCode, addressLines, mapQuery, googleBusinessUrl, timeZone,
+    "contacts": contacts[show != false]${contact},
+    "photos": photos[]${photoFields}
+  },
+  "ticker": *[_type == "tickerItem" && ${scheduled}] | order(order asc){ tag, text, link },
+  "banners": *[_type == "banner" && ${scheduled}] | order(order asc){
+    _id, eyebrow, title, subtitle, flag, ctaLabel, ctaLink, "image": image${photoFields}
+  },
+  "destinations": *[_type == "destination" && show != false] | order(order asc){
+    "id": slug.current, name, flag, summary, intakes
+  },
+  "services": *[_type == "service" && show != false] | order(order asc){ title, description, icon },
+  "openNow": *[_type == "openNowProgramme" && show == true && (!defined(closesAt) || closesAt > now())] | order(coalesce(closesAt, "9999") asc, order asc){
+    _id, title, kind, country, flag, summary, details, opensAt, closesAt, officialLink, lastChecked, ctaLabel
+  },
+  "onshore": *[_type == "onshoreProgramme" && show != false] | order(order asc){ _id, title, provider, location, summary, intakes },
+  "team": *[_type == "teamMember" && show != false] | order(order asc){
+    _id, name, role, bio, languages, "office": office->name, "photo": photo${photoFields}
+  }
+}`);
