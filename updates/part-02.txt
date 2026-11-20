@@ -1,0 +1,633 @@
+#==EDU:FILE src/app/admin/page.tsx
+import type { Metadata } from "next";
+import Link from "next/link";
+import { ArrowRight, ClipboardList, FilePenLine } from "lucide-react";
+import { Logo } from "@/components/brand/Logo";
+
+export const metadata: Metadata = {
+  title: "Admin portal",
+  robots: { index: false, follow: false },
+};
+
+const areas = [
+  {
+    href: "/admin/content",
+    icon: FilePenLine,
+    title: "Content",
+    text: "Banners, news ticker, offices, contact details, destinations, services, \"Open now\", team and photos.",
+    ready: true,
+  },
+  {
+    href: "#",
+    icon: ClipboardList,
+    title: "Operations",
+    text: "Enquiries, students, documents, applications, appointments and service requests.",
+    ready: false,
+  },
+];
+
+export default function AdminHome() {
+  return (
+    <div className="min-h-dvh bg-deep">
+      <header className="border-b border-white/10">
+        <div className="mx-auto flex h-[4.5rem] max-w-5xl items-center justify-between px-5 sm:px-8">
+          <Link href="/" aria-label="Back to the website">
+            <Logo showTagline={false} />
+          </Link>
+          <span className="rounded-full bg-white/8 px-3 py-1 text-xs font-semibold text-white/70">Admin portal</span>
+        </div>
+      </header>
+      <main className="mx-auto max-w-5xl px-5 py-16 sm:px-8 sm:py-20">
+        <h1 className="text-3xl font-extrabold tracking-[-0.02em] text-white sm:text-4xl">Welcome back</h1>
+        <p className="mt-3 text-white/65">Choose where you want to work.</p>
+        <div className="mt-10 grid gap-5 md:grid-cols-2">
+          {areas.map(({ href, icon: Icon, title, text, ready }) =>
+            ready ? (
+              <Link
+                key={title}
+                href={href}
+                className="group rounded-3xl border border-white/10 bg-panel/70 p-7 transition hover:border-teal-light/40 hover:bg-panel"
+              >
+                <Icon className="h-7 w-7 text-teal-light" aria-hidden="true" />
+                <h2 className="mt-5 flex items-center gap-2 text-xl font-bold text-white">
+                  {title}
+                  <ArrowRight className="h-5 w-5 transition-transform group-hover:translate-x-1" aria-hidden="true" />
+                </h2>
+                <p className="mt-2 text-sm leading-relaxed text-white/65">{text}</p>
+              </Link>
+            ) : (
+              <div key={title} className="rounded-3xl border border-dashed border-white/12 p-7">
+                <Icon className="h-7 w-7 text-white/40" aria-hidden="true" />
+                <h2 className="mt-5 text-xl font-bold text-white/70">
+                  {title}
+                  <span className="ml-3 rounded-full bg-white/8 px-2.5 py-1 align-middle text-xs font-semibold text-white/60">
+                    Coming with the portal
+                  </span>
+                </h2>
+                <p className="mt-2 text-sm leading-relaxed text-white/50">{text}</p>
+              </div>
+            ),
+          )}
+        </div>
+        <p className="mt-10 text-sm text-white/45">
+          Sign in to Content with the Sanity account you were invited to. Changes appear on the website within about a
+          minute of publishing.
+        </p>
+      </main>
+    </div>
+  );
+}
+#==EDU:FILE src/app/api/revalidate/route.ts
+import { revalidateTag } from "next/cache";
+import type { NextRequest } from "next/server";
+import { parseBody } from "next-sanity/webhook";
+import { SANITY_TAG } from "@/sanity/tags";
+
+/**
+ * Called by a Sanity webhook whenever content is published, so the website
+ * updates straight away instead of within the usual minute.
+ * Requires SANITY_REVALIDATE_SECRET in Netlify and the same secret on the webhook.
+ */
+export async function POST(req: NextRequest) {
+  const secret = process.env.SANITY_REVALIDATE_SECRET;
+  if (!secret) return new Response("Revalidation is not configured", { status: 501 });
+
+  const { isValidSignature, body } = await parseBody<{ _type?: string }>(req, secret);
+  if (!isValidSignature) return new Response("Invalid signature", { status: 401 });
+
+  revalidateTag(SANITY_TAG, { expire: 0 });
+  return Response.json({ revalidated: true, type: body?._type ?? null });
+}
+#==EDU:FILE src/app/globals.css
+@import "tailwindcss";
+
+@theme inline {
+  --font-sans: var(--font-montserrat), ui-sans-serif, system-ui, sans-serif;
+}
+
+/* ------------------------------------------------------------------
+   Edusphere brand tokens (taken from the logo)
+   ------------------------------------------------------------------ */
+@theme {
+  --color-navy: #2c6085;        /* logo cap */
+  --color-navy-light: #5a9bd1;  /* cap on dark backgrounds */
+  --color-teal: #449aa8;        /* logo base */
+  --color-teal-light: #5cc0cf;  /* base on dark backgrounds */
+  --color-deep: #0d2236;        /* main dark background */
+  --color-deeper: #08182a;
+  --color-panel: #13304a;       /* cards on dark */
+  --color-slate: #5a7383;       /* logo wordmark */
+  --color-ink: #111111;
+  --color-mist: #f4f7fa;        /* light reading sections */
+
+  --animate-marquee: marquee 40s linear infinite;
+  --animate-marquee-slow: marquee 60s linear infinite;
+
+  @keyframes marquee {
+    from { transform: translateX(0); }
+    to { transform: translateX(-50%); }
+  }
+}
+
+html {
+  scroll-behavior: smooth;
+  -webkit-tap-highlight-color: transparent;
+}
+
+body {
+  background: var(--color-deep);
+  color: #ffffff;
+  font-family: var(--font-sans);
+  text-rendering: optimizeLegibility;
+}
+
+::selection {
+  background: var(--color-teal);
+  color: #fff;
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-teal-light);
+  outline-offset: 3px;
+  border-radius: 6px;
+}
+
+/* Pause marquees when hovered or focused */
+.marquee-track:hover,
+.marquee-track:focus-within {
+  animation-play-state: paused;
+}
+
+/* ------------------------------------------------------------------
+   Logo loading animation (first visit in a session only)
+   Runs in pure CSS so it starts on first paint; JS only adds the glide
+   into the header and tap-to-skip. About 1.6 s in total.
+   ------------------------------------------------------------------ */
+.intro {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  animation: intro-out 0.3s ease-in 1.5s forwards; /* failsafe without JS */
+}
+.intro::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(55% 45% at 50% 42%, rgba(68, 154, 168, 0.18), transparent 70%),
+    var(--color-deep);
+  transition: opacity 0.45s ease;
+}
+:root[data-intro="skip"] .intro,
+.intro.is-done {
+  display: none;
+}
+.intro.is-gliding {
+  animation: none;
+  pointer-events: none;
+}
+.intro.is-gliding::before { opacity: 0; }
+.intro.is-gliding .intro-text {
+  transition: opacity 0.18s ease;
+  opacity: 0;
+}
+.intro-mark {
+  position: relative;
+  width: min(40vw, 176px);
+  overflow: visible;
+  transition: transform 0.5s cubic-bezier(0.65, 0, 0.35, 1);
+  will-change: transform;
+}
+
+.intro .draw {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: draw 0.28s cubic-bezier(0.55, 0, 0.25, 1) forwards;
+}
+.intro .draw-spine { animation-delay: 0.04s; animation-duration: 0.3s; }
+.intro .draw-bar1 { animation-delay: 0.22s; }
+.intro .draw-bar2 { animation-delay: 0.31s; }
+.intro .draw-bar3 { animation-delay: 0.4s; }
+.intro .cap-fill {
+  opacity: 0;
+  animation: fade-in 0.1s linear 0.66s forwards;
+}
+.intro .cap-strokes {
+  animation: fade-out 0.01s linear 0.76s forwards;
+}
+.intro .tassel-string {
+  transform-box: fill-box;
+  transform-origin: top;
+  transform: scaleY(0);
+  animation: grow-down 0.14s ease-out 0.55s forwards;
+}
+.intro .tassel-drop {
+  opacity: 0;
+  transform-box: view-box;
+  transform-origin: 24.4px 96px;
+  animation: drop-swing 0.55s ease-out 0.66s forwards;
+}
+.intro .base {
+  opacity: 0;
+  transform: translateY(26px);
+  animation: rise 0.4s cubic-bezier(0.2, 0.8, 0.2, 1) 0.42s forwards;
+}
+.intro .letter {
+  display: inline-block;
+  opacity: 0;
+  transform: translateY(0.35em);
+  animation: rise 0.3s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+  animation-delay: calc(0.5s + var(--i) * 0.015s);
+}
+.intro .tagline {
+  opacity: 0;
+  transform: translateY(6px);
+  animation: rise 0.3s ease-out 0.78s forwards;
+}
+
+@keyframes draw { to { stroke-dashoffset: 0; } }
+@keyframes grow-down { to { transform: scaleY(1); } }
+@keyframes rise { to { opacity: 1; transform: none; } }
+@keyframes fade-in { to { opacity: 1; } }
+@keyframes fade-out { to { opacity: 0; } }
+@keyframes drop-swing {
+  0% { opacity: 0; transform: rotate(0deg); }
+  15% { opacity: 1; transform: rotate(9deg); }
+  45% { transform: rotate(-6deg); }
+  75% { transform: rotate(3deg); }
+  100% { opacity: 1; transform: rotate(0deg); }
+}
+@keyframes intro-out {
+  to { opacity: 0; visibility: hidden; }
+}
+
+/* ------------------------------------------------------------------
+   Hero "sphere" of flags
+   ------------------------------------------------------------------ */
+.orbit {
+  animation: spin 48s linear infinite;
+}
+.orbit-reverse {
+  animation: spin 64s linear infinite reverse;
+}
+.orbit .counter-spin {
+  animation: spin 48s linear infinite reverse;
+}
+.orbit-reverse .counter-spin {
+  animation: spin 64s linear infinite;
+}
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.glow-pulse {
+  animation: glow 4s ease-in-out infinite;
+}
+@keyframes glow {
+  0%, 100% { opacity: 0.55; transform: scale(1); }
+  50% { opacity: 0.85; transform: scale(1.06); }
+}
+
+/* ------------------------------------------------------------------
+   Scroll reveal (class added by <Reveal>)
+   ------------------------------------------------------------------ */
+.reveal {
+  opacity: 0;
+  transform: translateY(24px);
+  transition:
+    opacity 0.7s cubic-bezier(0.2, 0.8, 0.2, 1),
+    transform 0.7s cubic-bezier(0.2, 0.8, 0.2, 1);
+  transition-delay: var(--reveal-delay, 0s);
+}
+.reveal.is-visible {
+  opacity: 1;
+  transform: none;
+}
+
+/* Destination card flip */
+.flip {
+  perspective: 1200px;
+}
+.flip-inner {
+  position: relative;
+  transform-style: preserve-3d;
+  transition: transform 0.7s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.flip.is-flipped .flip-inner {
+  transform: rotateY(180deg);
+}
+.flip-face {
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+.flip-back {
+  position: absolute;
+  inset: 0;
+  transform: rotateY(180deg);
+}
+
+.flag-wave {
+  transition: transform 0.5s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.group:hover .flag-wave {
+  animation: wave 1.6s ease-in-out infinite;
+}
+@keyframes wave {
+  0%, 100% { transform: perspective(300px) rotateY(0deg) skewY(0deg); }
+  25% { transform: perspective(300px) rotateY(-8deg) skewY(-1.5deg); }
+  75% { transform: perspective(300px) rotateY(8deg) skewY(1.5deg); }
+}
+
+
+/* ------------------------------------------------------------------
+   Hero entrance: waits for the intro on first visit, quick otherwise
+   ------------------------------------------------------------------ */
+:root { --intro-delay: 1.2s; }
+:root[data-intro="skip"] { --intro-delay: 0.05s; }
+.hero-in {
+  animation: rise 0.8s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  animation-delay: calc(var(--intro-delay) + var(--d, 0s));
+  opacity: 0;
+  transform: translateY(18px);
+}
+.whatsapp-fab {
+  animation: pop-in 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  animation-delay: calc(var(--intro-delay) + 0.9s);
+}
+@keyframes pop-in {
+  from { opacity: 0; transform: scale(0.6); }
+  to { opacity: 1; transform: none; }
+}
+
+@keyframes banner-progress {
+  from { width: 0%; }
+  to { width: 100%; }
+}
+
+/* Pause the orbiting flags while the visitor explores them */
+.globe:hover .orbit,
+.globe:hover .orbit-reverse,
+.globe:hover .counter-spin,
+.globe:focus-within .orbit,
+.globe:focus-within .orbit-reverse,
+.globe:focus-within .counter-spin {
+  animation-play-state: paused;
+}
+
+/* ------------------------------------------------------------------
+   Respect "reduce motion"
+   ------------------------------------------------------------------ */
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  .intro { display: none; }
+  :root { --intro-delay: 0s; }
+  .orbit, .orbit-reverse, .counter-spin { animation: none !important; }
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+  .reveal { opacity: 1; transform: none; }
+}
+#==EDU:FILE src/app/layout.tsx
+import type { Metadata, Viewport } from "next";
+import localFont from "next/font/local";
+import { site } from "@/config/site";
+import "./globals.css";
+
+const montserrat = localFont({
+  src: "./fonts/montserrat-latin-wght-normal.woff2",
+  variable: "--font-montserrat",
+  weight: "100 900",
+  display: "swap",
+});
+
+export const metadata: Metadata = {
+  metadataBase: new URL(site.url),
+  title: {
+    default: `${site.name} | ${site.tagline}`,
+    template: `%s | ${site.name}`,
+  },
+  description: site.description,
+  applicationName: site.name,
+  openGraph: {
+    type: "website",
+    siteName: site.name,
+    title: `${site.name} | ${site.tagline}`,
+    description: site.description,
+    locale: "en_IN",
+  },
+  robots: { index: false, follow: false }, // switch on at launch (Step 8)
+};
+
+export const viewport: Viewport = {
+  themeColor: "#0d2236",
+  colorScheme: "dark",
+};
+
+/** Marks repeat visits in this browser session before first paint, so the intro never flashes. */
+const introScript = `try{if(sessionStorage.getItem("es-intro"))document.documentElement.dataset.intro="skip"}catch(e){}`;
+
+export default function RootLayout({ children }: LayoutProps<"/">) {
+  return (
+    <html lang="en" className={montserrat.variable} suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: introScript }} />
+      </head>
+      <body className="min-h-dvh antialiased">{children}</body>
+    </html>
+  );
+}
+#==EDU:FILE src/app/not-found.tsx
+import Link from "next/link";
+import { LogoMark } from "@/components/brand/LogoMark";
+
+export default function NotFound() {
+  return (
+    <section className="mx-auto flex min-h-dvh max-w-xl flex-col items-center justify-center px-5 py-28 text-center">
+      <LogoMark className="w-24 opacity-90" />
+      <h1 className="mt-8 text-3xl font-extrabold tracking-[-0.02em] text-white">This page took a different route</h1>
+      <p className="mt-4 text-white/65">The page you were looking for isn&apos;t here. Let&apos;s get you back on the map.</p>
+      <Link href="/" className="mt-8 rounded-full bg-teal px-6 py-3 font-semibold text-white transition hover:bg-teal-light">
+        Back to home
+      </Link>
+    </section>
+  );
+}
+#==EDU:FILE src/components/home/Banners.tsx
+"use client";
+
+import Link from "next/link";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { ArrowRight, ChevronLeft, ChevronRight } from "lucide-react";
+import { LogoMark } from "@/components/brand/LogoMark";
+import { SanityImage } from "@/components/ui/SanityImage";
+import { whatsappHref } from "@/lib/links";
+import type { Banner } from "@/lib/content";
+
+const INTERVAL_MS = 6500;
+
+/** Rotating banners managed in Content → Home page → Banners. */
+export function Banners({ banners, whatsapp }: { banners: Banner[]; whatsapp: string }) {
+  const [index, setIndex] = useState(0);
+  const [paused, setPaused] = useState(false);
+  const touchX = useRef<number | null>(null);
+  const count = banners.length;
+
+  const go = useCallback((n: number) => setIndex(((n % count) + count) % count), [count]);
+
+  useEffect(() => {
+    if (count < 2 || paused) return;
+    if (matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const t = setTimeout(() => go(index + 1), INTERVAL_MS);
+    return () => clearTimeout(t);
+  }, [index, paused, count, go]);
+
+  if (count === 0) return null;
+
+  return (
+    <section aria-roledescription="carousel" aria-label="Highlights" className="relative pt-14 sm:pt-16">
+      <div className="mx-auto max-w-7xl px-5 sm:px-8">
+        <div
+          className="relative overflow-hidden rounded-[2rem] border border-white/10 bg-panel"
+          onMouseEnter={() => setPaused(true)}
+          onMouseLeave={() => setPaused(false)}
+          onFocusCapture={() => setPaused(true)}
+          onBlurCapture={() => setPaused(false)}
+          onTouchStart={(e) => (touchX.current = e.touches[0].clientX)}
+          onTouchEnd={(e) => {
+            if (touchX.current === null) return;
+            const dx = e.changedTouches[0].clientX - touchX.current;
+            if (Math.abs(dx) > 40) go(index + (dx < 0 ? 1 : -1));
+            touchX.current = null;
+          }}
+        >
+          <div className="grid">
+            {banners.map((b, i) => {
+              const active = i === index;
+              const href = b.ctaLink || whatsappHref(whatsapp, `Hi Edusphere, I'd like to know more about: ${b.title}`);
+              const external = href.startsWith("http");
+              return (
+                <article
+                  key={b.id}
+                  aria-roledescription="slide"
+                  aria-label={`${i + 1} of ${count}`}
+                  aria-hidden={!active}
+                  className={`relative col-start-1 row-start-1 flex min-h-[22rem] items-end transition-opacity duration-700 ease-out sm:min-h-[20rem] lg:min-h-[22rem] ${
+                    active ? "z-10 opacity-100" : "pointer-events-none z-0 opacity-0"
+                  }`}
+                >
+                  {/* background */}
+                  {b.image ? (
+                    <div className="absolute inset-0">
+                      <SanityImage
+                        photo={b.image}
+                        fill
+                        sizes="(min-width: 1280px) 1216px, 100vw"
+                        className={`object-cover transition-transform duration-[7000ms] ease-out ${active ? "scale-105" : "scale-100"}`}
+                      />
+                      <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(8,24,42,0.95)_0%,rgba(8,24,42,0.75)_45%,rgba(8,24,42,0.2)_100%)]" />
+                    </div>
+                  ) : (
+                    <div aria-hidden="true" className="absolute inset-0 overflow-hidden bg-[linear-gradient(120deg,#16405f_0%,#13304a_50%,#0f2a43_100%)]">
+                      <div className="absolute -top-24 -left-24 h-72 w-72 rounded-full bg-teal/25 blur-3xl" />
+                      {b.flag ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={`/flags/${b.flag}.svg`}
+                          alt=""
+                          className={`absolute top-1/2 -right-10 h-[115%] -translate-y-1/2 rotate-[-10deg] rounded-[3rem] object-cover opacity-[0.16] transition-transform duration-[7000ms] ease-out sm:right-0 ${active ? "scale-105" : "scale-100"}`}
+                        />
+                      ) : (
+                        <LogoMark
+                          className={`absolute top-1/2 -right-16 h-[120%] w-auto -translate-y-1/2 opacity-[0.12] transition-transform duration-[7000ms] ease-out sm:right-4 ${active ? "scale-105" : "scale-100"}`}
+                        />
+                      )}
+                    </div>
+                  )}
+
+                  {/* text */}
+                  <div className="relative max-w-2xl p-7 pb-20 sm:p-12 sm:pb-20 lg:p-14 lg:pb-20">
+                    {b.eyebrow && (
+                      <span className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1.5 text-xs font-bold uppercase tracking-[0.16em] text-white backdrop-blur">
+                        {b.flag && (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={`/flags/${b.flag}.svg`} alt="" className="h-3.5 w-5 rounded-[2px] object-cover" />
+                        )}
+                        {b.eyebrow}
+                      </span>
+                    )}
+                    <h2 className="mt-4 text-balance text-3xl font-extrabold leading-[1.1] tracking-[-0.02em] text-white sm:text-4xl">
+                      {b.title}
+                    </h2>
+                    {b.subtitle && <p className="mt-4 max-w-xl text-base leading-relaxed text-white/75 sm:text-lg">{b.subtitle}</p>}
+                    <Link
+                      href={href}
+                      target={external ? "_blank" : undefined}
+                      rel={external ? "noopener noreferrer" : undefined}
+                      tabIndex={active ? 0 : -1}
+                      className="group mt-7 inline-flex items-center gap-2 rounded-full bg-white px-5 py-3 text-sm font-semibold text-deep transition hover:bg-mist"
+                    >
+                      {b.ctaLabel || "Find out more"}
+                      <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" aria-hidden="true" />
+                    </Link>
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+
+          {count > 1 && (
+            <div className="absolute right-5 bottom-5 left-7 z-20 flex items-center justify-between gap-4 sm:left-12 lg:left-14">
+              <div className="flex items-center gap-2">
+                {banners.map((b, i) => (
+                  <button
+                    key={b.id}
+                    type="button"
+                    onClick={() => go(i)}
+                    aria-label={`Show banner ${i + 1}`}
+                    aria-current={i === index}
+                    className="group relative h-2.5 overflow-hidden rounded-full bg-white/25 transition-all duration-300"
+                    style={{ width: i === index ? 40 : 10 }}
+                  >
+                    {i === index && (
+                      <span
+                        key={`${index}-${paused}`}
+                        className="absolute inset-y-0 left-0 bg-white"
+                        style={{
+                          width: paused ? "100%" : undefined,
+                          animation: paused ? undefined : `banner-progress ${INTERVAL_MS}ms linear forwards`,
+                        }}
+                      />
+                    )}
+                  </button>
+                ))}
+              </div>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => go(index - 1)}
+                  aria-label="Previous banner"
+                  className="flex h-10 w-10 items-center justify-center rounded-full text-white ring-1 ring-white/25 backdrop-blur transition hover:bg-white/10"
+                >
+                  <ChevronLeft className="h-5 w-5" aria-hidden="true" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => go(index + 1)}
+                  aria-label="Next banner"
+                  className="flex h-10 w-10 items-center justify-center rounded-full text-white ring-1 ring-white/25 backdrop-blur transition hover:bg-white/10"
+                >
+                  <ChevronRight className="h-5 w-5" aria-hidden="true" />
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </section>
+  );
+}
