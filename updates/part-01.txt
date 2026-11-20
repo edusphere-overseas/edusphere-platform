@@ -1,0 +1,523 @@
+#==EDU:FILE .env.example
+# Copy to .env.local for local development. Never commit real values.
+# Add the same keys in Netlify: Site configuration > Environment variables.
+
+# Step 2: Sanity (content)
+NEXT_PUBLIC_SANITY_PROJECT_ID=wuskruh6
+NEXT_PUBLIC_SANITY_DATASET=production
+SANITY_API_READ_TOKEN=
+
+# Step 3: Supabase (portal, Mumbai region)
+NEXT_PUBLIC_SUPABASE_URL=
+NEXT_PUBLIC_SUPABASE_ANON_KEY=
+SUPABASE_SERVICE_ROLE_KEY=
+
+# Step 3: Cloudflare R2 (documents) and Turnstile (spam checks)
+R2_ACCOUNT_ID=
+R2_ACCESS_KEY_ID=
+R2_SECRET_ACCESS_KEY=
+R2_BUCKET=edusphere-documents
+NEXT_PUBLIC_TURNSTILE_SITE_KEY=
+TURNSTILE_SECRET_KEY=
+
+# Step 4: Resend (email)
+RESEND_API_KEY=
+
+# Step 6: Google reviews (Places API, New)
+GOOGLE_PLACES_API_KEY=
+GOOGLE_PLACE_ID=
+
+# Step 2: instant updates when content is published (same secret on the Sanity webhook)
+SANITY_REVALIDATE_SECRET=
+#==EDU:FILE README.md
+# Edusphere Overseas — website and portal
+
+The new Edusphere Overseas site, built to the **Website Plan, Version 1**.
+
+**Stack:** Next.js 16 (App Router, TypeScript) · Tailwind CSS 4 · Motion · Sanity (content) · Netlify.
+Coming in later steps: Supabase (portal, Mumbai region), Cloudflare R2 and Turnstile, Resend.
+
+**Live preview:** https://edusphere-overseas.netlify.app (private to the Netlify team until launch)
+**Admin portal:** `/admin` → **Content** at `/admin/content` (Sanity Studio; sign in with your invited Sanity account)
+
+## Run it on your computer
+
+You need Node.js 22 or newer.
+
+```bash
+npm install
+npm run dev        # http://localhost:3000
+npm run build      # production build, the same one Netlify runs
+```
+
+## Where things live
+
+| What | Where |
+| --- | --- |
+| Banners, ticker, offices, contact details, social links, destinations, services, "Open now", UK onshore programmes, team, office photos, section switches, hero text | **Admin → Content** (Sanity) |
+| Built-in fallback content (used until Content is set up) | `src/config/site.ts` |
+| Content types (what fields the team can edit) | `src/sanity/schemaTypes/` |
+| Content menu layout | `src/sanity/structure.ts` |
+| How the site reads content | `src/sanity/queries.ts`, `src/lib/content.ts` |
+| Brand colours, animations | `src/app/globals.css` |
+| Logo (vector) and loading animation | `src/components/brand/` |
+| Home page sections | `src/components/home/` |
+| Header, footer, ticker, WhatsApp button | `src/components/layout/` |
+| Country flags (MIT licence) | `public/flags/` |
+
+Published changes appear on the website within about a minute. For instant updates, add a Sanity webhook to `/api/revalidate` with a secret, and the same secret as `SANITY_REVALIDATE_SECRET` in Netlify.
+
+To give a team member access to Content, invite them to the **Edusphere Platform** project at sanity.io/manage → Members.
+
+## Logo loading animation
+
+Plays once per browser session (about 1.6 seconds), then glides into the header logo. Tap to skip. It is skipped for visitors who have "reduce motion" turned on, and it hides itself even if JavaScript is slow.
+
+## Deploy (Netlify)
+
+1. Push this folder to the Edusphere GitHub repository.
+2. In Netlify: **Add new project → Import from Git → GitHub →** choose the repository. Netlify detects Next.js; leave the build settings as they are (`netlify.toml` sets Node 22).
+3. Later steps add keys under **Site configuration → Environment variables** (see `.env.example`).
+
+The site is set to `noindex` until launch; switch `robots` in `src/app/layout.tsx` at go-live (Step 8).
+
+## Build plan progress
+
+- [x] Step 1 — Foundations: project, brand theme, logo and loading animation, header, news ticker, hero with interactive flags, destinations, services, journey, UK onshore, contact with maps, footer, WhatsApp button
+- [x] Step 2 (part 1) — Sanity Content area embedded in the admin portal; banners, ticker, offices, contacts, social links, destinations, services, "Open now", UK onshore programmes, team, office photos, section switches (incl. course finder), About page
+- [ ] Step 2 (part 2) — Google reviews, destination and service pages
+- [ ] Step 3 — Student and parent portal (Supabase sign-up with email or Google, documents, tracker)
+- [ ] Step 4 — Counselling appointments and email
+- [ ] Steps 5–8 — per the plan
+#==EDU:FILE package.json
+{
+  "name": "edusphere-platform",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint"
+  },
+  "dependencies": {
+    "@fontsource-variable/montserrat": "^5.3.0",
+    "@sanity/image-url": "^2.2.0",
+    "@sanity/vision": "^6.24.0",
+    "flag-icons": "^7.6.0",
+    "lucide-react": "^1.76.0",
+    "motion": "^14.14.0",
+    "next": "16.4.6",
+    "next-sanity": "^13.5.1",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "sanity": "^6.24.0",
+    "styled-components": "^6.6.0"
+  },
+  "devDependencies": {
+    "@tailwindcss/turbopack": "4.3.3",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "eslint": "^9",
+    "eslint-config-next": "16.4.6",
+    "tailwindcss": "4.3.3",
+    "typescript": "^5"
+  }
+}
+#==EDU:FILE sanity.cli.ts
+import { defineCliConfig } from "sanity/cli";
+
+export default defineCliConfig({
+  api: { projectId: "wuskruh6", dataset: "production" },
+});
+#==EDU:FILE sanity.config.tsx
+"use client";
+
+/**
+ * Content area of the Edusphere admin portal (Sanity Studio), embedded at /admin/content.
+ */
+import { defineConfig } from "sanity";
+import { structureTool } from "sanity/structure";
+import { PackagePlus } from "lucide-react";
+import { apiVersion, dataset, projectId, studioBasePath } from "./src/sanity/env";
+import { schemaTypes, singletonTypes } from "./src/sanity/schemaTypes";
+import { structure } from "./src/sanity/structure";
+import { StarterContent } from "./src/sanity/tools/StarterContent";
+import { LogoMark } from "./src/components/brand/LogoMark";
+
+const singletonActions = new Set(["publish", "discardChanges", "restore"]);
+
+function StudioIcon() {
+  return <LogoMark className="h-full w-full" />;
+}
+
+export default defineConfig({
+  name: "edusphere",
+  title: "Edusphere Overseas",
+  icon: StudioIcon,
+  projectId,
+  dataset,
+  basePath: studioBasePath,
+  apiVersion,
+  schema: {
+    types: schemaTypes,
+    // No "create new" for one-of-a-kind documents such as Website settings
+    templates: (templates) => templates.filter(({ schemaType }) => !singletonTypes.has(schemaType)),
+  },
+  document: {
+    actions: (input, context) =>
+      singletonTypes.has(context.schemaType)
+        ? input.filter(({ action }) => action && singletonActions.has(action))
+        : input,
+  },
+  plugins: [structureTool({ structure, title: "Content" })],
+  tools: (prev) => [
+    ...prev,
+    { name: "starter-content", title: "Starter content", icon: PackagePlus, component: StarterContent },
+  ],
+});
+#==EDU:FILE src/app/(site)/about/page.tsx
+import type { Metadata } from "next";
+import Link from "next/link";
+import { ArrowRight, MapPin } from "lucide-react";
+import { LogoMark } from "@/components/brand/LogoMark";
+import { Reveal } from "@/components/ui/Reveal";
+import { SanityImage } from "@/components/ui/SanityImage";
+import { SectionHeading } from "@/components/ui/SectionHeading";
+import { getSiteContent } from "@/lib/content";
+
+export const metadata: Metadata = {
+  title: "About us",
+  description: "Who we are, where to find us, and the team that guides Edusphere students abroad.",
+};
+
+const values = [
+  { title: "Honest advice", text: "We recommend what fits you, including when that means a different course, country or timeline." },
+  { title: "One team, start to finish", text: "The people who counsel you stay with you through applications, visas and pre-departure." },
+  { title: "Families included", text: "Parents can follow along, ask questions and see progress in the portal." },
+];
+
+export default async function AboutPage() {
+  const c = await getSiteContent();
+  const showTeam = c.sections.team && c.team.length > 0;
+  const galleries = c.sections.gallery ? c.offices.filter((o) => o.photos.length > 0) : [];
+
+  return (
+    <>
+      <section className="relative isolate overflow-hidden">
+        <div aria-hidden="true" className="pointer-events-none absolute -top-40 -right-40 -z-10 h-[34rem] w-[34rem] rounded-full bg-teal/20 blur-[120px]" />
+        <div className="mx-auto grid max-w-7xl items-center gap-12 px-5 py-20 sm:px-8 sm:py-28 lg:grid-cols-[1.3fr_1fr]">
+          <div>
+            <span className="text-xs font-bold uppercase tracking-[0.24em] text-teal-light">About {c.companyName}</span>
+            <h1 className="mt-5 text-balance text-4xl font-extrabold leading-[1.05] tracking-[-0.03em] text-white sm:text-6xl">
+              We help students find the right path abroad, and walk it with them.
+            </h1>
+            <p className="mt-6 max-w-2xl text-lg leading-relaxed text-white/70">{c.description}</p>
+          </div>
+          <div className="relative mx-auto hidden aspect-square w-full max-w-sm items-center justify-center lg:flex">
+            <div className="glow-pulse absolute inset-[12%] rounded-full bg-[radial-gradient(circle,rgba(92,192,207,0.3),transparent_70%)] blur-2xl" />
+            <LogoMark className="relative w-3/4 drop-shadow-[0_20px_40px_rgba(0,0,0,0.5)]" />
+          </div>
+        </div>
+      </section>
+
+      <section className="border-y border-white/8 bg-deeper py-16 sm:py-20">
+        <div className="mx-auto grid max-w-7xl gap-5 px-5 sm:px-8 md:grid-cols-3">
+          {values.map((v, i) => (
+            <Reveal key={v.title} delay={i * 0.08} className="rounded-3xl border border-white/10 bg-white/[0.03] p-6">
+              <h2 className="text-lg font-bold text-white">{v.title}</h2>
+              <p className="mt-2 text-[0.95rem] leading-relaxed text-white/65">{v.text}</p>
+            </Reveal>
+          ))}
+        </div>
+      </section>
+
+      {showTeam && (
+        <section className="py-24 sm:py-28">
+          <div className="mx-auto max-w-7xl px-5 sm:px-8">
+            <SectionHeading eyebrow="Our team" title="The people beside you" />
+            <div className="mt-12 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+              {c.team.map((m, i) => (
+                <Reveal key={m._id} delay={(i % 4) * 0.06} className="group">
+                  <div className="relative aspect-[4/5] overflow-hidden rounded-3xl border border-white/10 bg-panel">
+                    {m.photo ? (
+                      <SanityImage
+                        photo={m.photo}
+                        fill
+                        sizes="(min-width: 1024px) 25vw, (min-width: 640px) 50vw, 100vw"
+                        className="object-cover transition-transform duration-500 group-hover:scale-105"
+                      />
+                    ) : (
+                      <div className="flex h-full items-center justify-center">
+                        <span className="text-5xl font-extrabold text-white/20">
+                          {m.name
+                            .split(" ")
+                            .map((p) => p[0])
+                            .slice(0, 2)
+                            .join("")}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                  <h3 className="mt-4 text-lg font-bold text-white">{m.name}</h3>
+                  <p className="text-sm font-semibold text-teal-light">{m.role}</p>
+                  {m.office && <p className="mt-1 text-xs text-white/50">{m.office}</p>}
+                  {m.bio && <p className="mt-2.5 text-sm leading-relaxed text-white/65">{m.bio}</p>}
+                  {m.languages && m.languages.length > 0 && (
+                    <p className="mt-2 text-xs text-white/50">Speaks {m.languages.join(", ")}</p>
+                  )}
+                </Reveal>
+              ))}
+            </div>
+          </div>
+        </section>
+      )}
+
+      {galleries.map((o) => (
+        <section key={o.id} className="pb-24">
+          <div className="mx-auto max-w-7xl px-5 sm:px-8">
+            <SectionHeading eyebrow={`${o.name} office`} title="Come and see us" />
+            <div className="mt-10 grid auto-rows-[14rem] grid-cols-2 gap-4 sm:auto-rows-[16rem] lg:grid-cols-4">
+              {o.photos.map((p, i) => (
+                <Reveal
+                  key={p.asset?._id ?? i}
+                  delay={(i % 4) * 0.05}
+                  className={`relative overflow-hidden rounded-3xl border border-white/10 ${i === 0 ? "col-span-2 row-span-2" : ""}`}
+                >
+                  <figure className="h-full">
+                    <SanityImage photo={p} fill sizes={i === 0 ? "(min-width: 1024px) 50vw, 100vw" : "(min-width: 1024px) 25vw, 50vw"} className="object-cover" />
+                    {p.caption && (
+                      <figcaption className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent p-4 text-sm text-white">
+                        {p.caption}
+                      </figcaption>
+                    )}
+                  </figure>
+                </Reveal>
+              ))}
+            </div>
+          </div>
+        </section>
+      ))}
+
+      <section className="py-24 sm:py-28">
+        <div className="mx-auto max-w-7xl px-5 sm:px-8">
+          <SectionHeading eyebrow="Where to find us" title={c.offices.length > 1 ? "Our offices" : "Our office"} />
+          <div className="mt-10 grid gap-5 md:grid-cols-2 lg:grid-cols-3">
+            {c.offices.map((o) => (
+              <Reveal key={o.id} className="rounded-3xl border border-white/10 bg-panel/60 p-6">
+                <div className="flex items-center gap-3">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={`/flags/${o.countryCode}.svg`} alt="" className="h-5 w-7 rounded-[3px] object-cover ring-1 ring-white/20" />
+                  <span className="font-bold text-white">
+                    {o.name}
+                    {o.isHeadOffice && <span className="ml-2 text-xs font-semibold text-teal-light">Head office</span>}
+                  </span>
+                </div>
+                <p className="mt-4 flex items-start gap-2.5 text-sm leading-relaxed text-white/75">
+                  <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-white/45" aria-hidden="true" />
+                  {o.addressLines.join(", ")}
+                </p>
+              </Reveal>
+            ))}
+          </div>
+          <Link
+            href="/#contact"
+            className="group mt-10 inline-flex items-center gap-2 rounded-full bg-teal px-6 py-3.5 font-semibold text-white transition hover:bg-teal-light"
+          >
+            Book a free consultation
+            <ArrowRight className="h-4.5 w-4.5 transition-transform group-hover:translate-x-1" aria-hidden="true" />
+          </Link>
+        </div>
+      </section>
+    </>
+  );
+}
+#==EDU:FILE src/app/(site)/course-finder/page.tsx
+import type { Metadata } from "next";
+import { notFound } from "next/navigation";
+import { Search } from "lucide-react";
+import { WhatsAppIcon } from "@/components/icons";
+import { getSiteContent, whatsappHref } from "@/lib/content";
+
+export const metadata: Metadata = { title: "Course finder" };
+
+/**
+ * Course finder. Only reachable when switched on in Content → Website settings → Section switches.
+ * The search itself is built in Step 3 of the plan.
+ */
+export default async function CourseFinderPage() {
+  const c = await getSiteContent();
+  if (!c.sections.courseFinder) notFound();
+
+  return (
+    <section className="mx-auto max-w-3xl px-5 py-24 text-center sm:px-8 sm:py-32">
+      <span className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-teal/20 text-teal-light">
+        <Search className="h-6 w-6" aria-hidden="true" />
+      </span>
+      <h1 className="mt-6 text-4xl font-extrabold tracking-[-0.03em] text-white sm:text-5xl">Course finder</h1>
+      <p className="mx-auto mt-5 max-w-xl text-lg leading-relaxed text-white/70">
+        We&apos;re adding our partner universities and courses. Until the search is ready, tell us what you&apos;d like
+        to study and we&apos;ll send you a shortlist.
+      </p>
+      <a
+        href={whatsappHref(c.whatsappNumber, "Hi Edusphere, please help me find a course. I'd like to study: ")}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="mt-10 inline-flex items-center gap-2 rounded-full bg-teal px-6 py-3.5 font-semibold text-white transition hover:bg-teal-light"
+      >
+        <WhatsAppIcon className="h-5 w-5" />
+        Ask for a shortlist
+      </a>
+    </section>
+  );
+}
+#==EDU:FILE src/app/(site)/layout.tsx
+import type { Metadata } from "next";
+import { Intro } from "@/components/brand/Intro";
+import { Footer } from "@/components/layout/Footer";
+import { Header } from "@/components/layout/Header";
+import { Ticker } from "@/components/layout/Ticker";
+import { WhatsAppButton } from "@/components/layout/WhatsAppButton";
+import { getSiteContent, whatsappHref } from "@/lib/content";
+
+export async function generateMetadata(): Promise<Metadata> {
+  const c = await getSiteContent();
+  return {
+    title: { default: `${c.companyName} | ${c.tagline}`, template: `%s | ${c.companyName}` },
+    description: c.description,
+  };
+}
+
+export default async function SiteLayout({ children }: LayoutProps<"/">) {
+  const c = await getSiteContent();
+  const nav = [
+    { href: "/#destinations", label: "Destinations", show: c.sections.destinations && c.destinations.length > 0 },
+    { href: "/#services", label: "Services", show: c.sections.services && c.services.length > 0 },
+    { href: "/#open-now", label: "Open now", show: c.sections.openNow && c.openNow.length > 0 },
+    { href: "/course-finder", label: "Course finder", show: c.sections.courseFinder },
+    { href: "/#uk-onshore", label: "UK onshore", show: c.sections.ukOnshore },
+    { href: "/about", label: "About", show: true },
+    { href: "/#contact", label: "Contact", show: true },
+  ]
+    .filter((n) => n.show)
+    .map(({ href, label }) => ({ href, label }));
+
+  return (
+    <>
+      <a
+        href="#main"
+        className="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-[200] focus:rounded-full focus:bg-white focus:px-4 focus:py-2 focus:text-sm focus:font-semibold focus:text-deep"
+      >
+        Skip to content
+      </a>
+      <Intro />
+      {c.sections.ticker && <Ticker items={c.ticker} />}
+      <Header nav={nav} />
+      <main id="main">{children}</main>
+      <Footer content={c} />
+      <WhatsAppButton href={whatsappHref(c.whatsappNumber, c.whatsappMessage)} />
+    </>
+  );
+}
+#==EDU:FILE src/app/(site)/page.tsx
+import { Banners } from "@/components/home/Banners";
+import { Contact } from "@/components/home/Contact";
+import { Destinations } from "@/components/home/Destinations";
+import { Hero } from "@/components/home/Hero";
+import { Journey } from "@/components/home/Journey";
+import { OpenNow } from "@/components/home/OpenNow";
+import { Services } from "@/components/home/Services";
+import { UkOnshore } from "@/components/home/UkOnshore";
+import { getSiteContent, whatsappHref } from "@/lib/content";
+
+export default async function Home() {
+  const c = await getSiteContent();
+  const show = c.sections;
+  return (
+    <>
+      <Hero hero={c.hero} whatsapp={whatsappHref(c.whatsappNumber, c.whatsappMessage)} />
+      {show.banners && <Banners banners={c.banners} whatsapp={c.whatsappNumber} />}
+      {show.openNow && <OpenNow items={c.openNow} whatsapp={c.whatsappNumber} />}
+      {show.destinations && <Destinations items={c.destinations} whatsapp={c.whatsappNumber} />}
+      {show.services && <Services items={c.services} />}
+      {show.journey && <Journey />}
+      {show.ukOnshore && <UkOnshore programmes={c.onshore} whatsapp={c.whatsappNumber} />}
+      <Contact offices={c.offices} contacts={c.contacts} whatsapp={c.whatsappNumber} />
+    </>
+  );
+}
+#==EDU:FILE src/app/(site)/portal/page.tsx
+import type { Metadata } from "next";
+import Link from "next/link";
+import { ArrowLeft, CalendarCheck, FileUp, ListChecks } from "lucide-react";
+import { getSiteContent, whatsappHref } from "@/lib/content";
+import { WhatsAppIcon } from "@/components/icons";
+
+export const metadata: Metadata = {
+  title: "Student and parent portal",
+};
+
+const features = [
+  { icon: FileUp, title: "Upload documents", text: "Send passports, transcripts and test scores securely to our team." },
+  { icon: ListChecks, title: "Track your application", text: "See each stage, from shortlist to visa, as it happens." },
+  { icon: CalendarCheck, title: "Book counselling", text: "Pick a time that suits you from your counsellor's live calendar." },
+];
+
+/** Placeholder until the portal is built (Step 3 of the build plan). */
+export default async function PortalPage() {
+  const c = await getSiteContent();
+  return (
+    <section className="relative isolate overflow-hidden">
+      <div aria-hidden="true" className="pointer-events-none absolute -top-40 left-1/2 -z-10 h-[34rem] w-[34rem] -translate-x-1/2 rounded-full bg-teal/20 blur-[120px]" />
+      <div className="mx-auto max-w-3xl px-5 py-20 text-center sm:px-8 sm:py-28">
+        <span className="text-xs font-bold uppercase tracking-[0.24em] text-teal-light">Student and parent portal</span>
+        <h1 className="mt-5 text-4xl font-extrabold tracking-[-0.03em] text-white sm:text-5xl">Your portal is on its way</h1>
+        <p className="mx-auto mt-5 max-w-xl text-lg leading-relaxed text-white/70">
+          Soon you&apos;ll sign in with your email or Google account, and parents can follow along too. Until then, our
+          team is a message away.
+        </p>
+        <div className="mt-12 grid gap-4 text-left sm:grid-cols-3">
+          {features.map(({ icon: Icon, title, text }) => (
+            <div key={title} className="rounded-3xl border border-white/10 bg-white/[0.03] p-5">
+              <Icon className="h-6 w-6 text-teal-light" aria-hidden="true" />
+              <h2 className="mt-4 font-bold text-white">{title}</h2>
+              <p className="mt-1.5 text-sm leading-relaxed text-white/60">{text}</p>
+            </div>
+          ))}
+        </div>
+        <div className="mt-12 flex flex-col justify-center gap-3 sm:flex-row">
+          <a
+            href={whatsappHref(c.whatsappNumber, "Hi Edusphere, I'd like help with my application.")}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center justify-center gap-2 rounded-full bg-teal px-6 py-3.5 font-semibold text-white transition hover:bg-teal-light"
+          >
+            <WhatsAppIcon className="h-5 w-5" />
+            Message our team
+          </a>
+          <Link
+            href="/"
+            className="inline-flex items-center justify-center gap-2 rounded-full px-6 py-3.5 font-semibold text-white ring-1 ring-white/25 transition hover:bg-white/5"
+          >
+            <ArrowLeft className="h-4.5 w-4.5" aria-hidden="true" />
+            Back to home
+          </Link>
+        </div>
+      </div>
+    </section>
+  );
+}
+#==EDU:FILE src/app/admin/content/[[...tool]]/page.tsx
+/**
+ * Content area of the admin portal: Sanity Studio embedded in the site.
+ * Team members sign in with the Sanity account they were invited to.
+ */
+import { NextStudio } from "next-sanity/studio";
+import config from "../../../../../sanity.config";
+
+export { metadata, viewport } from "next-sanity/studio";
+
+export default function ContentStudioPage() {
+  return <NextStudio config={config} />;
+}
