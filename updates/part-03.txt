@@ -1,0 +1,496 @@
+#==EDU:FILE src/components/home/Contact.tsx
+import { Mail, MapPin, Navigation, Phone } from "lucide-react";
+import { appleDirections, googleDirections, googleMapEmbed } from "@/config/site";
+import { WhatsAppIcon } from "@/components/icons";
+import { Reveal } from "@/components/ui/Reveal";
+import { SectionHeading } from "@/components/ui/SectionHeading";
+import { telHref, whatsappHref, type ContactPoint, type Office } from "@/lib/content";
+
+function OfficeCard({ office: o, withMap }: { office: Office; withMap: boolean }) {
+  return (
+    <div className="overflow-hidden rounded-[2rem] border border-white/10 bg-panel/60">
+      {withMap && (
+        <div className="relative aspect-[16/10] w-full bg-panel">
+          <iframe
+            title={`Map of ${o.legalName || o.name}`}
+            src={googleMapEmbed(o.mapQuery)}
+            className="absolute inset-0 h-full w-full border-0 [filter:invert(0.9)_hue-rotate(180deg)_saturate(0.6)_brightness(0.95)]"
+            loading="lazy"
+            referrerPolicy="no-referrer-when-downgrade"
+          />
+        </div>
+      )}
+      <div className="p-6 sm:p-8">
+        <div className="flex items-center gap-3">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={`/flags/${o.countryCode}.svg`} alt="" className="h-5 w-7 rounded-[3px] object-cover ring-1 ring-white/20" />
+          <span className="text-xs font-bold uppercase tracking-[0.2em] text-teal-light">
+            {o.isHeadOffice ? "Head office · " : ""}
+            {o.name}
+          </span>
+        </div>
+        <p className="mt-4 flex items-start gap-3 text-white/85">
+          <MapPin className="mt-1 h-5 w-5 shrink-0 text-white/50" aria-hidden="true" />
+          <span>
+            {o.legalName && <span className="block font-bold text-white">{o.legalName}</span>}
+            {o.addressLines.map((l) => (
+              <span key={l} className="block">
+                {l}
+              </span>
+            ))}
+          </span>
+        </p>
+        {o.contacts.length > 0 && (
+          <ul className="mt-4 grid gap-1.5 text-sm">
+            {o.contacts.map((ct) => (
+              <li key={`${ct.kind}-${ct.value}`}>
+                <a
+                  href={ct.kind === "email" ? `mailto:${ct.value}` : ct.kind === "whatsapp" ? whatsappHref(ct.value) : telHref(ct.value)}
+                  className="text-white/75 transition hover:text-white"
+                >
+                  <span className="text-white/45">{ct.label}: </span>
+                  {ct.value}
+                </a>
+              </li>
+            ))}
+          </ul>
+        )}
+        <div className="mt-6 flex flex-wrap gap-2.5">
+          <a
+            href={googleDirections(o.mapQuery)}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-2 rounded-full bg-white px-4 py-2.5 text-sm font-semibold text-deep transition hover:bg-mist"
+          >
+            <Navigation className="h-4 w-4" aria-hidden="true" />
+            Google Maps
+          </a>
+          <a
+            href={appleDirections(o.mapQuery)}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-2 rounded-full px-4 py-2.5 text-sm font-semibold text-white ring-1 ring-white/25 transition hover:bg-white/5"
+          >
+            <Navigation className="h-4 w-4" aria-hidden="true" />
+            Apple Maps
+          </a>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export function Contact({
+  offices,
+  contacts,
+  whatsapp,
+}: {
+  offices: Office[];
+  contacts: ContactPoint[];
+  whatsapp: string;
+}) {
+  const phone = contacts.find((c) => c.kind === "phone" && c.primary) ?? contacts.find((c) => c.kind === "phone");
+  const email = contacts.find((c) => c.kind === "email" && c.primary) ?? contacts.find((c) => c.kind === "email");
+  const [head, ...others] = offices;
+
+  return (
+    <section id="contact" className="relative scroll-mt-20 overflow-hidden bg-deeper py-24 sm:py-32">
+      <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/15 to-transparent" />
+      <div aria-hidden="true" className="pointer-events-none absolute -bottom-40 left-1/3 h-[30rem] w-[30rem] rounded-full bg-navy/30 blur-[120px]" />
+
+      <div className="relative mx-auto grid max-w-7xl gap-14 px-5 sm:px-8 lg:grid-cols-[1fr_1.1fr] lg:items-start">
+        <div>
+          <SectionHeading
+            eyebrow="Free consultation"
+            title={
+              <>
+                Start with a<span className="text-teal-light"> conversation.</span>
+              </>
+            }
+            intro="Tell us where you are and where you'd like to be. Your first consultation is free, in person at our office or online, for students and parents alike."
+          />
+
+          <Reveal delay={0.1} className="mt-10 grid gap-3 sm:max-w-md">
+            <a
+              href={whatsappHref(whatsapp, "Hi Edusphere, I'd like to book a free consultation.")}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="group flex items-center gap-4 rounded-2xl bg-teal px-5 py-4 text-white transition hover:bg-teal-light"
+            >
+              <WhatsAppIcon className="h-6 w-6" />
+              <span className="flex-1">
+                <span className="block font-bold">Book on WhatsApp</span>
+                <span className="block text-sm text-white/80">Usually the quickest way to reach us</span>
+              </span>
+            </a>
+            {phone && (
+              <a
+                href={telHref(phone.value)}
+                className="flex items-center gap-4 rounded-2xl border border-white/12 px-5 py-4 transition hover:border-white/30 hover:bg-white/[0.03]"
+              >
+                <Phone className="h-5.5 w-5.5 text-teal-light" aria-hidden="true" />
+                <span>
+                  <span className="block font-bold text-white">{phone.value}</span>
+                  <span className="block text-sm text-white/60">{phone.label}</span>
+                </span>
+              </a>
+            )}
+            {email && (
+              <a
+                href={`mailto:${email.value}`}
+                className="flex items-center gap-4 rounded-2xl border border-white/12 px-5 py-4 transition hover:border-white/30 hover:bg-white/[0.03]"
+              >
+                <Mail className="h-5.5 w-5.5 text-teal-light" aria-hidden="true" />
+                <span className="min-w-0">
+                  <span className="block truncate font-bold text-white">{email.value}</span>
+                  <span className="block text-sm text-white/60">{email.label}</span>
+                </span>
+              </a>
+            )}
+          </Reveal>
+          <p className="mt-6 text-sm text-white/45">Online booking with live counsellor availability arrives with the student portal.</p>
+        </div>
+
+        {head && (
+          <Reveal delay={0.15} className="grid gap-5">
+            <OfficeCard office={head} withMap />
+            {others.length > 0 && (
+              <div className="grid gap-5 sm:grid-cols-2">
+                {others.map((o) => (
+                  <OfficeCard key={o.id} office={o} withMap={false} />
+                ))}
+              </div>
+            )}
+          </Reveal>
+        )}
+      </div>
+    </section>
+  );
+}
+#==EDU:FILE src/components/home/Destinations.tsx
+"use client";
+
+import { useState } from "react";
+import { ArrowUpRight, CalendarDays, RotateCcw } from "lucide-react";
+import { whatsappHref } from "@/lib/links";
+import { Reveal } from "@/components/ui/Reveal";
+import { SectionHeading } from "@/components/ui/SectionHeading";
+
+type Destination = { id: string; name: string; flag: string; summary: string; intakes?: string | null };
+
+const shortName = (n: string) => (n === "United Kingdom" ? "the UK" : n === "United States" ? "the USA" : n);
+
+function DestinationCard({ d, whatsapp }: { d: Destination; whatsapp: string }) {
+  const [flipped, setFlipped] = useState(false);
+
+  return (
+    <div id={`dest-${d.id}`} className={`flip group h-full scroll-mt-28 ${flipped ? "is-flipped" : ""}`}>
+      <div className="flip-inner h-full">
+        {/* front */}
+        <button
+          type="button"
+          onClick={() => setFlipped(true)}
+          tabIndex={flipped ? -1 : 0}
+          aria-hidden={flipped || undefined}
+          aria-label={`${d.name}: show intakes and options`}
+          className="flip-face relative flex h-full w-full flex-col overflow-hidden rounded-3xl border border-white/10 bg-panel/70 p-6 text-left transition-[border-color,box-shadow] duration-300 hover:border-teal-light/40 hover:shadow-[0_30px_60px_-30px_rgba(92,192,207,0.45)]"
+        >
+          <span className="pointer-events-none absolute -top-24 -right-24 h-56 w-56 rounded-full bg-teal/10 blur-3xl transition-opacity duration-500 group-hover:opacity-100" aria-hidden="true" />
+          <span className="relative block aspect-[4/3] w-24 overflow-hidden rounded-xl shadow-[0_18px_40px_-14px_rgba(0,0,0,0.8)] ring-1 ring-white/20">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={`/flags/${d.flag}.svg`} alt="" className="flag-wave h-full w-full object-cover" draggable={false} />
+          </span>
+          <span className="relative mt-6 block text-2xl font-extrabold tracking-[-0.02em] text-white">{d.name}</span>
+          <span className="relative mt-2 block flex-1 text-[0.95rem] leading-relaxed text-white/65">{d.summary}</span>
+          <span className="relative mt-6 inline-flex items-center gap-2 text-sm font-semibold text-teal-light">
+            <RotateCcw className="h-4 w-4 transition-transform duration-500 group-hover:-rotate-180" aria-hidden="true" />
+            Intakes and next steps
+          </span>
+        </button>
+
+        {/* back */}
+        <div
+          className="flip-face flip-back flex flex-col rounded-3xl border border-teal-light/30 bg-[linear-gradient(150deg,#16405f,#0f2a43)] p-6"
+          aria-hidden={!flipped}
+        >
+          <div className="flex items-center gap-3">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={`/flags/${d.flag}.svg`} alt="" className="h-7 w-10 rounded-md object-cover ring-1 ring-white/25" />
+            <span className="text-lg font-extrabold text-white">{d.name}</span>
+          </div>
+          <p className="mt-5 flex items-start gap-2.5 text-[0.95rem] leading-relaxed text-white/80">
+            <CalendarDays className="mt-0.5 h-4.5 w-4.5 shrink-0 text-teal-light" aria-hidden="true" />
+            {d.intakes || "Intakes vary by university. Ask us for the next dates."}
+          </p>
+          <p className="mt-3 text-sm leading-relaxed text-white/60">
+            Tell us your course and budget and we&apos;ll shortlist universities that fit.
+          </p>
+          <div className="mt-auto flex items-center justify-between gap-3 pt-6">
+            <a
+              href={whatsappHref(whatsapp, `Hi Edusphere, I'm interested in studying in ${shortName(d.name)}.`)}
+              target="_blank"
+              rel="noopener noreferrer"
+              tabIndex={flipped ? 0 : -1}
+              className="inline-flex items-center gap-1.5 rounded-full bg-teal px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-teal-light"
+            >
+              Ask about {shortName(d.name)}
+              <ArrowUpRight className="h-4 w-4" aria-hidden="true" />
+            </a>
+            <button
+              type="button"
+              onClick={() => setFlipped(false)}
+              tabIndex={flipped ? 0 : -1}
+              className="rounded-full p-2.5 text-white/70 ring-1 ring-white/20 transition hover:text-white"
+              aria-label="Back"
+            >
+              <RotateCcw className="h-4 w-4" aria-hidden="true" />
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export function Destinations({ items, whatsapp }: { items: Destination[]; whatsapp: string }) {
+  if (items.length === 0) return null;
+  return (
+    <section id="destinations" className="relative scroll-mt-20 py-24 sm:py-32">
+      <div className="mx-auto max-w-7xl px-5 sm:px-8">
+        <div className="flex flex-col justify-between gap-6 lg:flex-row lg:items-end">
+          <SectionHeading
+            eyebrow="Destinations"
+            title={
+              <>
+                Where will you
+                <span className="text-teal-light"> study?</span>
+              </>
+            }
+            intro="Each destination has its own rhythm of intakes, costs and visas. We know them well, and we'll help you weigh them honestly."
+          />
+          <Reveal delay={0.1} className="text-sm text-white/50">
+            Tap a card for intakes
+          </Reveal>
+        </div>
+
+        <div className="mt-14 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+          {items.map((d, i) => (
+            <Reveal key={d.id} delay={(i % 3) * 0.08} className="h-full">
+              <DestinationCard d={d} whatsapp={whatsapp} />
+            </Reveal>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+#==EDU:FILE src/components/home/Hero.tsx
+import Link from "next/link";
+import { ArrowRight } from "lucide-react";
+import { flagStrip } from "@/config/site";
+import { WhatsAppIcon } from "@/components/icons";
+import { FlagGlobe } from "./FlagGlobe";
+
+type HeroCopy = { eyebrow: string; titleLine1: string; titleLine2: string; intro: string; note: string };
+
+export function Hero({ hero, whatsapp }: { hero: HeroCopy; whatsapp: string }) {
+  return (
+    <section className="relative isolate overflow-hidden">
+      {/* background: soft glows and a faint map grid */}
+      <div aria-hidden="true" className="pointer-events-none absolute inset-0 -z-10">
+        <div className="absolute -top-40 -left-40 h-[36rem] w-[36rem] rounded-full bg-navy/40 blur-[120px]" />
+        <div className="absolute top-20 right-[-10rem] h-[30rem] w-[30rem] rounded-full bg-teal/25 blur-[120px]" />
+        <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.035)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.035)_1px,transparent_1px)] bg-[size:56px_56px] [mask-image:radial-gradient(ellipse_70%_60%_at_50%_40%,#000,transparent)]" />
+      </div>
+
+      <div className="mx-auto grid max-w-7xl items-center gap-10 px-5 pt-10 pb-14 sm:px-8 lg:grid-cols-[1.05fr_0.95fr] lg:gap-6 lg:pt-16 lg:pb-20">
+        <div className="relative z-10">
+          {hero.eyebrow && (
+            <p className="hero-in inline-flex items-center gap-2 rounded-full border border-white/12 bg-white/[0.04] px-3.5 py-1.5 text-xs font-semibold text-white/80 backdrop-blur" style={{ ["--d" as string]: "0s" }}>
+              <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-teal-light" aria-hidden="true" />
+              <span>{hero.eyebrow}</span>
+            </p>
+          )}
+
+          <h1 className="mt-6 text-[clamp(2.7rem,7.5vw,5.4rem)] font-extrabold leading-[0.98] tracking-[-0.035em]">
+            <span className="hero-in block" style={{ ["--d" as string]: "0.08s" }}>
+              {hero.titleLine1}
+            </span>
+            <span
+              className="hero-in block bg-[linear-gradient(100deg,#5cc0cf,#5a9bd1_55%,#a9d4f0)] bg-clip-text pb-2 text-transparent"
+              style={{ ["--d" as string]: "0.18s" }}
+            >
+              {hero.titleLine2}
+            </span>
+          </h1>
+
+          <p className="hero-in mt-6 max-w-xl text-lg leading-relaxed text-white/75" style={{ ["--d" as string]: "0.3s" }}>
+            {hero.intro}
+          </p>
+
+          <div className="hero-in mt-9 flex flex-col gap-3 sm:flex-row sm:items-center" style={{ ["--d" as string]: "0.42s" }}>
+            <Link
+              href="/#contact"
+              className="group inline-flex items-center justify-center gap-2 rounded-full bg-teal px-6 py-3.5 font-semibold text-white shadow-[0_14px_40px_-12px_rgba(68,154,168,0.9)] transition hover:bg-teal-light"
+            >
+              Book a free consultation
+              <ArrowRight className="h-4.5 w-4.5 transition-transform group-hover:translate-x-1" aria-hidden="true" />
+            </Link>
+            <a
+              href={whatsapp}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center justify-center gap-2 rounded-full px-6 py-3.5 font-semibold text-white ring-1 ring-white/25 transition hover:bg-white/5 hover:ring-white/45"
+            >
+              <WhatsAppIcon className="h-5 w-5 text-[#25D366]" />
+              Chat on WhatsApp
+            </a>
+          </div>
+
+          <p className="hero-in mt-8 text-sm text-white/55" style={{ ["--d" as string]: "0.54s" }}>
+            {hero.note}
+          </p>
+        </div>
+
+        <div className="hero-in relative" style={{ ["--d" as string]: "0.2s" }}>
+          <FlagGlobe />
+        </div>
+      </div>
+
+      {/* flag strip */}
+      <div className="relative border-y border-white/8 bg-white/[0.02] py-4">
+        <div className="overflow-hidden [mask-image:linear-gradient(90deg,transparent,#000_8%,#000_92%,transparent)]">
+          <ul className="marquee-track flex w-max animate-marquee-slow" aria-label="Countries we guide students to">
+            {[0, 1].map((copy) =>
+              flagStrip.map((f) => (
+                <li
+                  key={`${copy}-${f.code}`}
+                  aria-hidden={copy > 0 || undefined}
+                  className="group flex shrink-0 items-center gap-3 pr-10"
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={`/flags/${f.code}.svg`}
+                    alt=""
+                    className="flag-wave h-5 w-7 rounded-[3px] object-cover ring-1 ring-white/20"
+                  />
+                  <span className="text-sm font-semibold text-white/70 transition-colors group-hover:text-white">{f.name}</span>
+                </li>
+              )),
+            )}
+          </ul>
+        </div>
+      </div>
+    </section>
+  );
+}
+#==EDU:FILE src/components/home/OpenNow.tsx
+import { CalendarClock, ExternalLink, ShieldCheck } from "lucide-react";
+import { PortableText } from "next-sanity";
+import { Reveal } from "@/components/ui/Reveal";
+import { SectionHeading } from "@/components/ui/SectionHeading";
+import { WhatsAppIcon } from "@/components/icons";
+import { whatsappHref, type OpenNowItem } from "@/lib/content";
+
+const kindLabel = { visa: "Visa or scheme", scholarship: "Scholarship", other: "Programme" } as const;
+
+const fmt = (iso: string, withTime = false) =>
+  new Intl.DateTimeFormat("en-GB", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    ...(withTime ? { hour: "2-digit", minute: "2-digit", timeZone: "Europe/London", timeZoneName: "short" } : { timeZone: "UTC" }),
+  }).format(new Date(iso));
+
+/** Limited-time visas, schemes and scholarships. Managed in Content → "Open now". */
+export function OpenNow({ items, whatsapp }: { items: OpenNowItem[]; whatsapp: string }) {
+  if (items.length === 0) return null;
+
+  return (
+    <section id="open-now" className="relative scroll-mt-20 py-20 sm:py-24">
+      <div className="mx-auto max-w-7xl px-5 sm:px-8">
+        <SectionHeading
+          eyebrow="Open now"
+          title={
+            <>
+              Opportunities with a <span className="text-teal-light">closing date</span>
+            </>
+          }
+          intro="Visas, work schemes and scholarships that are accepting applications right now. Our experts check every detail against the official source."
+        />
+
+        <div className="mt-12 grid gap-5 md:grid-cols-2 lg:grid-cols-3">
+          {items.map((p, i) => (
+            <Reveal key={p._id} delay={(i % 3) * 0.08} className="h-full">
+              <article className="flex h-full flex-col rounded-3xl border border-white/10 bg-panel/70 p-6">
+                <div className="flex items-center justify-between gap-3">
+                  <span className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-[0.16em] text-teal-light">
+                    {p.flag && (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={`/flags/${p.flag}.svg`} alt="" className="h-4 w-6 rounded-[2px] object-cover ring-1 ring-white/20" />
+                    )}
+                    {p.country || kindLabel[p.kind]}
+                  </span>
+                  <span className="rounded-full bg-white/8 px-2.5 py-1 text-[0.68rem] font-semibold text-white/70">{kindLabel[p.kind]}</span>
+                </div>
+
+                <h3 className="mt-5 text-xl font-extrabold tracking-[-0.01em] text-white">{p.title}</h3>
+                <p className="mt-2.5 text-[0.95rem] leading-relaxed text-white/70">{p.summary}</p>
+
+                {p.closesAt && (
+                  <p className="mt-5 flex items-center gap-2 text-sm font-semibold text-white">
+                    <CalendarClock className="h-4.5 w-4.5 text-teal-light" aria-hidden="true" />
+                    Applications close {fmt(p.closesAt, true)}
+                  </p>
+                )}
+
+                {p.details && p.details.length > 0 && (
+                  <details className="group mt-4 rounded-2xl border border-white/10 bg-deep/40 open:bg-deep/60">
+                    <summary className="cursor-pointer list-none px-4 py-3 text-sm font-semibold text-white/85 marker:hidden">
+                      <span className="group-open:hidden">Eligibility and how we help</span>
+                      <span className="hidden group-open:inline">Hide details</span>
+                    </summary>
+                    <div className="space-y-3 px-4 pb-4 text-sm leading-relaxed text-white/75 [&_h3]:mt-4 [&_h3]:font-bold [&_h3]:text-white">
+                      <PortableText value={p.details} />
+                    </div>
+                  </details>
+                )}
+
+                <div className="mt-auto pt-6">
+                  <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-white/50">
+                    {p.lastChecked && (
+                      <span className="inline-flex items-center gap-1.5">
+                        <ShieldCheck className="h-3.5 w-3.5" aria-hidden="true" />
+                        Checked {fmt(p.lastChecked)}
+                      </span>
+                    )}
+                    {p.officialLink && (
+                      <a
+                        href={p.officialLink}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1.5 underline-offset-2 hover:text-white hover:underline"
+                      >
+                        Official source
+                        <ExternalLink className="h-3 w-3" aria-hidden="true" />
+                      </a>
+                    )}
+                  </div>
+                  <a
+                    href={whatsappHref(whatsapp, `Hi Edusphere, I'd like to know more about: ${p.title}`)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="mt-4 inline-flex items-center gap-2 rounded-full bg-teal px-4.5 py-2.5 text-sm font-semibold text-white transition hover:bg-teal-light"
+                  >
+                    <WhatsAppIcon className="h-4.5 w-4.5" />
+                    {p.ctaLabel || "Ask an expert"}
+                  </a>
+                </div>
+              </article>
+            </Reveal>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
