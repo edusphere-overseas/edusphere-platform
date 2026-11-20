@@ -1,0 +1,180 @@
+#==EDU:FILE src/sanity/tools/StarterContent.tsx
+"use client";
+
+import { useState } from "react";
+import { useClient } from "sanity";
+import { Box, Button, Card, Flex, Heading, Stack, Text } from "@sanity/ui";
+import {
+  defaultBanners,
+  defaultHero,
+  defaultServices,
+  destinations,
+  offices,
+  site,
+  tickerItems,
+} from "@/config/site";
+import { apiVersion } from "../env";
+
+const key = (prefix: string, i: number) => `${prefix}${i}`;
+
+function buildDocuments() {
+  const head = offices[0];
+  const docs: Record<string, unknown>[] = [];
+
+  docs.push({
+    _id: "siteSettings",
+    _type: "siteSettings",
+    companyName: site.name,
+    legalName: site.legalName,
+    tagline: site.tagline,
+    description: site.description,
+    whatsappNumber: "+91 81294 40282",
+    whatsappMessage: site.whatsapp.defaultMessage,
+    contacts: [
+      { _key: "c0", _type: "contactPoint", kind: "phone", label: "Admissions", value: "+91 81294 40282", primary: true, show: true },
+      { _key: "c1", _type: "contactPoint", kind: "whatsapp", label: "WhatsApp", value: "+91 81294 40282", primary: true, show: true },
+      { _key: "c2", _type: "contactPoint", kind: "email", label: "General enquiries", value: "edusphereoverseas@gmail.com", primary: true, show: true },
+    ],
+    socialLinks: [
+      ...site.social.map((s, i) => ({ _key: key("s", i), _type: "socialLink", platform: s.id, handle: s.handle, url: s.url, show: true })),
+      { _key: "s9", _type: "socialLink", platform: "google", handle: "Edusphere Overseas", url: head.googleBusinessUrl, show: true },
+    ],
+    heroEyebrow: defaultHero.eyebrow,
+    heroTitleLine1: defaultHero.titleLine1,
+    heroTitleLine2: defaultHero.titleLine2,
+    heroIntro: defaultHero.intro,
+    heroNote: defaultHero.note,
+    sections: {
+      ticker: true,
+      banners: true,
+      openNow: false,
+      destinations: true,
+      services: true,
+      journey: true,
+      ukOnshore: true,
+      courseFinder: false,
+      team: true,
+      gallery: true,
+    },
+  });
+
+  docs.push({
+    _id: "office-mangaluru",
+    _type: "office",
+    name: head.name,
+    legalName: head.legalName,
+    isHeadOffice: true,
+    country: head.country,
+    countryCode: head.countryCode,
+    addressLines: head.addressLines,
+    mapQuery: head.mapQuery,
+    googleBusinessUrl: head.googleBusinessUrl,
+    timeZone: head.timeZone,
+    contacts: [
+      ...head.phones.map((p, i) => ({ _key: key("p", i), _type: "contactPoint", kind: "phone", label: p.label, value: p.display, primary: i === 0, show: true })),
+      ...head.emails.map((e, i) => ({ _key: key("e", i), _type: "contactPoint", kind: "email", label: e.label, value: e.address, primary: i === 0, show: true })),
+    ],
+    showOnWebsite: true,
+    order: 1,
+  });
+  // Offices to complete later: hidden until an address is added and "Show on website" is ticked.
+  docs.push({ _id: "office-london", _type: "office", name: "London", country: "United Kingdom", countryCode: "gb", timeZone: "Europe/London", showOnWebsite: false, order: 2 });
+  docs.push({ _id: "office-dubai", _type: "office", name: "Dubai", country: "United Arab Emirates", countryCode: "ae", timeZone: "Asia/Dubai", showOnWebsite: false, order: 3 });
+  docs.push({ _id: "office-bengaluru", _type: "office", name: "Bengaluru", country: "India", countryCode: "in", timeZone: "Asia/Kolkata", showOnWebsite: false, order: 4 });
+
+  tickerItems.forEach((t, i) =>
+    docs.push({ _id: `ticker-${i + 1}`, _type: "tickerItem", tag: t.tag, text: t.text, link: t.href, active: true, order: (i + 1) * 10 }),
+  );
+  defaultBanners.forEach((b, i) =>
+    docs.push({ _id: `banner-${i + 1}`, _type: "banner", ...b, active: true, order: (i + 1) * 10 }),
+  );
+  destinations.forEach((d, i) =>
+    docs.push({
+      _id: `destination-${d.id}`,
+      _type: "destination",
+      name: d.name,
+      slug: { _type: "slug", current: d.id },
+      flag: d.flag,
+      summary: d.line,
+      intakes: d.intakes,
+      show: true,
+      order: (i + 1) * 10,
+    }),
+  );
+  defaultServices.forEach((s, i) =>
+    docs.push({ _id: `service-${i + 1}`, _type: "service", ...s, show: true, order: (i + 1) * 10 }),
+  );
+  return docs;
+}
+
+export function StarterContent() {
+  const client = useClient({ apiVersion });
+  const [state, setState] = useState<"idle" | "working" | "done" | "error">("idle");
+  const [message, setMessage] = useState("");
+  const docs = buildDocuments();
+
+  async function run() {
+    setState("working");
+    try {
+      const existing: string[] = await client.fetch(`*[_id in $ids]._id`, { ids: docs.map((d) => d._id) });
+      const tx = client.transaction();
+      docs.forEach((d) => tx.createIfNotExists(d as { _id: string; _type: string }));
+      await tx.commit();
+      const added = docs.length - existing.length;
+      setMessage(
+        added === 0
+          ? "Everything was already there. Nothing was changed."
+          : `Added ${added} item${added === 1 ? "" : "s"}. ${existing.length ? `${existing.length} existing item(s) were left unchanged.` : ""}`,
+      );
+      setState("done");
+    } catch (e) {
+      setMessage(e instanceof Error ? e.message : String(e));
+      setState("error");
+    }
+  }
+
+  return (
+    <Box padding={5} style={{ maxWidth: 720 }}>
+      <Stack gap={5}>
+        <Heading size={3}>Starter content</Heading>
+        <Text muted size={2}>
+          Adds Edusphere&apos;s current website content so you can edit it here instead of starting from blank pages:
+          website settings, the Mangaluru office (plus hidden London, Dubai and Bengaluru offices to complete),
+          news ticker items, two banners, six destinations and eight student services.
+        </Text>
+        <Text muted size={2}>
+          It never overwrites anything. Items that already exist are left exactly as they are, so it is safe to run
+          more than once.
+        </Text>
+        <Card padding={4} radius={3} tone="primary" border>
+          <Flex align="center" gap={4} wrap="wrap">
+            <Box flex={1}>
+              <Text size={2} weight="semibold">
+                {docs.length} items ready to add
+              </Text>
+            </Box>
+            <Button
+              text={state === "working" ? "Adding…" : "Add starter content"}
+              tone="primary"
+              disabled={state === "working"}
+              onClick={run}
+            />
+          </Flex>
+        </Card>
+        {state === "done" && (
+          <Card padding={4} radius={3} tone="positive" border>
+            <Text size={2}>{message} Open “Content” in the top bar to review and edit.</Text>
+          </Card>
+        )}
+        {state === "error" && (
+          <Card padding={4} radius={3} tone="critical" border>
+            <Text size={2}>Something went wrong: {message}</Text>
+          </Card>
+        )}
+      </Stack>
+    </Box>
+  );
+}
+#==EDU:DELETE src/app/page.tsx
+#==EDU:DELETE src/app/portal/page.tsx
+#==EDU:END -
