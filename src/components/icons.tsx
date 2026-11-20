@@ -43,3 +43,43 @@ export function GoogleIcon({ className }: IconProps) {
     </svg>
   );
 }
+
+export function FacebookIcon({ className }: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" className={className} aria-hidden="true" fill="currentColor">
+      <path d="M13.5 21v-7.5h2.6l.4-3h-3V8.6c0-.9.3-1.5 1.5-1.5h1.6V4.4a21 21 0 0 0-2.4-.1c-2.3 0-3.9 1.4-3.9 4v2.2H7.7v3h2.6V21Z" />
+    </svg>
+  );
+}
+
+export function YouTubeIcon({ className }: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" className={className} aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.8">
+      <rect x="2.5" y="5.5" width="19" height="13" rx="4" />
+      <path d="M10 9.2v5.6l4.8-2.8Z" fill="currentColor" stroke="none" />
+    </svg>
+  );
+}
+
+export function XIcon({ className }: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" className={className} aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round">
+      <path d="M4.5 4.5 19.5 19.5M19.5 4.5 4.5 19.5" />
+    </svg>
+  );
+}
+
+const socialIcons: Record<string, (p: IconProps) => React.JSX.Element> = {
+  instagram: InstagramIcon,
+  linkedin: LinkedInIcon,
+  google: GoogleIcon,
+  whatsapp: WhatsAppIcon,
+  facebook: FacebookIcon,
+  youtube: YouTubeIcon,
+  x: XIcon,
+};
+
+export function SocialIcon({ platform, className }: { platform: string } & IconProps) {
+  const Icon = socialIcons[platform] ?? GoogleIcon;
+  return <Icon className={className} />;
+}

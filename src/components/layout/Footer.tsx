@@ -1,63 +1,51 @@
 import Link from "next/link";
 import { Logo } from "@/components/brand/Logo";
-import { GoogleIcon, InstagramIcon, LinkedInIcon, WhatsAppIcon } from "@/components/icons";
-import { site, visibleOffices, whatsappLink } from "@/config/site";
+import { SocialIcon } from "@/components/icons";
+import { telHref, whatsappHref, type SiteContent } from "@/lib/content";
 
 const COPYRIGHT_YEAR = 2026;
 
-const explore = [
-  { href: "/#destinations", label: "Destinations" },
-  { href: "/#services", label: "Student services" },
-  { href: "/#journey", label: "How it works" },
-  { href: "/#uk-onshore", label: "UK onshore" },
-  { href: "/portal", label: "Student login" },
-];
+export function Footer({ content: c }: { content: SiteContent }) {
+  const explore = [
+    { href: "/#destinations", label: "Destinations", show: c.sections.destinations },
+    { href: "/#services", label: "Student services", show: c.sections.services },
+    { href: "/#open-now", label: "Open now", show: c.sections.openNow && c.openNow.length > 0 },
+    { href: "/#uk-onshore", label: "UK onshore", show: c.sections.ukOnshore },
+    { href: "/about", label: "About us", show: true },
+    { href: "/portal", label: "Student login", show: true },
+  ].filter((l) => l.show);
 
-const socialIcon = { instagram: InstagramIcon, linkedin: LinkedInIcon } as const;
+  const phones = c.contacts.filter((x) => x.kind !== "email");
+  const emails = c.contacts.filter((x) => x.kind === "email");
+  const legal = c.legalName.replace(/\.$/, "");
 
-export function Footer() {
-  const head = visibleOffices[0];
   return (
     <footer className="relative border-t border-white/10 bg-deep">
       <div className="mx-auto grid max-w-7xl gap-12 px-5 py-16 sm:px-8 md:grid-cols-2 lg:grid-cols-[1.4fr_1fr_1fr_1fr]">
         <div>
           <Logo />
-          <p className="mt-5 max-w-xs text-sm leading-relaxed text-white/60">{site.description}</p>
-          <div className="mt-6 flex gap-2.5">
-            {site.social.map((s) => {
-              const Icon = socialIcon[s.id as keyof typeof socialIcon];
-              return (
-                <a
-                  key={s.id}
-                  href={s.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  aria-label={`${s.label}: ${s.handle}`}
-                  className="flex h-10 w-10 items-center justify-center rounded-full text-white/80 ring-1 ring-white/15 transition hover:bg-white/5 hover:text-white hover:ring-white/35"
-                >
-                  {Icon && <Icon className="h-4.5 w-4.5" />}
-                </a>
-              );
-            })}
-            {head?.googleBusinessUrl && (
+          <p className="mt-5 max-w-xs text-sm leading-relaxed text-white/60">{c.description}</p>
+          <div className="mt-6 flex flex-wrap gap-2.5">
+            {c.socialLinks.map((s) => (
               <a
-                href={head.googleBusinessUrl}
+                key={s.url}
+                href={s.url}
                 target="_blank"
                 rel="noopener noreferrer"
-                aria-label="Edusphere Overseas on Google"
+                aria-label={`${s.platform}${s.handle ? `: ${s.handle}` : ""}`}
                 className="flex h-10 w-10 items-center justify-center rounded-full text-white/80 ring-1 ring-white/15 transition hover:bg-white/5 hover:text-white hover:ring-white/35"
               >
-                <GoogleIcon className="h-4.5 w-4.5" />
+                <SocialIcon platform={s.platform} className="h-4.5 w-4.5" />
               </a>
-            )}
+            ))}
             <a
-              href={whatsappLink()}
+              href={whatsappHref(c.whatsappNumber, c.whatsappMessage)}
               target="_blank"
               rel="noopener noreferrer"
               aria-label="WhatsApp"
               className="flex h-10 w-10 items-center justify-center rounded-full text-white/80 ring-1 ring-white/15 transition hover:bg-white/5 hover:text-white hover:ring-white/35"
             >
-              <WhatsAppIcon className="h-4.5 w-4.5" />
+              <SocialIcon platform="whatsapp" className="h-4.5 w-4.5" />
             </a>
           </div>
         </div>
@@ -75,32 +63,37 @@ export function Footer() {
           </ul>
         </div>
 
-        {head && (
-          <div>
-            <h2 className="text-xs font-bold uppercase tracking-[0.2em] text-white/50">Contact</h2>
-            <ul className="mt-5 grid gap-3 text-sm">
-              {head.phones.map((p) => (
-                <li key={p.tel}>
-                  <a href={`tel:${p.tel}`} className="text-white/75 transition hover:text-white">
-                    {p.display}
-                  </a>
-                </li>
-              ))}
-              {head.emails.map((e) => (
-                <li key={e.address}>
-                  <a href={`mailto:${e.address}`} className="break-all text-white/75 transition hover:text-white">
-                    {e.address}
-                  </a>
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
+        <div>
+          <h2 className="text-xs font-bold uppercase tracking-[0.2em] text-white/50">Contact</h2>
+          <ul className="mt-5 grid gap-3 text-sm">
+            {phones.map((p) => (
+              <li key={`${p.kind}-${p.value}`}>
+                <a
+                  href={p.kind === "whatsapp" ? whatsappHref(p.value) : telHref(p.value)}
+                  target={p.kind === "whatsapp" ? "_blank" : undefined}
+                  rel={p.kind === "whatsapp" ? "noopener noreferrer" : undefined}
+                  className="text-white/75 transition hover:text-white"
+                >
+                  <span className="block text-[0.7rem] uppercase tracking-[0.14em] text-white/40">{p.label}</span>
+                  {p.value}
+                </a>
+              </li>
+            ))}
+            {emails.map((e) => (
+              <li key={e.value}>
+                <a href={`mailto:${e.value}`} className="break-all text-white/75 transition hover:text-white">
+                  <span className="block text-[0.7rem] uppercase tracking-[0.14em] text-white/40">{e.label}</span>
+                  {e.value}
+                </a>
+              </li>
+            ))}
+          </ul>
+        </div>
 
         <div>
           <h2 className="text-xs font-bold uppercase tracking-[0.2em] text-white/50">Offices</h2>
           <ul className="mt-5 grid gap-5 text-sm">
-            {visibleOffices.map((o) => (
+            {c.offices.map((o) => (
               <li key={o.id} className="text-white/75">
                 <span className="flex items-center gap-2 font-semibold text-white">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -117,9 +110,9 @@ export function Footer() {
       <div className="border-t border-white/8">
         <div className="mx-auto flex max-w-7xl flex-col gap-2 px-5 py-6 text-xs text-white/45 sm:flex-row sm:items-center sm:justify-between sm:px-8">
           <p>
-            © {COPYRIGHT_YEAR} {site.legalName} All rights reserved.
+            © {COPYRIGHT_YEAR} {legal}. All rights reserved.
           </p>
-          <p>{site.tagline}</p>
+          <p>{c.tagline}</p>
         </div>
       </div>
     </footer>

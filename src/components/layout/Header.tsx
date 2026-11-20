@@ -5,15 +5,9 @@ import { useEffect, useState } from "react";
 import { ArrowRight, Menu, X } from "lucide-react";
 import { Logo } from "@/components/brand/Logo";
 
-const nav = [
-  { href: "/#destinations", label: "Destinations" },
-  { href: "/#services", label: "Services" },
-  { href: "/#journey", label: "How it works" },
-  { href: "/#uk-onshore", label: "UK onshore" },
-  { href: "/#contact", label: "Contact" },
-];
+type NavItem = { href: string; label: string };
 
-export function Header() {
+export function Header({ nav }: { nav: NavItem[] }) {
   const [scrolled, setScrolled] = useState(false);
   const [open, setOpen] = useState(false);
 
@@ -52,7 +46,7 @@ export function Header() {
             <Link
               key={item.href}
               href={item.href}
-              className="relative whitespace-nowrap rounded-full px-3.5 py-2 text-sm font-medium text-white/75 transition-colors hover:bg-white/5 hover:text-white"
+              className="relative whitespace-nowrap rounded-full px-3 py-2 text-[0.84rem] font-medium text-white/75 transition-colors hover:bg-white/5 hover:text-white"
             >
               {item.label}
             </Link>

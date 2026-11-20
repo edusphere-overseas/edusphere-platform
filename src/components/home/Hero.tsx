@@ -1,10 +1,12 @@
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
-import { flagStrip, whatsappLink } from "@/config/site";
+import { flagStrip } from "@/config/site";
 import { WhatsAppIcon } from "@/components/icons";
 import { FlagGlobe } from "./FlagGlobe";
 
-export function Hero() {
+type HeroCopy = { eyebrow: string; titleLine1: string; titleLine2: string; intro: string; note: string };
+
+export function Hero({ hero, whatsapp }: { hero: HeroCopy; whatsapp: string }) {
   return (
     <section className="relative isolate overflow-hidden">
       {/* background: soft glows and a faint map grid */}
@@ -16,28 +18,27 @@ export function Hero() {
 
       <div className="mx-auto grid max-w-7xl items-center gap-10 px-5 pt-10 pb-14 sm:px-8 lg:grid-cols-[1.05fr_0.95fr] lg:gap-6 lg:pt-16 lg:pb-20">
         <div className="relative z-10">
-          <p className="hero-in inline-flex items-center gap-2 rounded-full border border-white/12 bg-white/[0.04] px-3.5 py-1.5 text-xs font-semibold text-white/80 backdrop-blur" style={{ ["--d" as string]: "0s" }}>
-            <span className="h-1.5 w-1.5 rounded-full bg-teal-light" aria-hidden="true" />
-            <span>
-              Study abroad consultancy · <span className="hidden sm:inline">Head office in </span>Mangaluru
-            </span>
-          </p>
+          {hero.eyebrow && (
+            <p className="hero-in inline-flex items-center gap-2 rounded-full border border-white/12 bg-white/[0.04] px-3.5 py-1.5 text-xs font-semibold text-white/80 backdrop-blur" style={{ ["--d" as string]: "0s" }}>
+              <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-teal-light" aria-hidden="true" />
+              <span>{hero.eyebrow}</span>
+            </p>
+          )}
 
           <h1 className="mt-6 text-[clamp(2.7rem,7.5vw,5.4rem)] font-extrabold leading-[0.98] tracking-[-0.035em]">
             <span className="hero-in block" style={{ ["--d" as string]: "0.08s" }}>
-              Your future,
+              {hero.titleLine1}
             </span>
             <span
               className="hero-in block bg-[linear-gradient(100deg,#5cc0cf,#5a9bd1_55%,#a9d4f0)] bg-clip-text pb-2 text-transparent"
               style={{ ["--d" as string]: "0.18s" }}
             >
-              mapped out.
+              {hero.titleLine2}
             </span>
           </h1>
 
           <p className="hero-in mt-6 max-w-xl text-lg leading-relaxed text-white/75" style={{ ["--d" as string]: "0.3s" }}>
-            Personal guidance for studying in the UK, Europe, Australia, New Zealand, the USA and Canada. From your
-            first question to your first day on campus, one team walks the whole way with you.
+            {hero.intro}
           </p>
 
           <div className="hero-in mt-9 flex flex-col gap-3 sm:flex-row sm:items-center" style={{ ["--d" as string]: "0.42s" }}>
@@ -49,7 +50,7 @@ export function Hero() {
               <ArrowRight className="h-4.5 w-4.5 transition-transform group-hover:translate-x-1" aria-hidden="true" />
             </Link>
             <a
-              href={whatsappLink()}
+              href={whatsapp}
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex items-center justify-center gap-2 rounded-full px-6 py-3.5 font-semibold text-white ring-1 ring-white/25 transition hover:bg-white/5 hover:ring-white/45"
@@ -60,7 +61,7 @@ export function Hero() {
           </div>
 
           <p className="hero-in mt-8 text-sm text-white/55" style={{ ["--d" as string]: "0.54s" }}>
-            Free first consultation · In person in Mangaluru or online, wherever you are
+            {hero.note}
           </p>
         </div>
 

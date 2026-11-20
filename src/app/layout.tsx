@@ -1,10 +1,5 @@
 import type { Metadata, Viewport } from "next";
 import localFont from "next/font/local";
-import { Intro } from "@/components/brand/Intro";
-import { Footer } from "@/components/layout/Footer";
-import { Header } from "@/components/layout/Header";
-import { Ticker } from "@/components/layout/Ticker";
-import { WhatsAppButton } from "@/components/layout/WhatsAppButton";
 import { site } from "@/config/site";
 import "./globals.css";
 
@@ -47,20 +42,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       <head>
         <script dangerouslySetInnerHTML={{ __html: introScript }} />
       </head>
-      <body className="min-h-dvh antialiased">
-        <a
-          href="#main"
-          className="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-[200] focus:rounded-full focus:bg-white focus:px-4 focus:py-2 focus:text-sm focus:font-semibold focus:text-deep"
-        >
-          Skip to content
-        </a>
-        <Intro />
-        <Ticker />
-        <Header />
-        <main id="main">{children}</main>
-        <Footer />
-        <WhatsAppButton />
-      </body>
+      <body className="min-h-dvh antialiased">{children}</body>
     </html>
   );
 }

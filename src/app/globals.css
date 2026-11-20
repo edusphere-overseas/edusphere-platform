@@ -261,6 +261,11 @@ body {
   to { opacity: 1; transform: none; }
 }
 
+@keyframes banner-progress {
+  from { width: 0%; }
+  to { width: 100%; }
+}
+
 /* Pause the orbiting flags while the visitor explores them */
 .globe:hover .orbit,
 .globe:hover .orbit-reverse,

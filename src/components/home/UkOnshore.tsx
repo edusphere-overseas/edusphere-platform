@@ -1,5 +1,5 @@
-import { ArrowUpRight, Check } from "lucide-react";
-import { whatsappLink } from "@/config/site";
+import { ArrowUpRight, Check, MapPin } from "lucide-react";
+import { whatsappHref, type SiteContent } from "@/lib/content";
 import { Reveal } from "@/components/ui/Reveal";
 
 const points = [
@@ -8,7 +8,7 @@ const points = [
   "Applications and documents prepared with you, step by step",
 ];
 
-export function UkOnshore() {
+export function UkOnshore({ programmes, whatsapp }: { programmes: SiteContent["onshore"]; whatsapp: string }) {
   return (
     <section id="uk-onshore" className="relative scroll-mt-20 pb-24 sm:pb-32">
       <div className="mx-auto max-w-7xl px-5 sm:px-8">
@@ -34,7 +34,7 @@ export function UkOnshore() {
                 programmes and plan the move into post-study work.
               </p>
               <a
-                href={whatsappLink("Hi Edusphere, I'm in the UK and would like to know about onshore programmes.")}
+                href={whatsappHref(whatsapp, "Hi Edusphere, I'm in the UK and would like to know about onshore programmes.")}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="mt-8 inline-flex items-center gap-2 rounded-full bg-white px-6 py-3.5 font-semibold text-deep transition hover:bg-mist"
@@ -58,6 +58,27 @@ export function UkOnshore() {
               </li>
             </ul>
           </div>
+
+          {programmes.length > 0 && (
+            <div className="relative mt-10 border-t border-white/10 pt-8">
+              <h3 className="text-sm font-bold uppercase tracking-[0.2em] text-white/60">Current onshore programmes</h3>
+              <ul className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                {programmes.map((p) => (
+                  <li key={p._id} className="rounded-2xl border border-white/10 bg-deep/50 p-5">
+                    <p className="font-bold text-white">{p.title}</p>
+                    {(p.provider || p.location) && (
+                      <p className="mt-1.5 flex items-center gap-1.5 text-sm text-white/60">
+                        <MapPin className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                        {[p.provider, p.location].filter(Boolean).join(", ")}
+                      </p>
+                    )}
+                    {p.summary && <p className="mt-3 text-sm leading-relaxed text-white/75">{p.summary}</p>}
+                    {p.intakes && <p className="mt-3 text-xs font-semibold text-teal-light">{p.intakes}</p>}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
         </Reveal>
       </div>
     </section>

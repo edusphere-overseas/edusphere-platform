@@ -2,8 +2,11 @@
 
 The new Edusphere Overseas site, built to the **Website Plan, Version 1**.
 
-**Stack:** Next.js 16 (App Router, TypeScript) · Tailwind CSS 4 · Motion · Netlify.
-Coming in later steps: Sanity (content), Supabase (portal, Mumbai region), Cloudflare R2 and Turnstile, Resend.
+**Stack:** Next.js 16 (App Router, TypeScript) · Tailwind CSS 4 · Motion · Sanity (content) · Netlify.
+Coming in later steps: Supabase (portal, Mumbai region), Cloudflare R2 and Turnstile, Resend.
+
+**Live preview:** https://edusphere-overseas.netlify.app (private to the Netlify team until launch)
+**Admin portal:** `/admin` → **Content** at `/admin/content` (Sanity Studio; sign in with your invited Sanity account)
 
 ## Run it on your computer
 
@@ -17,18 +20,22 @@ npm run build      # production build, the same one Netlify runs
 
 ## Where things live
 
-| What | File |
+| What | Where |
 | --- | --- |
-| Contact details, offices, WhatsApp number, social links | `src/config/site.ts` |
-| News ticker items | `src/config/site.ts` → `tickerItems` |
-| Destination cards and hero flags | `src/config/site.ts` → `destinations`, `flagStrip` |
+| Banners, ticker, offices, contact details, social links, destinations, services, "Open now", UK onshore programmes, team, office photos, section switches, hero text | **Admin → Content** (Sanity) |
+| Built-in fallback content (used until Content is set up) | `src/config/site.ts` |
+| Content types (what fields the team can edit) | `src/sanity/schemaTypes/` |
+| Content menu layout | `src/sanity/structure.ts` |
+| How the site reads content | `src/sanity/queries.ts`, `src/lib/content.ts` |
 | Brand colours, animations | `src/app/globals.css` |
 | Logo (vector) and loading animation | `src/components/brand/` |
 | Home page sections | `src/components/home/` |
 | Header, footer, ticker, WhatsApp button | `src/components/layout/` |
 | Country flags (MIT licence) | `public/flags/` |
 
-From Step 2 these settings move into the **Content** area of the admin portal (Sanity), so the team can edit them without touching code.
+Published changes appear on the website within about a minute. For instant updates, add a Sanity webhook to `/api/revalidate` with a secret, and the same secret as `SANITY_REVALIDATE_SECRET` in Netlify.
+
+To give a team member access to Content, invite them to the **Edusphere Platform** project at sanity.io/manage → Members.
 
 ## Logo loading animation
 
@@ -45,7 +52,8 @@ The site is set to `noindex` until launch; switch `robots` in `src/app/layout.ts
 ## Build plan progress
 
 - [x] Step 1 — Foundations: project, brand theme, logo and loading animation, header, news ticker, hero with interactive flags, destinations, services, journey, UK onshore, contact with maps, footer, WhatsApp button
-- [ ] Step 2 — Sanity content (banners, ticker, offices, contacts, galleries, "Open now", course finder switch)
+- [x] Step 2 (part 1) — Sanity Content area embedded in the admin portal; banners, ticker, offices, contacts, social links, destinations, services, "Open now", UK onshore programmes, team, office photos, section switches (incl. course finder), About page
+- [ ] Step 2 (part 2) — Google reviews, destination and service pages
 - [ ] Step 3 — Student and parent portal (Supabase sign-up with email or Google, documents, tracker)
 - [ ] Step 4 — Counselling appointments and email
 - [ ] Steps 5–8 — per the plan

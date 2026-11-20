@@ -1,4 +1,3 @@
-#==EDU:FILE src/sanity/tools/StarterContent.tsx
 "use client";
 
 import { useState } from "react";
@@ -175,6 +174,3 @@ export function StarterContent() {
     </Box>
   );
 }
-#==EDU:DELETE src/app/page.tsx
-#==EDU:DELETE src/app/portal/page.tsx
-#==EDU:END -

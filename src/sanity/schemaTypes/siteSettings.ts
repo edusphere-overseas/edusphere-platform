@@ -1,0 +1,81 @@
+import { defineField, defineType } from "sanity";
+import { Settings } from "lucide-react";
+
+export const siteSettings = defineType({
+  name: "siteSettings",
+  title: "Website settings",
+  type: "document",
+  icon: Settings,
+  groups: [
+    { name: "company", title: "Company", default: true },
+    { name: "contact", title: "Contact and social" },
+    { name: "hero", title: "Home page hero" },
+    { name: "switches", title: "Section switches" },
+  ],
+  fields: [
+    defineField({ name: "companyName", type: "string", group: "company", validation: (r) => r.required() }),
+    defineField({ name: "legalName", type: "string", group: "company", description: "Used in the footer copyright." }),
+    defineField({ name: "tagline", type: "string", group: "company" }),
+    defineField({
+      name: "description",
+      title: "Short description",
+      type: "text",
+      rows: 3,
+      group: "company",
+      description: "Used by search engines and in the footer. About 150–160 characters.",
+      validation: (r) => r.max(200),
+    }),
+
+    defineField({
+      name: "whatsappNumber",
+      title: "Main WhatsApp number",
+      type: "string",
+      group: "contact",
+      description: "Used by the floating WhatsApp button. Include the country code, e.g. +91 81294 40282.",
+      validation: (r) => r.required().regex(/^\+\d[\d\s-]{6,}$/, { name: "phone" }),
+    }),
+    defineField({
+      name: "whatsappMessage",
+      title: "WhatsApp opening message",
+      type: "string",
+      group: "contact",
+      description: "Pre-filled text when a visitor taps the WhatsApp button.",
+    }),
+    defineField({
+      name: "contacts",
+      title: "Company-wide contact details",
+      type: "array",
+      group: "contact",
+      of: [{ type: "contactPoint" }],
+      description: "Add as many as you need. Office-specific numbers go on each office.",
+    }),
+    defineField({ name: "socialLinks", title: "Social links", type: "array", group: "contact", of: [{ type: "socialLink" }] }),
+
+    defineField({ name: "heroEyebrow", title: "Small label above the heading", type: "string", group: "hero" }),
+    defineField({ name: "heroTitleLine1", title: "Heading, line 1", type: "string", group: "hero" }),
+    defineField({ name: "heroTitleLine2", title: "Heading, line 2 (in colour)", type: "string", group: "hero" }),
+    defineField({ name: "heroIntro", title: "Intro paragraph", type: "text", rows: 3, group: "hero" }),
+    defineField({ name: "heroNote", title: "Small note under the buttons", type: "string", group: "hero" }),
+
+    defineField({
+      name: "sections",
+      title: "Show these sections",
+      type: "object",
+      group: "switches",
+      options: { columns: 2 },
+      fields: [
+        defineField({ name: "ticker", title: "News ticker", type: "boolean", initialValue: true }),
+        defineField({ name: "banners", title: "Banners", type: "boolean", initialValue: true }),
+        defineField({ name: "openNow", title: '"Open now" visas and scholarships', type: "boolean", initialValue: false }),
+        defineField({ name: "destinations", title: "Destinations", type: "boolean", initialValue: true }),
+        defineField({ name: "services", title: "Student services", type: "boolean", initialValue: true }),
+        defineField({ name: "journey", title: '"How it works"', type: "boolean", initialValue: true }),
+        defineField({ name: "ukOnshore", title: "UK onshore", type: "boolean", initialValue: true }),
+        defineField({ name: "courseFinder", title: "Course finder", type: "boolean", initialValue: false }),
+        defineField({ name: "team", title: "Team (About page)", type: "boolean", initialValue: true }),
+        defineField({ name: "gallery", title: "Office photos (About page)", type: "boolean", initialValue: true }),
+      ],
+    }),
+  ],
+  preview: { prepare: () => ({ title: "Website settings" }) },
+});

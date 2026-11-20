@@ -175,3 +175,74 @@ export const journeySteps = [
   { title: "Visa", text: "A clear checklist and guidance through every visa step." },
   { title: "Fly", text: "Pre-departure support, accommodation and airport pickup." },
 ];
+
+/** Student services. Icons map to the pick-list in the Content area. */
+export const defaultServices: { title: string; description: string; icon: string }[] = [
+  {
+    title: "Counselling and shortlisting",
+    description: "An honest conversation about your goals, then a shortlist of courses and universities that genuinely suit you.",
+    icon: "messages",
+  },
+  {
+    title: "University applications",
+    description: "Applications, statements of purpose and references prepared carefully, and submitted on time.",
+    icon: "graduation",
+  },
+  {
+    title: "Visa guidance",
+    description: "A clear document checklist, financial planning and interview preparation for your student visa.",
+    icon: "file-check",
+  },
+  {
+    title: "Scholarship assistance",
+    description: "We look for scholarships and fee awards you may qualify for and help you put your best case forward.",
+    icon: "award",
+  },
+  {
+    title: "Accommodation abroad",
+    description: "Help finding safe, well-located student housing before you leave home.",
+    icon: "bed",
+  },
+  {
+    title: "Airport pickup and drop",
+    description: "A friendly face when you land, and a smooth start to your first week.",
+    icon: "plane",
+  },
+  {
+    title: "Post-study work visa",
+    description: "Guidance on staying on to work after your degree, through appropriately regulated advisers where required.",
+    icon: "briefcase",
+  },
+  {
+    title: "UK onshore programmes",
+    description: "Already in the UK? Onshore admission options alongside your post-study plans.",
+    icon: "landmark",
+  },
+];
+
+export const defaultHero = {
+  eyebrow: "Study abroad consultancy · Head office in Mangaluru",
+  titleLine1: "Your future,",
+  titleLine2: "mapped out.",
+  intro:
+    "Personal guidance for studying in the UK, Europe, Australia, New Zealand, the USA and Canada. From your first question to your first day on campus, one team walks the whole way with you.",
+  note: "Free first consultation · In person in Mangaluru or online, wherever you are",
+};
+
+export const defaultBanners: { eyebrow: string; title: string; subtitle: string; flag?: string; ctaLabel: string; ctaLink: string }[] = [
+  {
+    eyebrow: "Free consultation",
+    title: "Plan your study abroad journey with us",
+    subtitle: "One-to-one guidance on countries, courses, costs and visas, in Mangaluru or online.",
+    ctaLabel: "Book a free consultation",
+    ctaLink: "/#contact",
+  },
+  {
+    eyebrow: "UK onshore",
+    title: "Already studying in the UK?",
+    subtitle: "Ask us about onshore admission programmes and planning your next step after your course.",
+    flag: "gb",
+    ctaLabel: "Find out more",
+    ctaLink: "/#uk-onshore",
+  },
+];

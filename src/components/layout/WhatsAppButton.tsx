@@ -1,10 +1,9 @@
-import { whatsappLink } from "@/config/site";
 import { WhatsAppIcon } from "@/components/icons";
 
-export function WhatsAppButton() {
+export function WhatsAppButton({ href }: { href: string }) {
   return (
     <a
-      href={whatsappLink()}
+      href={href}
       target="_blank"
       rel="noopener noreferrer"
       aria-label="Chat with Edusphere on WhatsApp"

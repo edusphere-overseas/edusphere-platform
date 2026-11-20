@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { ArrowLeft, CalendarCheck, FileUp, ListChecks } from "lucide-react";
-import { whatsappLink } from "@/config/site";
+import { getSiteContent, whatsappHref } from "@/lib/content";
 import { WhatsAppIcon } from "@/components/icons";
 
 export const metadata: Metadata = {
@@ -15,7 +15,8 @@ const features = [
 ];
 
 /** Placeholder until the portal is built (Step 3 of the build plan). */
-export default function PortalPage() {
+export default async function PortalPage() {
+  const c = await getSiteContent();
   return (
     <section className="relative isolate overflow-hidden">
       <div aria-hidden="true" className="pointer-events-none absolute -top-40 left-1/2 -z-10 h-[34rem] w-[34rem] -translate-x-1/2 rounded-full bg-teal/20 blur-[120px]" />
@@ -37,7 +38,7 @@ export default function PortalPage() {
         </div>
         <div className="mt-12 flex flex-col justify-center gap-3 sm:flex-row">
           <a
-            href={whatsappLink("Hi Edusphere, I'd like help with my application.")}
+            href={whatsappHref(c.whatsappNumber, "Hi Edusphere, I'd like help with my application.")}
             target="_blank"
             rel="noopener noreferrer"
             className="inline-flex items-center justify-center gap-2 rounded-full bg-teal px-6 py-3.5 font-semibold text-white transition hover:bg-teal-light"

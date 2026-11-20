@@ -1,14 +1,11 @@
-import { tickerItems } from "@/config/site";
+type Item = { tag: string; text: string; link?: string | null };
 
-/**
- * Running news line above the header. Items come from site config for now
- * and from Sanity (with start/end dates and an on/off switch) in Step 2.
- */
-export function Ticker() {
-  if (tickerItems.length === 0) return null;
+/** Running news line above the header. Managed in Content → Home page → News ticker. */
+export function Ticker({ items }: { items: Item[] }) {
+  if (items.length === 0) return null;
 
   const row = (copy: number) =>
-    tickerItems.map((item, i) => {
+    items.map((item, i) => {
       const body = (
         <>
           <span className="rounded-full bg-teal/20 px-2 py-0.5 text-[0.62rem] font-bold uppercase tracking-[0.14em] text-teal-light">
@@ -17,13 +14,14 @@ export function Ticker() {
           <span className="text-white/80">{item.text}</span>
         </>
       );
+      const external = item.link?.startsWith("http");
       return (
         <li key={`${copy}-${i}`} className="flex shrink-0 items-center gap-2.5 pr-12" aria-hidden={copy > 0 || undefined}>
-          {item.href ? (
+          {item.link ? (
             <a
-              href={item.href}
-              target="_blank"
-              rel="noopener noreferrer"
+              href={item.link}
+              target={external ? "_blank" : undefined}
+              rel={external ? "noopener noreferrer" : undefined}
               tabIndex={copy > 0 ? -1 : undefined}
               className="flex items-center gap-2.5 hover:text-white"
             >

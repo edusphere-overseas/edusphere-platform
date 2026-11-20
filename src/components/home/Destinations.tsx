@@ -2,11 +2,15 @@
 
 import { useState } from "react";
 import { ArrowUpRight, CalendarDays, RotateCcw } from "lucide-react";
-import { destinations, whatsappLink, type Destination } from "@/config/site";
+import { whatsappHref } from "@/lib/links";
 import { Reveal } from "@/components/ui/Reveal";
 import { SectionHeading } from "@/components/ui/SectionHeading";
 
-function DestinationCard({ d }: { d: Destination }) {
+type Destination = { id: string; name: string; flag: string; summary: string; intakes?: string | null };
+
+const shortName = (n: string) => (n === "United Kingdom" ? "the UK" : n === "United States" ? "the USA" : n);
+
+function DestinationCard({ d, whatsapp }: { d: Destination; whatsapp: string }) {
   const [flipped, setFlipped] = useState(false);
 
   return (
@@ -27,7 +31,7 @@ function DestinationCard({ d }: { d: Destination }) {
             <img src={`/flags/${d.flag}.svg`} alt="" className="flag-wave h-full w-full object-cover" draggable={false} />
           </span>
           <span className="relative mt-6 block text-2xl font-extrabold tracking-[-0.02em] text-white">{d.name}</span>
-          <span className="relative mt-2 block flex-1 text-[0.95rem] leading-relaxed text-white/65">{d.line}</span>
+          <span className="relative mt-2 block flex-1 text-[0.95rem] leading-relaxed text-white/65">{d.summary}</span>
           <span className="relative mt-6 inline-flex items-center gap-2 text-sm font-semibold text-teal-light">
             <RotateCcw className="h-4 w-4 transition-transform duration-500 group-hover:-rotate-180" aria-hidden="true" />
             Intakes and next steps
@@ -46,20 +50,20 @@ function DestinationCard({ d }: { d: Destination }) {
           </div>
           <p className="mt-5 flex items-start gap-2.5 text-[0.95rem] leading-relaxed text-white/80">
             <CalendarDays className="mt-0.5 h-4.5 w-4.5 shrink-0 text-teal-light" aria-hidden="true" />
-            {d.intakes}
+            {d.intakes || "Intakes vary by university. Ask us for the next dates."}
           </p>
           <p className="mt-3 text-sm leading-relaxed text-white/60">
             Tell us your course and budget and we&apos;ll shortlist universities that fit.
           </p>
           <div className="mt-auto flex items-center justify-between gap-3 pt-6">
             <a
-              href={whatsappLink(`Hi Edusphere, I'm interested in studying in ${d.name}.`)}
+              href={whatsappHref(whatsapp, `Hi Edusphere, I'm interested in studying in ${shortName(d.name)}.`)}
               target="_blank"
               rel="noopener noreferrer"
               tabIndex={flipped ? 0 : -1}
               className="inline-flex items-center gap-1.5 rounded-full bg-teal px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-teal-light"
             >
-              Ask about {d.name === "United Kingdom" ? "the UK" : d.name === "United States" ? "the USA" : d.name}
+              Ask about {shortName(d.name)}
               <ArrowUpRight className="h-4 w-4" aria-hidden="true" />
             </a>
             <button
@@ -78,7 +82,8 @@ function DestinationCard({ d }: { d: Destination }) {
   );
 }
 
-export function Destinations() {
+export function Destinations({ items, whatsapp }: { items: Destination[]; whatsapp: string }) {
+  if (items.length === 0) return null;
   return (
     <section id="destinations" className="relative scroll-mt-20 py-24 sm:py-32">
       <div className="mx-auto max-w-7xl px-5 sm:px-8">
@@ -91,7 +96,7 @@ export function Destinations() {
                 <span className="text-teal-light"> study?</span>
               </>
             }
-            intro="Six destinations, each with its own rhythm of intakes, costs and visas. We know them well, and we'll help you weigh them honestly."
+            intro="Each destination has its own rhythm of intakes, costs and visas. We know them well, and we'll help you weigh them honestly."
           />
           <Reveal delay={0.1} className="text-sm text-white/50">
             Tap a card for intakes
@@ -99,9 +104,9 @@ export function Destinations() {
         </div>
 
         <div className="mt-14 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-          {destinations.map((d, i) => (
+          {items.map((d, i) => (
             <Reveal key={d.id} delay={(i % 3) * 0.08} className="h-full">
-              <DestinationCard d={d} />
+              <DestinationCard d={d} whatsapp={whatsapp} />
             </Reveal>
           ))}
         </div>
