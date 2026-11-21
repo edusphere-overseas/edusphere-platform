@@ -27,7 +27,8 @@ export function Reveal({ children, as: Tag = "div", className = "", delay = 0, i
           }
         }
       },
-      { rootMargin: "0px 0px -8% 0px", threshold: 0.12 },
+      // Start just before the element scrolls in, so fast flicks on a phone never show blank space.
+      { rootMargin: "0px 0px 6% 0px", threshold: 0 },
     );
     io.observe(el);
     return () => io.disconnect();

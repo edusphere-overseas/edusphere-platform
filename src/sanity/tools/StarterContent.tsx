@@ -3,18 +3,48 @@
 import { useState } from "react";
 import { useClient } from "sanity";
 import { Box, Button, Card, Flex, Heading, Stack, Text } from "@sanity/ui";
-import {
-  defaultBanners,
-  defaultHero,
-  defaultServices,
-  destinations,
-  offices,
-  site,
-  tickerItems,
-} from "@/config/site";
+import { defaultBanners, defaultHero, destinations, offices, site, tickerItems } from "@/config/site";
+import { defaultFaqs, defaultStats, destinationDetails, serviceDetails } from "@/config/defaults";
 import { apiVersion } from "../env";
 
 const key = (prefix: string, i: number) => `${prefix}${i}`;
+
+/** Fixed IDs, so running the tool again never duplicates anything. */
+const serviceIds: Record<string, { id: string; order: number }> = {
+  counselling: { id: "service-1", order: 10 },
+  applications: { id: "service-2", order: 20 },
+  "english-tests": { id: "service-9", order: 25 },
+  visa: { id: "service-3", order: 30 },
+  scholarships: { id: "service-4", order: 40 },
+  "education-loans": { id: "service-10", order: 45 },
+  accommodation: { id: "service-5", order: 50 },
+  "airport-pickup": { id: "service-6", order: 60 },
+  "pre-departure": { id: "service-11", order: 65 },
+  "post-study-work": { id: "service-7", order: 70 },
+  "uk-onshore": { id: "service-8", order: 80 },
+};
+
+const faqCategories = ["start", "parents", "start", "start", "visa", "arrival"];
+
+/**
+ * Fields added in November 2026. On items that already exist, only these are
+ * filled in, and only where they are still empty.
+ */
+const newFields: Record<string, string[]> = {
+  siteSettings: ["intro", "stats", "sections.trust", "sections.reviews", "sections.stories", "sections.news", "sections.instagram"],
+  destination: ["intro", "highlights", "popularCourses", "countries", "visaSteps", "postStudyWork"],
+  service: ["slug", "steps", "included"],
+};
+
+const pick = (doc: Record<string, unknown>, paths: string[]) => {
+  const out: Record<string, unknown> = {};
+  for (const p of paths) {
+    const [a, b] = p.split(".");
+    const v = b ? (doc[a] as Record<string, unknown> | undefined)?.[b] : doc[a];
+    if (v !== undefined) out[p] = v;
+  }
+  return out;
+};
 
 function buildDocuments() {
   const head = offices[0];
@@ -54,7 +84,14 @@ function buildDocuments() {
       courseFinder: false,
       team: true,
       gallery: true,
+      trust: true,
+      reviews: true,
+      stories: true,
+      news: true,
+      instagram: true,
     },
+    intro: { show: true, seconds: 2.5, replayMinutes: 30 },
+    stats: defaultStats(destinations.length, serviceDetails.length).map((st, i) => ({ _key: key("n", i), _type: "stat", ...st })),
   });
 
   docs.push({
@@ -96,12 +133,33 @@ function buildDocuments() {
       flag: d.flag,
       summary: d.line,
       intakes: d.intakes,
+      intro: destinationDetails[d.id]?.intro,
+      highlights: destinationDetails[d.id]?.highlights,
+      popularCourses: destinationDetails[d.id]?.popularCourses,
+      countries: destinationDetails[d.id]?.countries?.map((c, n) => ({ _key: key("c", n), ...c })),
+      visaSteps: destinationDetails[d.id]?.visaSteps,
+      postStudyWork: destinationDetails[d.id]?.postStudyWork,
       show: true,
       order: (i + 1) * 10,
     }),
   );
-  defaultServices.forEach((s, i) =>
-    docs.push({ _id: `service-${i + 1}`, _type: "service", ...s, show: true, order: (i + 1) * 10 }),
+  serviceDetails.forEach((sv) => {
+    const { id, order } = serviceIds[sv.slug];
+    docs.push({
+      _id: id,
+      _type: "service",
+      title: sv.title,
+      slug: { _type: "slug", current: sv.slug },
+      description: sv.description,
+      icon: sv.icon,
+      steps: sv.steps,
+      included: sv.included,
+      show: true,
+      order,
+    });
+  });
+  defaultFaqs.forEach((f, i) =>
+    docs.push({ _id: `faq-${i + 1}`, _type: "faq", ...f, category: faqCategories[i], show: true, order: (i + 1) * 10 }),
   );
   return docs;
 }
@@ -115,15 +173,37 @@ export function StarterContent() {
   async function run() {
     setState("working");
     try {
-      const existing: string[] = await client.fetch(`*[_id in $ids]._id`, { ids: docs.map((d) => d._id) });
+      const existing: { _id: string; [k: string]: unknown }[] = await client.fetch(`*[_id in $ids]`, { ids: docs.map((d) => d._id) });
+      const byId = new Map(existing.map((e) => [e._id, e]));
       const tx = client.transaction();
-      docs.forEach((d) => tx.createIfNotExists(d as { _id: string; _type: string }));
+      let filled = 0;
+      for (const d of docs) {
+        const current = byId.get(d._id as string);
+        if (!current) {
+          tx.createIfNotExists(d as { _id: string; _type: string });
+          continue;
+        }
+        // Existing item: fill only new fields that are still empty.
+        const fill = pick(d, newFields[d._type as string] ?? []);
+        const missing = Object.fromEntries(Object.entries(fill).filter(([p]) => pick(current, [p])[p] === undefined));
+        if (Object.keys(missing).length) {
+          if (Object.keys(missing).some((p) => p.startsWith("sections."))) tx.patch(d._id as string, (pt) => pt.setIfMissing({ sections: {} }));
+          tx.patch(d._id as string, (pt) => pt.setIfMissing(missing));
+          filled++;
+        }
+      }
       await tx.commit();
       const added = docs.length - existing.length;
       setMessage(
-        added === 0
+        added === 0 && filled === 0
           ? "Everything was already there. Nothing was changed."
-          : `Added ${added} item${added === 1 ? "" : "s"}. ${existing.length ? `${existing.length} existing item(s) were left unchanged.` : ""}`,
+          : [
+              added ? `Added ${added} new item${added === 1 ? "" : "s"}.` : "",
+              filled ? `Filled in new, empty fields on ${filled} existing item${filled === 1 ? "" : "s"}.` : "",
+              "Nothing you had written was changed.",
+            ]
+              .filter(Boolean)
+              .join(" "),
       );
       setState("done");
     } catch (e) {
@@ -139,21 +219,23 @@ export function StarterContent() {
         <Text muted size={2}>
           Adds Edusphere&apos;s current website content so you can edit it here instead of starting from blank pages:
           website settings, the Mangaluru office (plus hidden London, Dubai and Bengaluru offices to complete),
-          news ticker items, two banners, six destinations and eight student services.
+          news ticker items, two banners, six destinations with their country-page text, eleven student services and
+          six FAQs.
         </Text>
         <Text muted size={2}>
-          It never overwrites anything. Items that already exist are left exactly as they are, so it is safe to run
-          more than once.
+          It never overwrites anything. On items that already exist it only fills in fields added in November 2026
+          (country-page text, service steps, numbers and new section switches) where they are still empty. It is safe
+          to run more than once.
         </Text>
         <Card padding={4} radius={3} tone="primary" border>
           <Flex align="center" gap={4} wrap="wrap">
             <Box flex={1}>
               <Text size={2} weight="semibold">
-                {docs.length} items ready to add
+                {docs.length} items ready to add or complete
               </Text>
             </Box>
             <Button
-              text={state === "working" ? "Adding…" : "Add starter content"}
+              text={state === "working" ? "Working…" : "Add starter content"}
               tone="primary"
               disabled={state === "working"}
               onClick={run}

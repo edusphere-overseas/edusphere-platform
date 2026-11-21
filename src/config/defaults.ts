@@ -1,4 +1,3 @@
-#==EDU:FILE src/config/defaults.ts
 /**
  * Built-in page content used when a field is empty in the Content area.
  * Facts that change (costs, visa lengths, work limits) are deliberately left

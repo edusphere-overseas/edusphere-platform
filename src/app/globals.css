@@ -58,18 +58,26 @@ body {
 }
 
 /* ------------------------------------------------------------------
-   Logo loading animation (first visit in a session only)
-   Runs in pure CSS so it starts on first paint; JS only adds the glide
-   into the header and tap-to-skip. About 1.6 s in total.
+   Logo loading animation (first visit, and again after time away)
+   Length is set in Content → Website settings → Logo intro and arrives as
+   --intro-total on <html>; --intro-pace slows the drawing for longer intros.
+   The drawing, the hold and the fading of the words run in pure CSS, so they
+   start on first paint; JavaScript adds the glide into the header logo.
    ------------------------------------------------------------------ */
+:root {
+  --intro-total: 2.5s;
+  --intro-pace: 1.25;
+}
 .intro {
+  --k: var(--intro-pace);
   position: fixed;
   inset: 0;
   z-index: 100;
   display: grid;
   place-items: center;
   cursor: pointer;
-  animation: intro-out 0.3s ease-in 1.5s forwards; /* failsafe without JS */
+  /* failsafe without JavaScript: fade the whole overlay at the end */
+  animation: intro-out 0.5s ease calc(var(--intro-total) - 0.5s) forwards;
 }
 .intro::before {
   content: "";
@@ -84,15 +92,18 @@ body {
 .intro.is-done {
   display: none;
 }
+/* Name and tagline leave first, while the background is still solid, so no
+   intro text is ever seen over the page. (This wrapper has no other animation,
+   so nothing can hold it visible.) */
+.intro .intro-words {
+  animation: fade-out 0.2s ease calc(var(--intro-total) - 0.7s) forwards;
+}
 .intro.is-gliding {
   animation: none;
   pointer-events: none;
 }
 .intro.is-gliding::before { opacity: 0; }
-.intro.is-gliding .intro-text {
-  transition: opacity 0.18s ease;
-  opacity: 0;
-}
+.intro.is-gliding .intro-words { animation: none; opacity: 0; }
 .intro-mark {
   position: relative;
   width: min(40vw, 176px);
@@ -100,51 +111,59 @@ body {
   transition: transform 0.5s cubic-bezier(0.65, 0, 0.35, 1);
   will-change: transform;
 }
+/* The header logo waits until the intro logo has landed on it (never two logos) */
+:root:not([data-intro]) header [data-logo-mark] {
+  animation: logo-wait 0.25s ease var(--intro-total) both;
+}
+@keyframes logo-wait {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
 
 .intro .draw {
   stroke-dasharray: 1;
   stroke-dashoffset: 1;
-  animation: draw 0.28s cubic-bezier(0.55, 0, 0.25, 1) forwards;
+  animation: draw calc(0.28s * var(--k)) cubic-bezier(0.55, 0, 0.25, 1) forwards;
 }
-.intro .draw-spine { animation-delay: 0.04s; animation-duration: 0.3s; }
-.intro .draw-bar1 { animation-delay: 0.22s; }
-.intro .draw-bar2 { animation-delay: 0.31s; }
-.intro .draw-bar3 { animation-delay: 0.4s; }
+.intro .draw-spine { animation-delay: calc(0.04s * var(--k)); animation-duration: calc(0.3s * var(--k)); }
+.intro .draw-bar1 { animation-delay: calc(0.22s * var(--k)); }
+.intro .draw-bar2 { animation-delay: calc(0.31s * var(--k)); }
+.intro .draw-bar3 { animation-delay: calc(0.4s * var(--k)); }
 .intro .cap-fill {
   opacity: 0;
-  animation: fade-in 0.1s linear 0.66s forwards;
+  animation: fade-in 0.1s linear calc(0.66s * var(--k)) forwards;
 }
 .intro .cap-strokes {
-  animation: fade-out 0.01s linear 0.76s forwards;
+  animation: fade-out 0.01s linear calc(0.76s * var(--k)) forwards;
 }
 .intro .tassel-string {
   transform-box: fill-box;
   transform-origin: top;
   transform: scaleY(0);
-  animation: grow-down 0.14s ease-out 0.55s forwards;
+  animation: grow-down calc(0.14s * var(--k)) ease-out calc(0.55s * var(--k)) forwards;
 }
 .intro .tassel-drop {
   opacity: 0;
   transform-box: view-box;
   transform-origin: 24.4px 96px;
-  animation: drop-swing 0.55s ease-out 0.66s forwards;
+  animation: drop-swing calc(0.55s * var(--k)) ease-out calc(0.66s * var(--k)) forwards;
 }
 .intro .base {
   opacity: 0;
   transform: translateY(26px);
-  animation: rise 0.4s cubic-bezier(0.2, 0.8, 0.2, 1) 0.42s forwards;
+  animation: rise calc(0.4s * var(--k)) cubic-bezier(0.2, 0.8, 0.2, 1) calc(0.42s * var(--k)) forwards;
 }
 .intro .letter {
   display: inline-block;
   opacity: 0;
   transform: translateY(0.35em);
-  animation: rise 0.3s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
-  animation-delay: calc(0.5s + var(--i) * 0.015s);
+  animation: rise calc(0.3s * var(--k)) cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+  animation-delay: calc((0.5s + var(--i) * 0.015s) * var(--k));
 }
 .intro .tagline {
   opacity: 0;
   transform: translateY(6px);
-  animation: rise 0.3s ease-out 0.78s forwards;
+  animation: rise calc(0.3s * var(--k)) ease-out calc(0.78s * var(--k)) forwards;
 }
 
 @keyframes draw { to { stroke-dashoffset: 0; } }
@@ -193,46 +212,41 @@ body {
 /* ------------------------------------------------------------------
    Scroll reveal (class added by <Reveal>)
    ------------------------------------------------------------------ */
-.reveal {
+/* Hidden only when JavaScript runs (the head script sets data-js), so content never goes missing without it. */
+:root[data-js] .reveal {
   opacity: 0;
-  transform: translateY(24px);
+  transform: translate3d(0, 16px, 0);
   transition:
-    opacity 0.7s cubic-bezier(0.2, 0.8, 0.2, 1),
-    transform 0.7s cubic-bezier(0.2, 0.8, 0.2, 1);
+    opacity 0.55s cubic-bezier(0.2, 0.8, 0.2, 1),
+    transform 0.55s cubic-bezier(0.2, 0.8, 0.2, 1);
   transition-delay: var(--reveal-delay, 0s);
 }
-.reveal.is-visible {
+:root[data-js] .reveal.is-visible {
   opacity: 1;
   transform: none;
 }
+/* Phones show one card per row, so a stagger only reads as lag */
+@media (max-width: 767px) {
+  :root[data-js] .reveal { transition-delay: 0s; }
+}
 
-/* Destination card flip */
-.flip {
-  perspective: 1200px;
-}
-.flip-inner {
-  position: relative;
-  transform-style: preserve-3d;
-  transition: transform 0.7s cubic-bezier(0.2, 0.8, 0.2, 1);
-}
-.flip.is-flipped .flip-inner {
-  transform: rotateY(180deg);
-}
-.flip-face {
-  backface-visibility: hidden;
-  -webkit-backface-visibility: hidden;
-}
-.flip-back {
-  position: absolute;
-  inset: 0;
-  transform: rotateY(180deg);
+/* Destination cards: gentle tilt toward the mouse (desktop only; the turn itself runs in JS) */
+@media (hover: hover) and (pointer: fine) {
+  .tilt-inner {
+    transform: rotateX(var(--rx, 0deg)) rotateY(var(--ry, 0deg));
+    transition: transform 0.6s cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+  .tilt:hover .tilt-inner { transition-duration: 0.2s; }
 }
 
 .flag-wave {
   transition: transform 0.5s cubic-bezier(0.2, 0.8, 0.2, 1);
 }
-.group:hover .flag-wave {
-  animation: wave 1.6s ease-in-out infinite;
+/* Only for real hover: on touch screens :hover "sticks" after a tap */
+@media (hover: hover) {
+  .group:hover .flag-wave {
+    animation: wave 1.6s ease-in-out infinite;
+  }
 }
 @keyframes wave {
   0%, 100% { transform: perspective(300px) rotateY(0deg) skewY(0deg); }
@@ -244,7 +258,7 @@ body {
 /* ------------------------------------------------------------------
    Hero entrance: waits for the intro on first visit, quick otherwise
    ------------------------------------------------------------------ */
-:root { --intro-delay: 1.2s; }
+:root { --intro-delay: calc(var(--intro-total) - 0.5s); } /* starts as the intro background fades */
 :root[data-intro="skip"] { --intro-delay: 0.05s; }
 .hero-in {
   animation: rise 0.8s cubic-bezier(0.2, 0.8, 0.2, 1) both;
@@ -267,9 +281,13 @@ body {
 }
 
 /* Pause the orbiting flags while the visitor explores them */
-.globe:hover .orbit,
-.globe:hover .orbit-reverse,
-.globe:hover .counter-spin,
+@media (hover: hover) {
+  .globe:hover .orbit,
+  .globe:hover .orbit-reverse,
+  .globe:hover .counter-spin {
+    animation-play-state: paused;
+  }
+}
 .globe:focus-within .orbit,
 .globe:focus-within .orbit-reverse,
 .globe:focus-within .counter-spin {
@@ -281,13 +299,23 @@ body {
    ------------------------------------------------------------------ */
 @media (prefers-reduced-motion: reduce) {
   html { scroll-behavior: auto; }
-  .intro { display: none; }
-  :root { --intro-delay: 0s; }
+  :root { --intro-delay: calc(var(--intro-total) - 0.45s); }
+  /* Calm version of the intro: the finished logo, then a fade */
+  .intro { animation: intro-out 0.45s ease calc(var(--intro-total) - 0.45s) forwards !important; }
+  .intro *,
+  .intro::before {
+    animation: none !important;
+    opacity: 1 !important;
+    transform: none !important;
+    stroke-dashoffset: 0 !important;
+  }
+  .intro .cap-strokes { display: none; }
+  :root:not([data-intro]) header [data-logo-mark] { animation-delay: calc(var(--intro-total) - 0.45s) !important; }
   .orbit, .orbit-reverse, .counter-spin { animation: none !important; }
   *, *::before, *::after {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
   }
-  .reveal { opacity: 1; transform: none; }
+  :root[data-js] .reveal { opacity: 1; transform: none; }
 }

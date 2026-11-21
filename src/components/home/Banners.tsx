@@ -10,21 +10,38 @@ import type { Banner } from "@/lib/content";
 
 const INTERVAL_MS = 6500;
 
-/** Rotating banners managed in Content → Home page → Banners. */
+/**
+ * Banners managed in Content → Home page → Banners. Slides sit side by side on
+ * one track and slide across (never fade over each other), and follow the
+ * finger when swiped.
+ */
 export function Banners({ banners, whatsapp }: { banners: Banner[]; whatsapp: string }) {
   const [index, setIndex] = useState(0);
-  const [paused, setPaused] = useState(false);
-  const touchX = useRef<number | null>(null);
+  const [hovered, setHovered] = useState(false);
+  const [visible, setVisible] = useState(true);
+  const paused = hovered || !visible;
+  const [drag, setDrag] = useState(0); // px while swiping
+  const track = useRef<HTMLDivElement>(null);
+  const touch = useRef<{ x: number; y: number; axis: "x" | "y" | null } | null>(null);
   const count = banners.length;
 
   const go = useCallback((n: number) => setIndex(((n % count) + count) % count), [count]);
 
   useEffect(() => {
-    if (count < 2 || paused) return;
+    if (count < 2 || paused || drag !== 0) return;
     if (matchMedia("(prefers-reduced-motion: reduce)").matches) return;
     const t = setTimeout(() => go(index + 1), INTERVAL_MS);
     return () => clearTimeout(t);
-  }, [index, paused, count, go]);
+  }, [index, paused, count, go, drag]);
+
+  // Don't rotate while the banners are off screen.
+  useEffect(() => {
+    const el = track.current;
+    if (!el || count < 2) return;
+    const io = new IntersectionObserver(([e]) => setVisible(e.isIntersecting));
+    io.observe(el);
+    return () => io.disconnect();
+  }, [count]);
 
   if (count === 0) return null;
 
@@ -32,20 +49,41 @@ export function Banners({ banners, whatsapp }: { banners: Banner[]; whatsapp: st
     <section aria-roledescription="carousel" aria-label="Highlights" className="relative pt-14 sm:pt-16">
       <div className="mx-auto max-w-7xl px-5 sm:px-8">
         <div
-          className="relative overflow-hidden rounded-[2rem] border border-white/10 bg-panel"
-          onMouseEnter={() => setPaused(true)}
-          onMouseLeave={() => setPaused(false)}
-          onFocusCapture={() => setPaused(true)}
-          onBlurCapture={() => setPaused(false)}
-          onTouchStart={(e) => (touchX.current = e.touches[0].clientX)}
-          onTouchEnd={(e) => {
-            if (touchX.current === null) return;
-            const dx = e.changedTouches[0].clientX - touchX.current;
-            if (Math.abs(dx) > 40) go(index + (dx < 0 ? 1 : -1));
-            touchX.current = null;
+          className="relative overflow-hidden rounded-[2rem] border border-white/10 bg-panel [touch-action:pan-y]"
+          onMouseEnter={() => setHovered(true)}
+          onMouseLeave={() => setHovered(false)}
+          onFocusCapture={() => setHovered(true)}
+          onBlurCapture={() => setHovered(false)}
+          onTouchStart={(e) => {
+            if (count < 2) return;
+            touch.current = { x: e.touches[0].clientX, y: e.touches[0].clientY, axis: null };
+          }}
+          onTouchMove={(e) => {
+            const t = touch.current;
+            if (!t) return;
+            const dx = e.touches[0].clientX - t.x;
+            const dy = e.touches[0].clientY - t.y;
+            if (!t.axis && Math.abs(dx) + Math.abs(dy) > 8) t.axis = Math.abs(dx) > Math.abs(dy) ? "x" : "y";
+            if (t.axis === "x") setDrag(dx);
+          }}
+          onTouchEnd={() => {
+            const t = touch.current;
+            touch.current = null;
+            if (!t || t.axis !== "x") return setDrag(0);
+            const width = track.current?.offsetWidth ?? 1;
+            if (Math.abs(drag) > Math.min(60, width * 0.18)) go(index + (drag < 0 ? 1 : -1));
+            setDrag(0);
+          }}
+          onTouchCancel={() => {
+            touch.current = null;
+            setDrag(0);
           }}
         >
-          <div className="grid">
+          <div
+            ref={track}
+            className={`flex ${drag ? "" : "transition-transform duration-[650ms] ease-[cubic-bezier(0.22,0.8,0.2,1)]"}`}
+            style={{ transform: `translate3d(calc(${-index * 100}% + ${drag}px), 0, 0)` }}
+          >
             {banners.map((b, i) => {
               const active = i === index;
               const href = b.ctaLink || whatsappHref(whatsapp, `Hi Edusphere, I'd like to know more about: ${b.title}`);
@@ -56,13 +94,12 @@ export function Banners({ banners, whatsapp }: { banners: Banner[]; whatsapp: st
                   aria-roledescription="slide"
                   aria-label={`${i + 1} of ${count}`}
                   aria-hidden={!active}
-                  className={`relative col-start-1 row-start-1 flex min-h-[22rem] items-end transition-opacity duration-700 ease-out sm:min-h-[20rem] lg:min-h-[22rem] ${
-                    active ? "z-10 opacity-100" : "pointer-events-none z-0 opacity-0"
-                  }`}
+                  inert={!active}
+                  className="relative flex min-h-[22rem] w-full shrink-0 items-end sm:min-h-[20rem] lg:min-h-[22rem]"
                 >
                   {/* background */}
                   {b.image ? (
-                    <div className="absolute inset-0">
+                    <div className="absolute inset-0 overflow-hidden">
                       <SanityImage
                         photo={b.image}
                         fill
@@ -92,7 +129,7 @@ export function Banners({ banners, whatsapp }: { banners: Banner[]; whatsapp: st
                   {/* text */}
                   <div className="relative max-w-2xl p-7 pb-20 sm:p-12 sm:pb-20 lg:p-14 lg:pb-20">
                     {b.eyebrow && (
-                      <span className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1.5 text-xs font-bold uppercase tracking-[0.16em] text-white backdrop-blur">
+                      <span className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1.5 text-xs font-bold uppercase tracking-[0.16em] text-white">
                         {b.flag && (
                           // eslint-disable-next-line @next/next/no-img-element
                           <img src={`/flags/${b.flag}.svg`} alt="" className="h-3.5 w-5 rounded-[2px] object-cover" />
@@ -100,15 +137,12 @@ export function Banners({ banners, whatsapp }: { banners: Banner[]; whatsapp: st
                         {b.eyebrow}
                       </span>
                     )}
-                    <h2 className="mt-4 text-balance text-3xl font-extrabold leading-[1.1] tracking-[-0.02em] text-white sm:text-4xl">
-                      {b.title}
-                    </h2>
+                    <h2 className="mt-4 text-balance text-3xl font-extrabold leading-[1.1] tracking-[-0.02em] text-white sm:text-4xl">{b.title}</h2>
                     {b.subtitle && <p className="mt-4 max-w-xl text-base leading-relaxed text-white/75 sm:text-lg">{b.subtitle}</p>}
                     <Link
                       href={href}
                       target={external ? "_blank" : undefined}
                       rel={external ? "noopener noreferrer" : undefined}
-                      tabIndex={active ? 0 : -1}
                       className="group mt-7 inline-flex items-center gap-2 rounded-full bg-white px-5 py-3 text-sm font-semibold text-deep transition hover:bg-mist"
                     >
                       {b.ctaLabel || "Find out more"}
@@ -130,7 +164,7 @@ export function Banners({ banners, whatsapp }: { banners: Banner[]; whatsapp: st
                     onClick={() => go(i)}
                     aria-label={`Show banner ${i + 1}`}
                     aria-current={i === index}
-                    className="group relative h-2.5 overflow-hidden rounded-full bg-white/25 transition-all duration-300"
+                    className="relative h-2.5 overflow-hidden rounded-full bg-white/25 transition-all duration-300"
                     style={{ width: i === index ? 40 : 10 }}
                   >
                     {i === index && (
@@ -151,7 +185,7 @@ export function Banners({ banners, whatsapp }: { banners: Banner[]; whatsapp: st
                   type="button"
                   onClick={() => go(index - 1)}
                   aria-label="Previous banner"
-                  className="flex h-10 w-10 items-center justify-center rounded-full text-white ring-1 ring-white/25 backdrop-blur transition hover:bg-white/10"
+                  className="flex h-10 w-10 items-center justify-center rounded-full bg-deep/40 text-white ring-1 ring-white/25 transition hover:bg-white/10"
                 >
                   <ChevronLeft className="h-5 w-5" aria-hidden="true" />
                 </button>
@@ -159,7 +193,7 @@ export function Banners({ banners, whatsapp }: { banners: Banner[]; whatsapp: st
                   type="button"
                   onClick={() => go(index + 1)}
                   aria-label="Next banner"
-                  className="flex h-10 w-10 items-center justify-center rounded-full text-white ring-1 ring-white/25 backdrop-blur transition hover:bg-white/10"
+                  className="flex h-10 w-10 items-center justify-center rounded-full bg-deep/40 text-white ring-1 ring-white/25 transition hover:bg-white/10"
                 >
                   <ChevronRight className="h-5 w-5" aria-hidden="true" />
                 </button>

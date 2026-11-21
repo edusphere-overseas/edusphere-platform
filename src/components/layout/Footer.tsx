@@ -7,11 +7,19 @@ const COPYRIGHT_YEAR = 2026;
 
 export function Footer({ content: c }: { content: SiteContent }) {
   const explore = [
-    { href: "/#destinations", label: "Destinations", show: c.sections.destinations },
-    { href: "/#services", label: "Student services", show: c.sections.services },
-    { href: "/#open-now", label: "Open now", show: c.sections.openNow && c.openNow.length > 0 },
+    { href: "/destinations", label: "Destinations", show: c.sections.destinations },
+    { href: "/services", label: "Student services", show: c.sections.services },
+    { href: "/universities", label: "Universities", show: true },
+    { href: "/scholarships", label: "Scholarships and loans", show: true },
+    { href: "/course-finder", label: "Course finder", show: c.sections.courseFinder },
     { href: "/#uk-onshore", label: "UK onshore", show: c.sections.ukOnshore },
+  ].filter((l) => l.show);
+  const company = [
     { href: "/about", label: "About us", show: true },
+    { href: "/success-stories", label: "Success stories", show: c.sections.stories || c.sections.reviews },
+    { href: "/news", label: "News and events", show: c.sections.news },
+    { href: "/faqs", label: "FAQs", show: true },
+    { href: "/contact", label: "Contact", show: true },
     { href: "/portal", label: "Student login", show: true },
   ].filter((l) => l.show);
 
@@ -21,7 +29,7 @@ export function Footer({ content: c }: { content: SiteContent }) {
 
   return (
     <footer className="relative border-t border-white/10 bg-deep">
-      <div className="mx-auto grid max-w-7xl gap-12 px-5 py-16 sm:px-8 md:grid-cols-2 lg:grid-cols-[1.4fr_1fr_1fr_1fr]">
+      <div className="mx-auto grid max-w-7xl gap-12 px-5 py-16 sm:px-8 sm:grid-cols-2 lg:grid-cols-[1.5fr_1fr_1fr_1.1fr_1.1fr]">
         <div>
           <Logo />
           <p className="mt-5 max-w-xs text-sm leading-relaxed text-white/60">{c.description}</p>
@@ -50,18 +58,23 @@ export function Footer({ content: c }: { content: SiteContent }) {
           </div>
         </div>
 
-        <div>
-          <h2 className="text-xs font-bold uppercase tracking-[0.2em] text-white/50">Explore</h2>
-          <ul className="mt-5 grid gap-3 text-sm">
-            {explore.map((l) => (
-              <li key={l.href}>
-                <Link href={l.href} className="text-white/75 transition hover:text-white">
-                  {l.label}
-                </Link>
-              </li>
-            ))}
-          </ul>
-        </div>
+        {[
+          { title: "Study abroad", links: explore },
+          { title: "Edusphere", links: company },
+        ].map((col) => (
+          <div key={col.title}>
+            <h2 className="text-xs font-bold uppercase tracking-[0.2em] text-white/50">{col.title}</h2>
+            <ul className="mt-5 grid gap-3 text-sm">
+              {col.links.map((l) => (
+                <li key={l.href}>
+                  <Link href={l.href} className="text-white/75 transition hover:text-white">
+                    {l.label}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ))}
 
         <div>
           <h2 className="text-xs font-bold uppercase tracking-[0.2em] text-white/50">Contact</h2>

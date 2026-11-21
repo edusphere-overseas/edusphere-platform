@@ -142,7 +142,7 @@ export default async function AboutPage() {
             ))}
           </div>
           <Link
-            href="/#contact"
+            href="/contact#enquiry"
             className="group mt-10 inline-flex items-center gap-2 rounded-full bg-teal px-6 py-3.5 font-semibold text-white transition hover:bg-teal-light"
           >
             Book a free consultation

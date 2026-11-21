@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="robots" content="noindex" />
+    <title>Forms</title>
+  </head>
+  <body>
+    <!-- Declares the website's forms so Netlify Forms can detect them at deploy time. Not a page for visitors. -->
+    <form name="enquiry" data-netlify="true" netlify-honeypot="bot-field" hidden>
+      <input type="hidden" name="form-name" value="enquiry" />
+      <input name="bot-field" />
+      <input name="name" />
+      <input name="phone" />
+      <input name="email" />
+      <input name="destination" />
+      <input name="level" />
+      <input name="intake" />
+      <input name="office" />
+      <textarea name="message"></textarea>
+      <input name="consent" />
+      <input name="page" />
+    </form>
+  </body>
+</html>

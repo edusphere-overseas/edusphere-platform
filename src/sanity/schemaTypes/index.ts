@@ -1,5 +1,6 @@
 import { banner, destination, service, tickerItem } from "./homeContent";
-import { contactPoint, photo, socialLink } from "./objects";
+import { faqItem, linkItem, stat, contactPoint, photo, socialLink } from "./objects";
+import { faq, post, scholarship, testimonial, university } from "./library";
 import { office } from "./office";
 import { onshoreProgramme, openNowProgramme, teamMember } from "./programmes";
 import { siteSettings } from "./siteSettings";
@@ -9,6 +10,9 @@ export const schemaTypes = [
   contactPoint,
   socialLink,
   photo,
+  linkItem,
+  faqItem,
+  stat,
   // documents
   siteSettings,
   office,
@@ -19,6 +23,11 @@ export const schemaTypes = [
   openNowProgramme,
   onshoreProgramme,
   teamMember,
+  testimonial,
+  post,
+  faq,
+  university,
+  scholarship,
 ];
 
 /** Document types that exist once only. */

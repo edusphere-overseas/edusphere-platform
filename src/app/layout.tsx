@@ -1,6 +1,8 @@
 import type { Metadata, Viewport } from "next";
 import localFont from "next/font/local";
 import { site } from "@/config/site";
+import { getSiteContent } from "@/lib/content";
+import { introScript, introStyle } from "@/lib/intro";
 import "./globals.css";
 
 const montserrat = localFont({
@@ -33,14 +35,13 @@ export const viewport: Viewport = {
   colorScheme: "dark",
 };
 
-/** Marks repeat visits in this browser session before first paint, so the intro never flashes. */
-const introScript = `try{if(sessionStorage.getItem("es-intro"))document.documentElement.dataset.intro="skip"}catch(e){}`;
-
-export default function RootLayout({ children }: LayoutProps<"/">) {
+export default async function RootLayout({ children }: LayoutProps<"/">) {
+  // Logo intro length and replay rule come from Content → Website settings → Logo intro.
+  const { intro } = await getSiteContent();
   return (
-    <html lang="en" className={montserrat.variable} suppressHydrationWarning>
+    <html lang="en" className={montserrat.variable} style={introStyle(intro)} suppressHydrationWarning>
       <head>
-        <script dangerouslySetInnerHTML={{ __html: introScript }} />
+        <script dangerouslySetInnerHTML={{ __html: introScript(intro) }} />
       </head>
       <body className="min-h-dvh antialiased">{children}</body>
     </html>

@@ -1,4 +1,4 @@
-import { defineField, defineType } from "sanity";
+import { defineArrayMember, defineField, defineType } from "sanity";
 import { GalleryHorizontal, Globe2, HandHelping, Megaphone } from "lucide-react";
 import { flagOptions, serviceIconOptions } from "../options";
 
@@ -17,6 +17,9 @@ const scheduleFields = [
   }),
   defineField({ name: "order", type: "number", initialValue: 10 }),
 ];
+
+const stringList = (name: string, title: string, description?: string) =>
+  defineField({ name, title, description, type: "array", of: [defineArrayMember({ type: "string" })] });
 
 export const tickerItem = defineType({
   name: "tickerItem",
@@ -52,7 +55,7 @@ export const banner = defineType({
       name: "ctaLink",
       title: "Button link",
       type: "url",
-      description: "A page on this site (e.g. /#contact) or a full link. Leave empty to open WhatsApp.",
+      description: "A page on this site (e.g. /contact) or a full link. Leave empty to open WhatsApp.",
       validation: (r) => r.uri({ allowRelative: true }),
     }),
     ...scheduleFields,
@@ -69,14 +72,51 @@ export const destination = defineType({
   title: "Destination",
   type: "document",
   icon: Globe2,
+  groups: [
+    { name: "card", title: "Card", default: true },
+    { name: "page", title: "Country page" },
+    { name: "facts", title: "Visa and work" },
+  ],
   fields: [
-    defineField({ name: "name", type: "string", validation: (r) => r.required() }),
-    defineField({ name: "slug", type: "slug", options: { source: "name" }, validation: (r) => r.required() }),
-    defineField({ name: "flag", type: "string", options: { list: flagOptions }, validation: (r) => r.required() }),
-    defineField({ name: "summary", title: "One-line summary", type: "string", validation: (r) => r.required().max(90) }),
-    defineField({ name: "intakes", title: "Intakes", type: "string", description: 'e.g. "Main intakes: September and January"' }),
-    defineField({ name: "show", title: "Show on website", type: "boolean", initialValue: true }),
-    defineField({ name: "order", type: "number", initialValue: 10 }),
+    defineField({ name: "name", type: "string", group: "card", validation: (r) => r.required() }),
+    defineField({ name: "slug", type: "slug", group: "card", options: { source: "name" }, validation: (r) => r.required() }),
+    defineField({ name: "flag", type: "string", group: "card", options: { list: flagOptions }, validation: (r) => r.required() }),
+    defineField({ name: "summary", title: "One-line summary", type: "string", group: "card", validation: (r) => r.required().max(90) }),
+    defineField({ name: "intakes", title: "Intakes", type: "string", group: "card", description: 'e.g. "Main intakes: September and January"' }),
+    defineField({ name: "tuition", title: "Typical tuition", type: "string", group: "card", description: "Only figures you have checked, e.g. from university fee pages." }),
+    defineField({ name: "livingCosts", title: "Typical living costs", type: "string", group: "card" }),
+    defineField({ name: "heroImage", title: "Page photo", type: "photo", group: "page" }),
+    defineField({ name: "intro", title: "Why study here (intro)", type: "text", rows: 4, group: "page" }),
+    defineField({ ...stringList("highlights", "Highlights"), group: "page" }),
+    defineField({ ...stringList("popularCourses", "Popular courses"), group: "page" }),
+    defineField({
+      name: "countries",
+      title: "Countries (Europe card)",
+      type: "array",
+      group: "page",
+      of: [
+        defineArrayMember({
+          type: "object",
+          fields: [
+            defineField({ name: "name", type: "string" }),
+            defineField({ name: "flag", type: "string", options: { list: flagOptions } }),
+          ],
+        }),
+      ],
+    }),
+    defineField({ ...stringList("visaSteps", "Visa steps"), group: "facts" }),
+    defineField({ name: "postStudyWork", title: "Post-study work", type: "text", rows: 4, group: "facts" }),
+    defineField({
+      name: "officialLinks",
+      title: "Official sources",
+      type: "array",
+      group: "facts",
+      of: [defineArrayMember({ type: "linkItem" })],
+    }),
+    defineField({ name: "lastChecked", title: "Facts last checked on", type: "date", group: "facts" }),
+    defineField({ name: "faqs", title: "FAQs", type: "array", group: "page", of: [defineArrayMember({ type: "faqItem" })] }),
+    defineField({ name: "show", title: "Show on website", type: "boolean", group: "card", initialValue: true }),
+    defineField({ name: "order", type: "number", group: "card", initialValue: 10 }),
   ],
   orderings: [{ title: "Order", name: "orderAsc", by: [{ field: "order", direction: "asc" }] }],
   preview: { select: { title: "name", subtitle: "summary" } },
@@ -89,8 +129,11 @@ export const service = defineType({
   icon: HandHelping,
   fields: [
     defineField({ name: "title", type: "string", validation: (r) => r.required().max(40) }),
+    defineField({ name: "slug", type: "slug", options: { source: "title" } }),
     defineField({ name: "description", type: "text", rows: 3, validation: (r) => r.required().max(180) }),
     defineField({ name: "icon", type: "string", options: { list: serviceIconOptions }, initialValue: "globe" }),
+    stringList("steps", "How it works"),
+    stringList("included", "What's included"),
     defineField({ name: "show", title: "Show on website", type: "boolean", initialValue: true }),
     defineField({ name: "order", type: "number", initialValue: 10 }),
   ],

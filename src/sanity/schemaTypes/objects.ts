@@ -103,3 +103,35 @@ export const photo = defineType({
     defineField({ name: "caption", type: "string" }),
   ],
 });
+
+export const linkItem = defineType({
+  name: "linkItem",
+  title: "Link",
+  type: "object",
+  fields: [
+    defineField({ name: "label", type: "string", validation: (r) => r.required() }),
+    defineField({ name: "url", type: "url", validation: (r) => r.required() }),
+  ],
+});
+
+export const faqItem = defineType({
+  name: "faqItem",
+  title: "Question",
+  type: "object",
+  fields: [
+    defineField({ name: "question", type: "string", validation: (r) => r.required() }),
+    defineField({ name: "answer", type: "text", rows: 3, validation: (r) => r.required() }),
+  ],
+  preview: { select: { title: "question", subtitle: "answer" } },
+});
+
+export const stat = defineType({
+  name: "stat",
+  title: "Number",
+  type: "object",
+  fields: [
+    defineField({ name: "value", type: "string", description: 'A number such as "9" or "500+", or a word such as "Free".', validation: (r) => r.required().max(8) }),
+    defineField({ name: "label", type: "string", validation: (r) => r.required().max(40) }),
+  ],
+  preview: { select: { title: "value", subtitle: "label" } },
+});

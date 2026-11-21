@@ -10,7 +10,9 @@ export const siteSettings = defineType({
     { name: "company", title: "Company", default: true },
     { name: "contact", title: "Contact and social" },
     { name: "hero", title: "Home page hero" },
+    { name: "trust", title: "Numbers" },
     { name: "switches", title: "Section switches" },
+    { name: "intro", title: "Logo intro" },
   ],
   fields: [
     defineField({ name: "companyName", type: "string", group: "company", validation: (r) => r.required() }),
@@ -58,6 +60,44 @@ export const siteSettings = defineType({
     defineField({ name: "heroNote", title: "Small note under the buttons", type: "string", group: "hero" }),
 
     defineField({
+      name: "stats",
+      title: "Numbers we can prove",
+      type: "array",
+      group: "trust",
+      of: [{ type: "stat" }],
+      description: "Shown with a count-up on the home page. Only facts you can prove: no success-rate percentages.",
+      validation: (r) => r.max(4),
+    }),
+
+    defineField({
+      name: "intro",
+      title: "Logo intro",
+      type: "object",
+      group: "intro",
+      description: "The logo animation that plays when someone opens the website.",
+      options: { collapsible: false },
+      fields: [
+        defineField({ name: "show", title: "Play the logo intro", type: "boolean", initialValue: true }),
+        defineField({
+          name: "seconds",
+          title: "Length (seconds)",
+          type: "number",
+          initialValue: 2.5,
+          description: "Between 2 and 3 seconds works best. Allowed: 1.8 to 5.",
+          validation: (r) => r.min(1.8).max(5),
+        }),
+        defineField({
+          name: "replayMinutes",
+          title: "Play again after (minutes away)",
+          type: "number",
+          initialValue: 30,
+          description: "Visitors see it on their first visit and again after this many minutes away. 0 = on every page load.",
+          validation: (r) => r.min(0).max(1440).integer(),
+        }),
+      ],
+    }),
+
+    defineField({
       name: "sections",
       title: "Show these sections",
       type: "object",
@@ -72,6 +112,11 @@ export const siteSettings = defineType({
         defineField({ name: "journey", title: '"How it works"', type: "boolean", initialValue: true }),
         defineField({ name: "ukOnshore", title: "UK onshore", type: "boolean", initialValue: true }),
         defineField({ name: "courseFinder", title: "Course finder", type: "boolean", initialValue: false }),
+        defineField({ name: "trust", title: "Numbers", type: "boolean", initialValue: true }),
+        defineField({ name: "reviews", title: "Google reviews", type: "boolean", initialValue: true }),
+        defineField({ name: "stories", title: "Success stories", type: "boolean", initialValue: true }),
+        defineField({ name: "news", title: "News and events", type: "boolean", initialValue: true }),
+        defineField({ name: "instagram", title: "Instagram", type: "boolean", initialValue: true }),
         defineField({ name: "team", title: "Team (About page)", type: "boolean", initialValue: true }),
         defineField({ name: "gallery", title: "Office photos (About page)", type: "boolean", initialValue: true }),
       ],

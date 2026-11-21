@@ -1,11 +1,12 @@
-import { Mail, MapPin, Navigation, Phone } from "lucide-react";
+import Link from "next/link";
+import { ArrowRight, Clock, Mail, MapPin, Navigation, Phone } from "lucide-react";
 import { appleDirections, googleDirections, googleMapEmbed } from "@/config/site";
 import { WhatsAppIcon } from "@/components/icons";
 import { Reveal } from "@/components/ui/Reveal";
 import { SectionHeading } from "@/components/ui/SectionHeading";
 import { telHref, whatsappHref, type ContactPoint, type Office } from "@/lib/content";
 
-function OfficeCard({ office: o, withMap }: { office: Office; withMap: boolean }) {
+export function OfficeCard({ office: o, withMap }: { office: Office; withMap: boolean }) {
   return (
     <div className="overflow-hidden rounded-[2rem] border border-white/10 bg-panel/60">
       {withMap && (
@@ -39,6 +40,16 @@ function OfficeCard({ office: o, withMap }: { office: Office; withMap: boolean }
             ))}
           </span>
         </p>
+        {o.hours.length > 0 && (
+          <div className="mt-4 flex items-start gap-3 text-sm text-white/75">
+            <Clock className="mt-0.5 h-5 w-5 shrink-0 text-white/50" aria-hidden="true" />
+            <ul className="grid gap-0.5">
+              {o.hours.map((h) => (
+                <li key={h}>{h}</li>
+              ))}
+            </ul>
+          </div>
+        )}
         {o.contacts.length > 0 && (
           <ul className="mt-4 grid gap-1.5 text-sm">
             {o.contacts.map((ct) => (
@@ -147,7 +158,10 @@ export function Contact({
               </a>
             )}
           </Reveal>
-          <p className="mt-6 text-sm text-white/45">Online booking with live counsellor availability arrives with the student portal.</p>
+          <Link href="/contact#enquiry" className="group mt-6 inline-flex items-center gap-2 text-sm font-semibold text-teal-light hover:underline">
+            Prefer to write? Send us an enquiry
+            <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" aria-hidden="true" />
+          </Link>
         </div>
 
         {head && (

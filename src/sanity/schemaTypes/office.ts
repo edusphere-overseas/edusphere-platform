@@ -36,6 +36,13 @@ export const office = defineType({
     defineField({ name: "timeZone", type: "string", options: { list: timeZoneOptions }, initialValue: "Asia/Kolkata" }),
     defineField({ name: "contacts", title: "Contact details", type: "array", of: [{ type: "contactPoint" }] }),
     defineField({
+      name: "hours",
+      title: "Opening hours",
+      type: "array",
+      of: [{ type: "string" }],
+      description: 'One line per row, e.g. "Mon–Sat: 9:30 am – 6:30 pm".',
+    }),
+    defineField({
       name: "photos",
       title: "Office photos",
       type: "array",

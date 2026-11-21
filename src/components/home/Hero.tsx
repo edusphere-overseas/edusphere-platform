@@ -29,11 +29,11 @@ export function Hero({ hero, whatsapp }: { hero: HeroCopy; whatsapp: string }) {
             <span className="hero-in block" style={{ ["--d" as string]: "0.08s" }}>
               {hero.titleLine1}
             </span>
-            <span
-              className="hero-in block bg-[linear-gradient(100deg,#5cc0cf,#5a9bd1_55%,#a9d4f0)] bg-clip-text pb-2 text-transparent"
-              style={{ ["--d" as string]: "0.18s" }}
-            >
-              {hero.titleLine2}
+            {/* The animation sits on a wrapper: Safari can drop gradient text that is itself animated */}
+            <span className="hero-in block" style={{ ["--d" as string]: "0.18s" }}>
+              <span className="block bg-[linear-gradient(100deg,#5cc0cf,#5a9bd1_55%,#a9d4f0)] bg-clip-text pb-2 text-transparent [-webkit-box-decoration-break:clone]">
+                {hero.titleLine2}
+              </span>
             </span>
           </h1>
 
@@ -43,7 +43,7 @@ export function Hero({ hero, whatsapp }: { hero: HeroCopy; whatsapp: string }) {
 
           <div className="hero-in mt-9 flex flex-col gap-3 sm:flex-row sm:items-center" style={{ ["--d" as string]: "0.42s" }}>
             <Link
-              href="/#contact"
+              href="/contact#enquiry"
               className="group inline-flex items-center justify-center gap-2 rounded-full bg-teal px-6 py-3.5 font-semibold text-white shadow-[0_14px_40px_-12px_rgba(68,154,168,0.9)] transition hover:bg-teal-light"
             >
               Book a free consultation
