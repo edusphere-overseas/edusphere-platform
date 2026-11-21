@@ -1,0 +1,305 @@
+#==EDU:FILE src/config/defaults.ts
+/**
+ * Built-in page content used when a field is empty in the Content area.
+ * Facts that change (costs, visa lengths, work limits) are deliberately left
+ * out: the team adds them in Content with a source and a "last checked" date.
+ */
+
+export type DestinationDetail = {
+  intro: string;
+  highlights: string[];
+  popularCourses: string[];
+  visaSteps: string[];
+  postStudyWork: string;
+  countries?: { name: string; flag: string }[];
+};
+
+const timingFaq = {
+  question: "When should I start my application?",
+  answer:
+    "Ideally 9 to 12 months before your intake. That leaves time for English tests, applications, funding and the visa without rushing.",
+};
+
+export const destinationDetails: Record<string, DestinationDetail> = {
+  uk: {
+    intro:
+      "The UK combines historic universities with modern, career-focused teaching. Most bachelor's degrees take three years and many master's degrees just one, so you spend less time and money before you start your career.",
+    highlights: [
+      "Globally recognised universities and qualifications",
+      "Many master's programmes take one year",
+      "A multicultural student life in cities large and small",
+      "The Graduate route lets eligible graduates stay on to work",
+    ],
+    popularCourses: ["Business and management", "Computer science and data", "Engineering", "Public health and nursing", "Law", "Finance and accounting"],
+    visaSteps: [
+      "Accept your offer and receive your CAS (Confirmation of Acceptance for Studies)",
+      "Prepare financial evidence, academic documents and an English test result if required",
+      "Take a TB test at an approved clinic (required for applicants from India)",
+      "Apply online for the Student visa, pay the fee and the Immigration Health Surcharge, and give biometrics",
+      "Receive your decision and plan your travel",
+    ],
+    postStudyWork:
+      "After your degree you can apply for the Graduate route to stay and work in the UK if you are eligible. The length and conditions are set by the UK government and do change, so we check the current rules with you before you apply.",
+  },
+  europe: {
+    intro:
+      "Europe offers excellent education across many countries, often with lower tuition than other destinations and a growing choice of programmes taught in English.",
+    highlights: [
+      "Public universities with low or modest tuition in several countries",
+      "Thousands of English-taught bachelor's and master's programmes",
+      "Easy travel between many European countries",
+      "Options to stay and look for work after graduating in many countries",
+    ],
+    popularCourses: ["Engineering", "Computer science", "Data science and AI", "Business and management", "Design", "Hospitality"],
+    visaSteps: [
+      "Choose your country and university: entry rules are set by each country",
+      "Secure your admission letter",
+      "Arrange proof of funds (in Germany usually a blocked account) and health insurance",
+      "Apply for the national student visa at the embassy or visa centre",
+      "Register your address and collect your residence permit after you arrive",
+    ],
+    postStudyWork:
+      "Many European countries let graduates stay for a time to look for work, such as Germany's job-seeker residence permit and Ireland's Stamp 1G. Rules differ by country, so we check the current options for yours.",
+    countries: [
+      { name: "Germany", flag: "de" },
+      { name: "France", flag: "fr" },
+      { name: "Ireland", flag: "ie" },
+      { name: "Netherlands", flag: "nl" },
+      { name: "Spain", flag: "es" },
+      { name: "Italy", flag: "it" },
+    ],
+  },
+  australia: {
+    intro:
+      "Australia pairs well-ranked universities with practical, industry-linked courses and a relaxed, outdoor way of life.",
+    highlights: [
+      "Universities known for research and graduate employability",
+      "Practical courses with industry placements",
+      "Part-time work rights while you study",
+      "The Temporary Graduate visa (subclass 485) for eligible graduates",
+    ],
+    popularCourses: ["Nursing and health", "Information technology", "Engineering", "Accounting", "Business analytics", "Education"],
+    visaSteps: [
+      "Accept your offer and receive your Confirmation of Enrolment (CoE)",
+      "Arrange Overseas Student Health Cover (OSHC)",
+      "Show you are a genuine student, with funds and English proficiency",
+      "Apply online for the Student visa (subclass 500) and complete health checks and biometrics if asked",
+      "Receive your grant and plan your arrival",
+    ],
+    postStudyWork:
+      "Eligible graduates can apply for the Temporary Graduate visa (subclass 485). Its length and eligibility depend on your qualification and the current rules, which we check with you.",
+  },
+  "new-zealand": {
+    intro:
+      "New Zealand offers internationally recognised qualifications in a safe, welcoming country known for its natural beauty.",
+    highlights: [
+      "A small, high-quality university sector",
+      "Smaller classes and approachable teaching staff",
+      "Part-time work rights for many students",
+      "A post-study work visa for eligible graduates",
+    ],
+    popularCourses: ["Agriculture and environment", "Information technology", "Engineering", "Health sciences", "Business", "Hospitality and tourism"],
+    visaSteps: [
+      "Accept your offer of place",
+      "Pay your tuition fees or show you can pay them",
+      "Show funds for living costs and arrange travel and medical insurance",
+      "Apply online for a fee-paying student visa, with medical and police certificates if asked",
+      "Receive your visa and plan your arrival",
+    ],
+    postStudyWork:
+      "Eligible graduates can apply for a post-study work visa. How long it lasts depends on the level of your qualification; we check the current rules with you.",
+  },
+  usa: {
+    intro:
+      "The United States offers unmatched choice: thousands of institutions, flexible degrees and research opportunities in every field.",
+    highlights: [
+      "The widest choice of universities and programmes",
+      "Flexible degrees: explore subjects before choosing a major",
+      "Strong research and campus life",
+      "Optional Practical Training (OPT) after graduation, with a STEM extension for eligible fields",
+    ],
+    popularCourses: ["Computer science", "Data science", "Engineering", "Business analytics", "Biotechnology", "MBA"],
+    visaSteps: [
+      "Get admitted and receive your Form I-20",
+      "Pay the SEVIS I-901 fee",
+      "Complete the DS-160 form and book your visa appointment",
+      "Attend your F-1 visa interview with your documents and proof of funds",
+      "Receive your visa and plan your arrival",
+    ],
+    postStudyWork:
+      "F-1 students can apply for Optional Practical Training (OPT), and graduates in eligible STEM fields may extend it. Rules and processing times change, so we check the current position with you.",
+  },
+  canada: {
+    intro:
+      "Canada offers respected qualifications, a diverse and welcoming society, and clear links between study and careers.",
+    highlights: [
+      "Respected universities and colleges",
+      "Co-op programmes that build work experience into your studies",
+      "Part-time work rights for eligible students",
+      "A Post-Graduation Work Permit (PGWP) for eligible graduates",
+    ],
+    popularCourses: ["Business", "Computer science and IT", "Engineering", "Healthcare", "Supply chain management", "Hospitality"],
+    visaSteps: [
+      "Receive your letter of acceptance from a designated learning institution (DLI)",
+      "Get a provincial or territorial attestation letter (PAL/TAL) if required",
+      "Show proof of funds, for example through a GIC",
+      "Apply online for a study permit and give biometrics",
+      "Receive your approval and port-of-entry letter",
+    ],
+    postStudyWork:
+      "Eligible graduates can apply for a Post-Graduation Work Permit (PGWP). Eligibility depends on your programme and field of study, and the rules have changed recently, so we check the current position with you.",
+  },
+};
+
+export function destinationFaqs(name: string) {
+  return [
+    timingFaq,
+    {
+      question: `Can I work while studying in ${name}?`,
+      answer:
+        "Most student visas allow part-time work, with limits set by the government. We explain the current rules for your course and visa during counselling.",
+    },
+  ];
+}
+
+export type ServiceDetail = {
+  slug: string;
+  title: string;
+  description: string;
+  icon: string;
+  steps: string[];
+  included: string[];
+};
+
+/** Student services, in the order they appear on the Services page. */
+export const serviceDetails: ServiceDetail[] = [
+  {
+    slug: "counselling",
+    title: "Counselling and shortlisting",
+    description: "An honest conversation about your goals, then a shortlist of courses and universities that genuinely suit you.",
+    icon: "messages",
+    steps: ["Tell us your goals, budget and timeline", "We compare countries, courses and universities with you", "You leave with a clear shortlist and plan"],
+    included: ["Free first consultation", "Shortlist matched to your profile", "Advice for students and parents together"],
+  },
+  {
+    slug: "applications",
+    title: "University applications",
+    description: "Applications, statements of purpose and references prepared carefully, and submitted on time.",
+    icon: "graduation",
+    steps: ["We plan deadlines for every application", "You draft your statement with our feedback", "We check every document before submission"],
+    included: ["Application tracking", "Statement of purpose guidance", "Offer comparison and acceptance"],
+  },
+  {
+    slug: "visa",
+    title: "Visa guidance",
+    description: "A clear document checklist, financial planning and interview preparation for your student visa.",
+    icon: "file-check",
+    steps: ["We give you a checklist for your country", "We review your documents and finances", "We prepare you for interviews where needed"],
+    included: ["Document checklist", "Financial evidence review", "Interview practice"],
+  },
+  {
+    slug: "post-study-work",
+    title: "Post-study work visa",
+    description: "Guidance on staying on to work after your degree, through appropriately regulated advisers where required.",
+    icon: "briefcase",
+    steps: ["We check whether you are eligible", "We plan timings around your course end date", "We help you prepare your application"],
+    included: ["Eligibility check", "Timeline planning", "Regulated advisers where the law requires"],
+  },
+  {
+    slug: "scholarships",
+    title: "Scholarship assistance",
+    description: "We look for scholarships and fee awards you may qualify for and help you put your best case forward.",
+    icon: "award",
+    steps: ["We search for awards that match your profile", "We help you write strong applications", "We track deadlines for you"],
+    included: ["Scholarship search", "Essay and application feedback", "Deadline reminders"],
+  },
+  {
+    slug: "education-loans",
+    title: "Education loans",
+    description: "Help comparing education loans and preparing the paperwork lenders ask for.",
+    icon: "wallet",
+    steps: ["We explain the types of loan available", "We help you prepare the documents", "We coordinate with your chosen lender"],
+    included: ["Loan options explained", "Document checklist", "Support until sanction"],
+  },
+  {
+    slug: "english-tests",
+    title: "IELTS and PTE",
+    description: "Guidance on which English test you need and how to prepare for the score your university asks for.",
+    icon: "messages",
+    steps: ["We confirm which test and score you need", "We point you to preparation that fits your level", "We plan test dates around your deadlines"],
+    included: ["Test and score requirements", "Preparation guidance", "Booking timeline"],
+  },
+  {
+    slug: "accommodation",
+    title: "Accommodation abroad",
+    description: "Help finding safe, well-located student housing before you leave home.",
+    icon: "bed",
+    steps: ["Tell us your budget and preferences", "We share suitable options near your campus", "We help you book before you travel"],
+    included: ["University and private options", "Safety and location checks", "Booking support"],
+  },
+  {
+    slug: "airport-pickup",
+    title: "Airport pickup and drop",
+    description: "A friendly face when you land, and a smooth start to your first week.",
+    icon: "plane",
+    steps: ["Share your flight details", "We arrange pickup where available", "You arrive at your accommodation safely"],
+    included: ["Pickup arrangement", "Arrival guidance", "Drop to the airport on request"],
+  },
+  {
+    slug: "pre-departure",
+    title: "Pre-departure briefing",
+    description: "Everything to check before you fly: documents, money, packing and your first days abroad.",
+    icon: "globe",
+    steps: ["We share a pre-departure checklist", "We run a briefing for you and your family", "We answer last-minute questions"],
+    included: ["Travel and document checklist", "Banking and phone tips", "First-week guidance"],
+  },
+  {
+    slug: "uk-onshore",
+    title: "UK onshore programmes",
+    description: "Already in the UK? Onshore admission options alongside your post-study plans.",
+    icon: "landmark",
+    steps: ["Tell us your current course and visa", "We explore onshore programmes with you", "We help with applications and documents"],
+    included: ["Programme options", "Application support", "Regulated advice where the law requires"],
+  },
+];
+
+export const defaultFaqs = [
+  {
+    question: "Is the first consultation really free?",
+    answer: "Yes. Your first consultation, in person in Mangaluru or online, is free and comes with no obligation.",
+  },
+  {
+    question: "Can parents join the consultation?",
+    answer:
+      "Absolutely. Parents are welcome at every meeting, and will be able to follow progress through the student and parent portal once it opens.",
+  },
+  {
+    question: "Which countries do you help with?",
+    answer: "The UK, Europe (including Germany, France, Ireland, the Netherlands, Spain and Italy), Australia, New Zealand, the USA and Canada.",
+  },
+  timingFaq,
+  {
+    question: "Do you help with student visas?",
+    answer:
+      "Yes. We give you a clear checklist, review your documents and finances, and prepare you for interviews. In the UK, immigration advice is given only by advisers regulated to provide it.",
+  },
+  {
+    question: "Do you help after I arrive?",
+    answer: "Yes. We can help arrange accommodation and airport pickup, and we stay in touch through your first weeks abroad.",
+  },
+];
+
+/** Used until "Numbers" is filled in Content → Website settings. Only provable facts. */
+export const defaultStats = (destinations: number, services: number) => [
+  { value: "9", label: "Years guiding students" },
+  { value: String(destinations), label: "Study destinations" },
+  { value: String(services), label: "Student services" },
+  { value: "Free", label: "First consultation" },
+];
+
+export const slugify = (s: string) =>
+  s
+    .toLowerCase()
+    .replace(/&/g, "and")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/(^-|-$)/g, "");
