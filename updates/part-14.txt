@@ -1,0 +1,579 @@
+#==EDU:FILE src/app/(site)/services/page.tsx
+import type { Metadata } from "next";
+import Link from "next/link";
+import { Check, ShieldCheck } from "lucide-react";
+import { Journey } from "@/components/home/Journey";
+import { WhatsAppIcon } from "@/components/icons";
+import { CtaBand } from "@/components/pages/CtaBand";
+import { PageHero } from "@/components/pages/PageHero";
+import { Reveal } from "@/components/ui/Reveal";
+import { ServiceIcon } from "@/components/ui/ServiceIcon";
+import { getLibrary, getSiteContent, whatsappHref } from "@/lib/content";
+
+export const metadata: Metadata = {
+  title: "Student services",
+  description: "Counselling, applications, visas, scholarships, loans, English tests, accommodation, airport pickup and pre-departure support for students going abroad.",
+};
+
+export default async function ServicesPage() {
+  const [c, lib] = await Promise.all([getSiteContent(), getLibrary()]);
+  const services = lib.services;
+
+  return (
+    <>
+      <PageHero
+        eyebrow="Student services"
+        crumbs={[{ href: "/services", label: "Services" }]}
+        title={
+          <>
+            Support that goes <span className="text-teal-light">the whole way</span>
+          </>
+        }
+        intro="Admission is one part of the journey. We stay with you through visas, funding, housing and the day you land, and parents are welcome at every step."
+      >
+        <ul className="flex flex-wrap gap-2" aria-label="Jump to a service">
+          {services.map((s) => (
+            <li key={s.slug}>
+              <a href={`#${s.slug}`} className="inline-flex rounded-full bg-white/[0.06] px-3.5 py-2 text-sm font-medium text-white/80 ring-1 ring-white/10 transition hover:bg-white/10 hover:text-white">
+                {s.title}
+              </a>
+            </li>
+          ))}
+        </ul>
+      </PageHero>
+
+      <section className="py-16 sm:py-24">
+        <div className="mx-auto grid max-w-7xl gap-6 px-5 sm:px-8">
+          {services.map((s, i) => (
+            <Reveal key={s.slug} id={s.slug} className="scroll-mt-24">
+              <article className="grid gap-8 rounded-[2rem] border border-white/10 bg-white/[0.03] p-6 sm:p-10 lg:grid-cols-[1.1fr_1fr_1fr] lg:gap-10">
+                <div>
+                  <span className="inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-teal/30 to-navy/40 text-teal-light ring-1 ring-white/10">
+                    <ServiceIcon name={s.icon} className="h-6 w-6" />
+                  </span>
+                  <p className="mt-5 text-xs font-bold uppercase tracking-[0.2em] text-white/40">{String(i + 1).padStart(2, "0")}</p>
+                  <h2 className="mt-1.5 text-2xl font-extrabold tracking-[-0.02em] text-white sm:text-3xl">{s.title}</h2>
+                  <p className="mt-3 text-[0.97rem] leading-relaxed text-white/70">{s.description}</p>
+                  <a
+                    href={whatsappHref(c.whatsappNumber, `Hi Edusphere, I'd like help with: ${s.title}`)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="mt-6 inline-flex items-center gap-2 rounded-full bg-teal px-4.5 py-2.5 text-sm font-semibold text-white transition hover:bg-teal-light"
+                  >
+                    <WhatsAppIcon className="h-4.5 w-4.5" />
+                    Ask about this
+                  </a>
+                </div>
+                {s.steps.length > 0 && (
+                  <div>
+                    <h3 className="text-sm font-bold uppercase tracking-[0.16em] text-teal-light">How it works</h3>
+                    <ol className="mt-4 grid gap-3">
+                      {s.steps.map((st, n) => (
+                        <li key={st} className="flex gap-3 text-[0.95rem] leading-relaxed text-white/80">
+                          <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-white/10 text-xs font-bold text-white">{n + 1}</span>
+                          {st}
+                        </li>
+                      ))}
+                    </ol>
+                  </div>
+                )}
+                {s.included.length > 0 && (
+                  <div>
+                    <h3 className="text-sm font-bold uppercase tracking-[0.16em] text-teal-light">What&apos;s included</h3>
+                    <ul className="mt-4 grid gap-3">
+                      {s.included.map((inc) => (
+                        <li key={inc} className="flex gap-3 text-[0.95rem] leading-relaxed text-white/80">
+                          <Check className="mt-1 h-4 w-4 shrink-0 text-teal-light" aria-hidden="true" />
+                          {inc}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </article>
+            </Reveal>
+          ))}
+
+          <Reveal className="flex items-start gap-3 rounded-2xl border border-white/10 p-5 text-sm leading-relaxed text-white/60">
+            <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-teal-light" aria-hidden="true" />
+            <p>
+              In the UK, immigration advice is given only by advisers regulated to provide it. Where the law requires it, we work with appropriately regulated
+              advisers. See also <Link href="/scholarships" className="font-semibold text-white underline-offset-2 hover:underline">scholarships and loans</Link> and our{" "}
+              <Link href="/faqs" className="font-semibold text-white underline-offset-2 hover:underline">FAQs</Link>.
+            </p>
+          </Reveal>
+        </div>
+      </section>
+
+      {c.sections.journey && <Journey />}
+      <CtaBand whatsapp={c.whatsappNumber} />
+    </>
+  );
+}
+#==EDU:FILE src/app/(site)/success-stories/page.tsx
+import type { Metadata } from "next";
+import { ArrowUpRight, Quote } from "lucide-react";
+import { GoogleIcon } from "@/components/icons";
+import { CtaBand } from "@/components/pages/CtaBand";
+import { PageHero } from "@/components/pages/PageHero";
+import { StoryCard } from "@/components/pages/StoryCard";
+import { GoogleReviews } from "@/components/reviews/GoogleReviews";
+import { Reveal } from "@/components/ui/Reveal";
+import { getLibrary, getSiteContent } from "@/lib/content";
+import { getPlaceReviews } from "@/lib/reviews";
+
+export const metadata: Metadata = {
+  title: "Success stories and reviews",
+  description: "Students who studied abroad with Edusphere Overseas, in their own words, and our reviews on Google.",
+};
+
+export default async function StoriesPage() {
+  const [c, lib] = await Promise.all([getSiteContent(), getLibrary()]);
+  const head = c.offices[0];
+  const reviews = c.sections.reviews ? await getPlaceReviews(head) : null;
+  const google = head?.googleBusinessUrl || c.socialLinks.find((l) => l.platform === "google")?.url;
+
+  return (
+    <>
+      <PageHero
+        eyebrow="Success stories"
+        crumbs={[{ href: "/success-stories", label: "Success stories" }]}
+        title={
+          <>
+            In our students&apos; <span className="text-teal-light">own words</span>
+          </>
+        }
+        intro="Every story here is shared with the student's written permission. Our Google reviews are shown exactly as they appear on Google."
+      />
+
+      <section className="py-16 sm:py-20">
+        <div className="mx-auto max-w-7xl px-5 sm:px-8">
+          {lib.stories.length > 0 ? (
+            <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-3">
+              {lib.stories.map((s, i) => (
+                <Reveal key={s._id} delay={(i % 3) * 0.06} className="h-full">
+                  <StoryCard s={s} />
+                </Reveal>
+              ))}
+            </div>
+          ) : (
+            <Reveal className="flex flex-col items-start gap-4 rounded-3xl border border-dashed border-white/15 p-8 sm:p-10">
+              <Quote className="h-8 w-8 text-teal-light/60" aria-hidden="true" />
+              <h2 className="text-2xl font-extrabold text-white">Student stories are on their way</h2>
+              <p className="max-w-2xl leading-relaxed text-white/65">
+                We only publish a story when the student has agreed to it in writing. In the meantime, you can read what students and parents say about us on Google.
+              </p>
+            </Reveal>
+          )}
+        </div>
+      </section>
+
+      {reviews ? (
+        <section className="border-t border-white/8 bg-deeper py-16 sm:py-20">
+          <div className="mx-auto max-w-7xl px-5 sm:px-8">
+            <h2 className="mb-8 text-3xl font-extrabold tracking-[-0.02em] text-white">What people say on Google</h2>
+            <GoogleReviews data={reviews} />
+          </div>
+        </section>
+      ) : (
+        google && (
+          <section className="pb-4">
+            <div className="mx-auto max-w-7xl px-5 sm:px-8">
+              <a
+                href={google}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="group flex items-center justify-between gap-4 rounded-3xl border border-white/10 bg-white/[0.03] p-6 transition hover:border-white/25"
+              >
+                <span className="flex items-center gap-4">
+                  <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white">
+                    <GoogleIcon className="h-6 w-6 text-deep" />
+                  </span>
+                  <span>
+                    <span className="block font-bold text-white">Read our reviews on Google</span>
+                    <span className="block text-sm text-white/55">Opens our Google Business listing</span>
+                  </span>
+                </span>
+                <ArrowUpRight className="h-5 w-5 text-white/60 transition group-hover:text-white" aria-hidden="true" />
+              </a>
+            </div>
+          </section>
+        )
+      )}
+
+      <CtaBand whatsapp={c.whatsappNumber} title="Write your own story" text="Tell us where you'd like to study. We'll help you plan every step, from the first conversation to your first day on campus." />
+    </>
+  );
+}
+#==EDU:FILE src/app/(site)/universities/page.tsx
+import type { Metadata } from "next";
+import { School } from "lucide-react";
+import { CtaBand } from "@/components/pages/CtaBand";
+import { PageHero } from "@/components/pages/PageHero";
+import { UniversityList } from "@/components/pages/UniversityList";
+import { Reveal } from "@/components/ui/Reveal";
+import { flagOptions } from "@/sanity/options";
+import { getLibrary, getSiteContent } from "@/lib/content";
+
+export const metadata: Metadata = {
+  title: "Universities",
+  description: "Universities and colleges we help students apply to in the UK, Europe, Australia, New Zealand, the USA and Canada.",
+};
+
+export default async function UniversitiesPage() {
+  const [c, lib] = await Promise.all([getSiteContent(), getLibrary()]);
+  const countries = flagOptions.map((f) => ({ flag: f.value, name: f.title.replace(" (EU flag)", "") }));
+
+  return (
+    <>
+      <PageHero
+        eyebrow="Universities"
+        crumbs={[{ href: "/universities", label: "Universities" }]}
+        title={
+          <>
+            Universities we <span className="text-teal-light">work with</span>
+          </>
+        }
+        intro="A selection of the universities and colleges our students apply to. Looking for one that isn't listed? Ask us: we can usually help."
+      />
+      <section className="py-14 sm:py-20">
+        <div className="mx-auto max-w-7xl px-5 sm:px-8">
+          {lib.universities.length > 0 ? (
+            <UniversityList items={lib.universities} countries={countries} />
+          ) : (
+            <Reveal className="flex flex-col items-start gap-4 rounded-3xl border border-dashed border-white/15 p-8 sm:p-10">
+              <School className="h-8 w-8 text-teal-light/60" aria-hidden="true" />
+              <h2 className="text-2xl font-extrabold text-white">Our university list is being added</h2>
+              <p className="max-w-2xl leading-relaxed text-white/65">
+                We guide students to universities and colleges across all six destinations. Tell us your course and budget and we&apos;ll suggest the ones that fit.
+              </p>
+            </Reveal>
+          )}
+        </div>
+      </section>
+      <CtaBand whatsapp={c.whatsappNumber} title="Find the right university" text="Tell us your course, grades and budget. We'll shortlist universities that genuinely suit you." message="Hi Edusphere, I'd like help choosing a university." />
+    </>
+  );
+}
+#==EDU:FILE src/app/globals.css
+@import "tailwindcss";
+
+@theme inline {
+  --font-sans: var(--font-montserrat), ui-sans-serif, system-ui, sans-serif;
+}
+
+/* ------------------------------------------------------------------
+   Edusphere brand tokens (taken from the logo)
+   ------------------------------------------------------------------ */
+@theme {
+  --color-navy: #2c6085;        /* logo cap */
+  --color-navy-light: #5a9bd1;  /* cap on dark backgrounds */
+  --color-teal: #449aa8;        /* logo base */
+  --color-teal-light: #5cc0cf;  /* base on dark backgrounds */
+  --color-deep: #0d2236;        /* main dark background */
+  --color-deeper: #08182a;
+  --color-panel: #13304a;       /* cards on dark */
+  --color-slate: #5a7383;       /* logo wordmark */
+  --color-ink: #111111;
+  --color-mist: #f4f7fa;        /* light reading sections */
+
+  --animate-marquee: marquee 40s linear infinite;
+  --animate-marquee-slow: marquee 60s linear infinite;
+
+  @keyframes marquee {
+    from { transform: translateX(0); }
+    to { transform: translateX(-50%); }
+  }
+}
+
+html {
+  scroll-behavior: smooth;
+  -webkit-tap-highlight-color: transparent;
+}
+
+body {
+  background: var(--color-deep);
+  color: #ffffff;
+  font-family: var(--font-sans);
+  text-rendering: optimizeLegibility;
+}
+
+::selection {
+  background: var(--color-teal);
+  color: #fff;
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-teal-light);
+  outline-offset: 3px;
+  border-radius: 6px;
+}
+
+/* Pause marquees when hovered or focused */
+.marquee-track:hover,
+.marquee-track:focus-within {
+  animation-play-state: paused;
+}
+
+/* ------------------------------------------------------------------
+   Logo loading animation (first visit, and again after time away)
+   Length is set in Content → Website settings → Logo intro and arrives as
+   --intro-total on <html>; --intro-pace slows the drawing for longer intros.
+   The drawing, the hold and the fading of the words run in pure CSS, so they
+   start on first paint; JavaScript adds the glide into the header logo.
+   ------------------------------------------------------------------ */
+:root {
+  --intro-total: 2.5s;
+  --intro-pace: 1.25;
+}
+.intro {
+  --k: var(--intro-pace);
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  /* failsafe without JavaScript: fade the whole overlay at the end */
+  animation: intro-out 0.5s ease calc(var(--intro-total) - 0.5s) forwards;
+}
+.intro::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(55% 45% at 50% 42%, rgba(68, 154, 168, 0.18), transparent 70%),
+    var(--color-deep);
+  transition: opacity 0.45s ease;
+}
+:root[data-intro="skip"] .intro,
+.intro.is-done {
+  display: none;
+}
+/* Name and tagline leave first, while the background is still solid, so no
+   intro text is ever seen over the page. (This wrapper has no other animation,
+   so nothing can hold it visible.) */
+.intro .intro-words {
+  animation: fade-out 0.2s ease calc(var(--intro-total) - 0.7s) forwards;
+}
+.intro.is-gliding {
+  animation: none;
+  pointer-events: none;
+}
+.intro.is-gliding::before { opacity: 0; }
+.intro.is-gliding .intro-words { animation: none; opacity: 0; }
+.intro-mark {
+  position: relative;
+  width: min(40vw, 176px);
+  overflow: visible;
+  transition: transform 0.5s cubic-bezier(0.65, 0, 0.35, 1);
+  will-change: transform;
+}
+/* The header logo waits until the intro logo has landed on it (never two logos) */
+:root:not([data-intro]) header [data-logo-mark] {
+  animation: logo-wait 0.25s ease var(--intro-total) both;
+}
+@keyframes logo-wait {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.intro .draw {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: draw calc(0.28s * var(--k)) cubic-bezier(0.55, 0, 0.25, 1) forwards;
+}
+.intro .draw-spine { animation-delay: calc(0.04s * var(--k)); animation-duration: calc(0.3s * var(--k)); }
+.intro .draw-bar1 { animation-delay: calc(0.22s * var(--k)); }
+.intro .draw-bar2 { animation-delay: calc(0.31s * var(--k)); }
+.intro .draw-bar3 { animation-delay: calc(0.4s * var(--k)); }
+.intro .cap-fill {
+  opacity: 0;
+  animation: fade-in 0.1s linear calc(0.66s * var(--k)) forwards;
+}
+.intro .cap-strokes {
+  animation: fade-out 0.01s linear calc(0.76s * var(--k)) forwards;
+}
+.intro .tassel-string {
+  transform-box: fill-box;
+  transform-origin: top;
+  transform: scaleY(0);
+  animation: grow-down calc(0.14s * var(--k)) ease-out calc(0.55s * var(--k)) forwards;
+}
+.intro .tassel-drop {
+  opacity: 0;
+  transform-box: view-box;
+  transform-origin: 24.4px 96px;
+  animation: drop-swing calc(0.55s * var(--k)) ease-out calc(0.66s * var(--k)) forwards;
+}
+.intro .base {
+  opacity: 0;
+  transform: translateY(26px);
+  animation: rise calc(0.4s * var(--k)) cubic-bezier(0.2, 0.8, 0.2, 1) calc(0.42s * var(--k)) forwards;
+}
+.intro .letter {
+  display: inline-block;
+  opacity: 0;
+  transform: translateY(0.35em);
+  animation: rise calc(0.3s * var(--k)) cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+  animation-delay: calc((0.5s + var(--i) * 0.015s) * var(--k));
+}
+.intro .tagline {
+  opacity: 0;
+  transform: translateY(6px);
+  animation: rise calc(0.3s * var(--k)) ease-out calc(0.78s * var(--k)) forwards;
+}
+
+@keyframes draw { to { stroke-dashoffset: 0; } }
+@keyframes grow-down { to { transform: scaleY(1); } }
+@keyframes rise { to { opacity: 1; transform: none; } }
+@keyframes fade-in { to { opacity: 1; } }
+@keyframes fade-out { to { opacity: 0; } }
+@keyframes drop-swing {
+  0% { opacity: 0; transform: rotate(0deg); }
+  15% { opacity: 1; transform: rotate(9deg); }
+  45% { transform: rotate(-6deg); }
+  75% { transform: rotate(3deg); }
+  100% { opacity: 1; transform: rotate(0deg); }
+}
+@keyframes intro-out {
+  to { opacity: 0; visibility: hidden; }
+}
+
+/* ------------------------------------------------------------------
+   Hero "sphere" of flags
+   ------------------------------------------------------------------ */
+.orbit {
+  animation: spin 48s linear infinite;
+}
+.orbit-reverse {
+  animation: spin 64s linear infinite reverse;
+}
+.orbit .counter-spin {
+  animation: spin 48s linear infinite reverse;
+}
+.orbit-reverse .counter-spin {
+  animation: spin 64s linear infinite;
+}
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.glow-pulse {
+  animation: glow 4s ease-in-out infinite;
+}
+@keyframes glow {
+  0%, 100% { opacity: 0.55; transform: scale(1); }
+  50% { opacity: 0.85; transform: scale(1.06); }
+}
+
+/* ------------------------------------------------------------------
+   Scroll reveal (class added by <Reveal>)
+   ------------------------------------------------------------------ */
+/* Hidden only when JavaScript runs (the head script sets data-js), so content never goes missing without it. */
+:root[data-js] .reveal {
+  opacity: 0;
+  transform: translate3d(0, 16px, 0);
+  transition:
+    opacity 0.55s cubic-bezier(0.2, 0.8, 0.2, 1),
+    transform 0.55s cubic-bezier(0.2, 0.8, 0.2, 1);
+  transition-delay: var(--reveal-delay, 0s);
+}
+:root[data-js] .reveal.is-visible {
+  opacity: 1;
+  transform: none;
+}
+/* Phones show one card per row, so a stagger only reads as lag */
+@media (max-width: 767px) {
+  :root[data-js] .reveal { transition-delay: 0s; }
+}
+
+/* Destination cards: gentle tilt toward the mouse (desktop only; the turn itself runs in JS) */
+@media (hover: hover) and (pointer: fine) {
+  .tilt-inner {
+    transform: rotateX(var(--rx, 0deg)) rotateY(var(--ry, 0deg));
+    transition: transform 0.6s cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+  .tilt:hover .tilt-inner { transition-duration: 0.2s; }
+}
+
+.flag-wave {
+  transition: transform 0.5s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+/* Only for real hover: on touch screens :hover "sticks" after a tap */
+@media (hover: hover) {
+  .group:hover .flag-wave {
+    animation: wave 1.6s ease-in-out infinite;
+  }
+}
+@keyframes wave {
+  0%, 100% { transform: perspective(300px) rotateY(0deg) skewY(0deg); }
+  25% { transform: perspective(300px) rotateY(-8deg) skewY(-1.5deg); }
+  75% { transform: perspective(300px) rotateY(8deg) skewY(1.5deg); }
+}
+
+
+/* ------------------------------------------------------------------
+   Hero entrance: waits for the intro on first visit, quick otherwise
+   ------------------------------------------------------------------ */
+:root { --intro-delay: calc(var(--intro-total) - 0.5s); } /* starts as the intro background fades */
+:root[data-intro="skip"] { --intro-delay: 0.05s; }
+.hero-in {
+  animation: rise 0.8s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  animation-delay: calc(var(--intro-delay) + var(--d, 0s));
+  opacity: 0;
+  transform: translateY(18px);
+}
+.whatsapp-fab {
+  animation: pop-in 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  animation-delay: calc(var(--intro-delay) + 0.9s);
+}
+@keyframes pop-in {
+  from { opacity: 0; transform: scale(0.6); }
+  to { opacity: 1; transform: none; }
+}
+
+@keyframes banner-progress {
+  from { width: 0%; }
+  to { width: 100%; }
+}
+
+/* Pause the orbiting flags while the visitor explores them */
+@media (hover: hover) {
+  .globe:hover .orbit,
+  .globe:hover .orbit-reverse,
+  .globe:hover .counter-spin {
+    animation-play-state: paused;
+  }
+}
+.globe:focus-within .orbit,
+.globe:focus-within .orbit-reverse,
+.globe:focus-within .counter-spin {
+  animation-play-state: paused;
+}
+
+/* ------------------------------------------------------------------
+   Respect "reduce motion"
+   ------------------------------------------------------------------ */
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  :root { --intro-delay: calc(var(--intro-total) - 0.45s); }
+  /* Calm version of the intro: the finished logo, then a fade */
+  .intro { animation: intro-out 0.45s ease calc(var(--intro-total) - 0.45s) forwards !important; }
+  .intro *,
+  .intro::before {
+    animation: none !important;
+    opacity: 1 !important;
+    transform: none !important;
+    stroke-dashoffset: 0 !important;
+  }
+  .intro .cap-strokes { display: none; }
+  :root:not([data-intro]) header [data-logo-mark] { animation-delay: calc(var(--intro-total) - 0.45s) !important; }
+  .orbit, .orbit-reverse, .counter-spin { animation: none !important; }
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+  :root[data-js] .reveal { opacity: 1; transform: none; }
+}
