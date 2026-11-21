@@ -1,0 +1,447 @@
+#==EDU:FILE src/app/(site)/destinations/[slug]/page.tsx
+import type { Metadata } from "next";
+import Link from "next/link";
+import { notFound } from "next/navigation";
+import { ArrowRight, ArrowUpRight, CalendarDays, Check, ExternalLink, GraduationCap, Landmark, ShieldCheck, Wallet } from "lucide-react";
+import { OpenNow } from "@/components/home/OpenNow";
+import { WhatsAppIcon } from "@/components/icons";
+import { CtaBand } from "@/components/pages/CtaBand";
+import { FaqList, faqJsonLd } from "@/components/pages/FaqList";
+import { PageHero } from "@/components/pages/PageHero";
+import { JsonLd } from "@/components/seo/JsonLd";
+import { Reveal } from "@/components/ui/Reveal";
+import { SanityImage } from "@/components/ui/SanityImage";
+import { getLibrary, getSiteContent, whatsappHref } from "@/lib/content";
+import { formatDate, shortName } from "@/lib/format";
+
+export async function generateStaticParams() {
+  const lib = await getLibrary();
+  return lib.destinations.map((d) => ({ slug: d.id }));
+}
+
+async function find(slug: string) {
+  const lib = await getLibrary();
+  return { lib, d: lib.destinations.find((x) => x.id === slug) };
+}
+
+export async function generateMetadata({ params }: PageProps<"/destinations/[slug]">): Promise<Metadata> {
+  const { slug } = await params;
+  const { d } = await find(slug);
+  if (!d) return {};
+  return {
+    title: `Study in ${shortName(d.name)}`,
+    description: `${d.summary} Intakes, popular courses, visa steps and post-study work in ${shortName(d.name)}, with free guidance from Edusphere Overseas.`,
+  };
+}
+
+export default async function DestinationPage({ params }: PageProps<"/destinations/[slug]">) {
+  const { slug } = await params;
+  const [{ lib, d }, c] = await Promise.all([find(slug), getSiteContent()]);
+  if (!d) notFound();
+
+  const name = shortName(d.name);
+  const flags = new Set([d.flag, ...(d.countries ?? []).map((x) => x.flag)]);
+  const openNow = c.sections.openNow ? c.openNow.filter((p) => p.flag && flags.has(p.flag)) : [];
+  const universities = lib.universities.filter((u) => flags.has(u.flag));
+  const scholarships = lib.scholarships.filter((s) => s.flag && flags.has(s.flag));
+  const others = lib.destinations.filter((x) => x.id !== d.id);
+  const ask = whatsappHref(c.whatsappNumber, `Hi Edusphere, I'm interested in studying in ${name}.`);
+
+  const facts = [
+    { icon: CalendarDays, label: "Intakes", value: d.intakes },
+    { icon: GraduationCap, label: "Typical tuition", value: d.tuition },
+    { icon: Wallet, label: "Typical living costs", value: d.livingCosts },
+  ].filter((f) => f.value);
+
+  return (
+    <>
+      <JsonLd data={faqJsonLd(d.faqs)} />
+      <PageHero
+        eyebrow="Study destination"
+        flag={d.flag}
+        crumbs={[
+          { href: "/destinations", label: "Destinations" },
+          { href: `/destinations/${d.id}`, label: d.name },
+        ]}
+        title={
+          <>
+            Study in <span className="text-teal-light">{name}</span>
+          </>
+        }
+        intro={d.summary}
+        aside={
+          d.heroImage ? (
+            <div className="relative aspect-[4/3] overflow-hidden rounded-[2rem] border border-white/10">
+              <SanityImage photo={d.heroImage} fill priority sizes="(min-width: 1024px) 40vw, 100vw" className="object-cover" />
+            </div>
+          ) : undefined
+        }
+      >
+        <div className="flex flex-col gap-3 sm:flex-row">
+          <Link
+            href={`/contact?destination=${d.id}#enquiry`}
+            className="group inline-flex items-center justify-center gap-2 rounded-full bg-teal px-6 py-3.5 font-semibold text-white transition hover:bg-teal-light"
+          >
+            Book a free consultation
+            <ArrowRight className="h-4.5 w-4.5 transition-transform group-hover:translate-x-1" aria-hidden="true" />
+          </Link>
+          <a
+            href={ask}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center justify-center gap-2 rounded-full px-6 py-3.5 font-semibold text-white ring-1 ring-white/25 transition hover:bg-white/5"
+          >
+            <WhatsAppIcon className="h-5 w-5 text-[#25D366]" />
+            Ask about {name}
+          </a>
+        </div>
+      </PageHero>
+
+      {facts.length > 0 && (
+        <section className="border-b border-white/8 bg-deeper">
+          <dl className={`mx-auto grid max-w-7xl gap-px px-5 sm:px-8 ${facts.length > 1 ? "sm:grid-cols-2 lg:grid-cols-3" : ""}`}>
+            {facts.map((f) => (
+              <div key={f.label} className="flex items-start gap-3.5 py-6">
+                <f.icon className="mt-0.5 h-5 w-5 shrink-0 text-teal-light" aria-hidden="true" />
+                <div>
+                  <dt className="text-xs font-bold uppercase tracking-[0.16em] text-white/50">{f.label}</dt>
+                  <dd className="mt-1.5 font-semibold text-white">{f.value}</dd>
+                </div>
+              </div>
+            ))}
+          </dl>
+        </section>
+      )}
+
+      <section className="py-16 sm:py-24">
+        <div className="mx-auto grid max-w-7xl gap-14 px-5 sm:px-8 lg:grid-cols-[1.35fr_1fr]">
+          <div>
+            <Reveal>
+              <h2 className="text-3xl font-extrabold tracking-[-0.02em] text-white sm:text-4xl">Why study in {name}?</h2>
+              <p className="mt-5 text-lg leading-relaxed text-white/75">{d.intro}</p>
+            </Reveal>
+            {d.highlights.length > 0 && (
+              <Reveal delay={0.05}>
+                <ul className="mt-8 grid gap-3 sm:grid-cols-2">
+                  {d.highlights.map((h) => (
+                    <li key={h} className="flex items-start gap-3 rounded-2xl border border-white/10 bg-white/[0.03] p-4 text-[0.95rem] leading-relaxed text-white/80">
+                      <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-teal/25 text-teal-light">
+                        <Check className="h-3.5 w-3.5" aria-hidden="true" />
+                      </span>
+                      {h}
+                    </li>
+                  ))}
+                </ul>
+              </Reveal>
+            )}
+
+            {d.countries && d.countries.length > 0 && (
+              <Reveal className="mt-14">
+                <h2 className="text-2xl font-extrabold tracking-[-0.02em] text-white">Countries we guide students to</h2>
+                <ul className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3">
+                  {d.countries.map((ct) => (
+                    <li key={ct.flag} className="group flex items-center gap-3 rounded-2xl border border-white/10 bg-panel/60 p-3.5">
+                      <span className="block aspect-[4/3] w-11 shrink-0 overflow-hidden rounded-lg ring-1 ring-white/20">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={`/flags/${ct.flag}.svg`} alt="" className="flag-wave h-full w-full object-cover" />
+                      </span>
+                      <span className="font-semibold text-white">{ct.name}</span>
+                    </li>
+                  ))}
+                </ul>
+              </Reveal>
+            )}
+
+            {d.visaSteps.length > 0 && (
+              <Reveal className="mt-14">
+                <h2 className="text-2xl font-extrabold tracking-[-0.02em] text-white">Student visa: the usual steps</h2>
+                <ol className="relative mt-7 grid gap-5 border-l border-white/12 pl-7">
+                  {d.visaSteps.map((s, i) => (
+                    <li key={s} className="relative">
+                      <span className="absolute top-0 -left-[2.55rem] flex h-7 w-7 items-center justify-center rounded-full bg-teal text-xs font-bold text-white ring-4 ring-deep">
+                        {i + 1}
+                      </span>
+                      <p className="text-[0.97rem] leading-relaxed text-white/80">{s}</p>
+                    </li>
+                  ))}
+                </ol>
+                <p className="mt-6 text-sm text-white/50">
+                  Every application is different. We give you a checklist for your exact situation and check it against the official rules.
+                </p>
+              </Reveal>
+            )}
+
+            {d.postStudyWork && (
+              <Reveal className="mt-14 rounded-3xl border border-white/10 bg-[linear-gradient(140deg,rgba(68,154,168,0.16),rgba(44,96,133,0.12))] p-6 sm:p-8">
+                <h2 className="flex items-center gap-3 text-2xl font-extrabold tracking-[-0.02em] text-white">
+                  <Landmark className="h-6 w-6 text-teal-light" aria-hidden="true" />
+                  After you graduate
+                </h2>
+                <p className="mt-4 text-[0.97rem] leading-relaxed text-white/75">{d.postStudyWork}</p>
+              </Reveal>
+            )}
+          </div>
+
+          <aside className="grid content-start gap-6">
+            {d.popularCourses.length > 0 && (
+              <Reveal className="rounded-3xl border border-white/10 bg-panel/60 p-6">
+                <h2 className="text-lg font-bold text-white">Popular courses</h2>
+                <ul className="mt-4 flex flex-wrap gap-2">
+                  {d.popularCourses.map((pc) => (
+                    <li key={pc} className="rounded-full bg-white/[0.07] px-3.5 py-1.5 text-sm text-white/80">
+                      {pc}
+                    </li>
+                  ))}
+                </ul>
+                <Link href="/contact#enquiry" className="mt-6 inline-flex items-center gap-1.5 text-sm font-semibold text-teal-light hover:underline">
+                  Get a course shortlist
+                  <ArrowRight className="h-4 w-4" aria-hidden="true" />
+                </Link>
+              </Reveal>
+            )}
+
+            {universities.length > 0 && (
+              <Reveal className="rounded-3xl border border-white/10 bg-panel/60 p-6">
+                <h2 className="text-lg font-bold text-white">Universities</h2>
+                <ul className="mt-4 grid gap-2.5">
+                  {universities.slice(0, 8).map((u) => (
+                    <li key={u._id} className="flex items-center justify-between gap-3 text-sm">
+                      <span className="text-white/85">
+                        {u.name}
+                        {u.city && <span className="text-white/45"> · {u.city}</span>}
+                      </span>
+                      {u.website && (
+                        <a href={u.website} target="_blank" rel="noopener noreferrer" aria-label={`${u.name} website`} className="text-white/50 hover:text-white">
+                          <ArrowUpRight className="h-4 w-4" aria-hidden="true" />
+                        </a>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+                <Link href="/universities" className="mt-5 inline-flex items-center gap-1.5 text-sm font-semibold text-teal-light hover:underline">
+                  All universities
+                  <ArrowRight className="h-4 w-4" aria-hidden="true" />
+                </Link>
+              </Reveal>
+            )}
+
+            {scholarships.length > 0 && (
+              <Reveal className="rounded-3xl border border-white/10 bg-panel/60 p-6">
+                <h2 className="text-lg font-bold text-white">Scholarships and loans</h2>
+                <ul className="mt-4 grid gap-3">
+                  {scholarships.slice(0, 5).map((s) => (
+                    <li key={s._id} className="text-sm">
+                      <a href={s.officialLink} target="_blank" rel="noopener noreferrer" className="font-semibold text-white hover:underline">
+                        {s.title}
+                      </a>
+                      {s.amount && <span className="block text-white/55">{s.amount}</span>}
+                    </li>
+                  ))}
+                </ul>
+                <Link href="/scholarships" className="mt-5 inline-flex items-center gap-1.5 text-sm font-semibold text-teal-light hover:underline">
+                  All scholarships
+                  <ArrowRight className="h-4 w-4" aria-hidden="true" />
+                </Link>
+              </Reveal>
+            )}
+
+            {(d.officialLinks.length > 0 || d.lastChecked) && (
+              <Reveal className="rounded-3xl border border-white/10 p-6">
+                <h2 className="flex items-center gap-2 text-sm font-bold uppercase tracking-[0.16em] text-white/60">
+                  <ShieldCheck className="h-4 w-4" aria-hidden="true" />
+                  Official sources
+                </h2>
+                {d.officialLinks.length > 0 && (
+                  <ul className="mt-4 grid gap-2 text-sm">
+                    {d.officialLinks.map((l) => (
+                      <li key={l.url}>
+                        <a href={l.url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 text-white/80 hover:text-white hover:underline">
+                          {l.label}
+                          <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
+                        </a>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                {d.lastChecked && <p className="mt-4 text-xs text-white/45">Facts last checked on {formatDate(d.lastChecked)}</p>}
+              </Reveal>
+            )}
+          </aside>
+        </div>
+      </section>
+
+      {openNow.length > 0 && <OpenNow items={openNow} whatsapp={c.whatsappNumber} />}
+
+      <section className="border-t border-white/8 bg-deeper py-16 sm:py-24">
+        <div className="mx-auto grid max-w-7xl gap-10 px-5 sm:px-8 lg:grid-cols-[1fr_1.5fr]">
+          <Reveal>
+            <h2 className="text-3xl font-extrabold tracking-[-0.02em] text-white sm:text-4xl">Questions about {name}</h2>
+            <p className="mt-4 text-white/65">Can&apos;t see yours? Ask us on WhatsApp and a counsellor will reply.</p>
+          </Reveal>
+          <Reveal delay={0.05}>
+            <FaqList items={d.faqs} tone="panel" />
+          </Reveal>
+        </div>
+      </section>
+
+      {others.length > 0 && (
+        <section className="py-16 sm:py-20">
+          <div className="mx-auto max-w-7xl px-5 sm:px-8">
+            <h2 className="text-xl font-bold text-white">Other destinations</h2>
+            <ul className="mt-6 flex flex-wrap gap-3">
+              {others.map((o) => (
+                <li key={o.id}>
+                  <Link
+                    href={`/destinations/${o.id}`}
+                    className="group inline-flex items-center gap-2.5 rounded-full border border-white/12 py-2 pr-4 pl-2 text-sm font-semibold text-white/85 transition hover:border-white/30 hover:text-white"
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={`/flags/${o.flag}.svg`} alt="" className="h-6 w-8 rounded-[4px] object-cover ring-1 ring-white/15" />
+                    {o.name}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </section>
+      )}
+
+      <CtaBand whatsapp={c.whatsappNumber} title={`Thinking about ${name}?`} message={`Hi Edusphere, I'm interested in studying in ${name}.`} consultHref={`/contact?destination=${d.id}#enquiry`} />
+    </>
+  );
+}
+#==EDU:FILE src/app/(site)/destinations/page.tsx
+import type { Metadata } from "next";
+import Link from "next/link";
+import { ArrowRight, CalendarDays } from "lucide-react";
+import { CtaBand } from "@/components/pages/CtaBand";
+import { PageHero } from "@/components/pages/PageHero";
+import { Reveal } from "@/components/ui/Reveal";
+import { getLibrary, getSiteContent } from "@/lib/content";
+
+export const metadata: Metadata = {
+  title: "Study destinations",
+  description: "Study in the UK, Europe, Australia, New Zealand, the USA or Canada: intakes, popular courses, visa steps and post-study work, explained.",
+};
+
+export default async function DestinationsPage() {
+  const [c, lib] = await Promise.all([getSiteContent(), getLibrary()]);
+
+  return (
+    <>
+      <PageHero
+        eyebrow="Destinations"
+        crumbs={[{ href: "/destinations", label: "Destinations" }]}
+        title={
+          <>
+            Where will you <span className="text-teal-light">study?</span>
+          </>
+        }
+        intro="Each country has its own intakes, costs and visa rules. Start with an overview here, then talk it through with us."
+      />
+
+      <section className="py-16 sm:py-20">
+        <div className="mx-auto grid max-w-7xl gap-5 px-5 sm:grid-cols-2 sm:px-8 lg:grid-cols-3">
+          {lib.destinations.map((d, i) => (
+            <Reveal key={d.id} delay={(i % 3) * 0.06} className="h-full">
+              <Link
+                href={`/destinations/${d.id}`}
+                className="group relative flex h-full flex-col overflow-hidden rounded-3xl border border-white/10 bg-panel/70 p-6 transition-[border-color,box-shadow,transform] duration-300 hover:-translate-y-0.5 hover:border-teal-light/40 hover:shadow-[0_30px_60px_-30px_rgba(92,192,207,0.45)]"
+              >
+                <span className="block aspect-[4/3] w-20 overflow-hidden rounded-xl shadow-[0_18px_40px_-14px_rgba(0,0,0,0.8)] ring-1 ring-white/20">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={`/flags/${d.flag}.svg`} alt="" className="flag-wave h-full w-full object-cover" />
+                </span>
+                <h2 className="mt-6 text-2xl font-extrabold tracking-[-0.02em] text-white">{d.name}</h2>
+                <p className="mt-2 text-[0.95rem] leading-relaxed text-white/65">{d.summary}</p>
+                {d.countries && d.countries.length > 0 && (
+                  <ul className="mt-4 flex flex-wrap gap-1.5" aria-label="Countries">
+                    {d.countries.map((ct) => (
+                      <li key={ct.flag} className="inline-flex items-center gap-1.5 rounded-full bg-white/[0.06] px-2.5 py-1 text-xs text-white/70">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={`/flags/${ct.flag}.svg`} alt="" className="h-3 w-4 rounded-[2px] object-cover" />
+                        {ct.name}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                <div className="mt-auto pt-6">
+                  {d.intakes && (
+                    <p className="flex items-start gap-2 text-sm text-white/60">
+                      <CalendarDays className="mt-0.5 h-4 w-4 shrink-0 text-teal-light" aria-hidden="true" />
+                      {d.intakes}
+                    </p>
+                  )}
+                  <span className="mt-5 inline-flex items-center gap-1.5 text-sm font-semibold text-teal-light">
+                    Explore {d.name}
+                    <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" aria-hidden="true" />
+                  </span>
+                </div>
+              </Link>
+            </Reveal>
+          ))}
+        </div>
+      </section>
+
+      <CtaBand whatsapp={c.whatsappNumber} title="Torn between two countries?" text="We'll compare them with you honestly: costs, courses, visas and what happens after you graduate." />
+    </>
+  );
+}
+#==EDU:FILE src/app/(site)/faqs/page.tsx
+import type { Metadata } from "next";
+import { CtaBand } from "@/components/pages/CtaBand";
+import { FaqList, faqJsonLd } from "@/components/pages/FaqList";
+import { PageHero } from "@/components/pages/PageHero";
+import { JsonLd } from "@/components/seo/JsonLd";
+import { Reveal } from "@/components/ui/Reveal";
+import { getLibrary, getSiteContent } from "@/lib/content";
+
+export const metadata: Metadata = {
+  title: "Frequently asked questions",
+  description: "Answers for students and parents about studying abroad: timelines, visas, costs, funding and support after you arrive.",
+};
+
+const categories: Record<string, string> = {
+  start: "Getting started",
+  visa: "Visas",
+  costs: "Costs and funding",
+  parents: "For parents",
+  arrival: "After you arrive",
+};
+
+export default async function FaqsPage() {
+  const [c, lib] = await Promise.all([getSiteContent(), getLibrary()]);
+  const groups = new Map<string, { question: string; answer: string }[]>();
+  for (const f of lib.faqs) {
+    const k = f.category && categories[f.category] ? f.category : "general";
+    groups.set(k, [...(groups.get(k) ?? []), f]);
+  }
+  const ordered = [...Object.keys(categories), "general"].filter((k) => groups.has(k));
+
+  return (
+    <>
+      <JsonLd data={faqJsonLd(lib.faqs)} />
+      <PageHero
+        eyebrow="FAQs"
+        crumbs={[{ href: "/faqs", label: "FAQs" }]}
+        title={
+          <>
+            Questions, <span className="text-teal-light">answered</span>
+          </>
+        }
+        intro="The questions students and parents ask us most. If yours isn't here, ask us on WhatsApp."
+      />
+      <section className="py-16 sm:py-20">
+        <div className="mx-auto grid max-w-4xl gap-12 px-5 sm:px-8">
+          {ordered.map((k) => (
+            <Reveal key={k}>
+              {ordered.length > 1 && <h2 className="mb-5 text-xl font-bold text-white">{categories[k] ?? "General"}</h2>}
+              <FaqList items={groups.get(k) ?? []} />
+            </Reveal>
+          ))}
+        </div>
+      </section>
+      <CtaBand whatsapp={c.whatsappNumber} title="Still have a question?" text="Ask us anything about studying abroad. A counsellor will reply, usually the same day." message="Hi Edusphere, I have a question about studying abroad." />
+    </>
+  );
+}
