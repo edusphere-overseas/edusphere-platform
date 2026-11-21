@@ -1,0 +1,423 @@
+#==EDU:FILE src/components/forms/EnquiryForm.tsx
+"use client";
+
+import { useId, useState, useSyncExternalStore } from "react";
+import { ArrowRight, CheckCircle2, Loader2 } from "lucide-react";
+import { WhatsAppIcon } from "@/components/icons";
+import { whatsappHref } from "@/lib/links";
+
+type Option = { value: string; label: string };
+
+type Props = {
+  destinations: Option[];
+  offices: Option[];
+  whatsapp: string;
+};
+
+const levels = ["Bachelor's (undergraduate)", "Master's (postgraduate)", "MBA", "PhD or research", "Diploma or foundation", "Not sure yet"];
+
+function intakeOptions() {
+  // Next four intakes from today: computed in the browser so it never goes stale.
+  const now = new Date();
+  const y = now.getFullYear();
+  const list: string[] = [];
+  for (const year of [y, y + 1, y + 2]) {
+    for (const [m, name] of [[0, "January"], [4, "May"], [8, "September"]] as const) {
+      if (new Date(year, m, 1) > now) list.push(`${name} ${year}`);
+    }
+  }
+  return [...list.slice(0, 5), "Later / not sure"];
+}
+
+// Values that only exist in the browser (today's date, the page address), read without a hydration mismatch.
+const noSubscribe = () => () => {};
+let cachedIntakes: string[] | null = null;
+const browserIntakes = () => (cachedIntakes ??= intakeOptions());
+const serverIntakes = ["Later / not sure"];
+const browserQuery = () => window.location.search;
+const serverQuery = () => "";
+
+const field =
+  "mt-2 block w-full rounded-xl border border-white/15 bg-deep/60 px-4 py-3 text-base text-white placeholder:text-white/35 transition focus:border-teal-light focus:outline-none focus:ring-2 focus:ring-teal-light/30";
+const label = "block text-sm font-semibold text-white/85";
+
+/**
+ * Enquiry form. Submissions go to Netlify Forms (form "enquiry", declared in
+ * public/__forms.html) and arrive by email once notifications are set up.
+ */
+export function EnquiryForm({ destinations, offices, whatsapp }: Props) {
+  const id = useId();
+  const [state, setState] = useState<"idle" | "sending" | "sent" | "error">("idle");
+  const intakes = useSyncExternalStore(noSubscribe, browserIntakes, () => serverIntakes);
+  const query = useSyncExternalStore(noSubscribe, browserQuery, serverQuery);
+  const fromUrl = new URLSearchParams(query).get("destination") ?? "";
+  const [picked, setPicked] = useState<string | null>(null);
+  const destination = picked ?? (destinations.some((o) => o.value === fromUrl) ? fromUrl : "");
+
+  async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const form = e.currentTarget;
+    if (!form.reportValidity()) return;
+    setState("sending");
+    const data = new FormData(form);
+    data.set("page", window.location.pathname);
+    const dest = destinations.find((o) => o.value === data.get("destination"));
+    if (dest) data.set("destination", dest.label);
+    try {
+      const res = await fetch("/__forms.html", {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams(data as unknown as Record<string, string>).toString(),
+      });
+      if (!res.ok) throw new Error(String(res.status));
+      setState("sent");
+      form.reset();
+    } catch {
+      setState("error");
+    }
+  }
+
+  if (state === "sent") {
+    return (
+      <div role="status" className="flex flex-col items-start gap-4 rounded-3xl border border-teal-light/30 bg-teal/10 p-8">
+        <CheckCircle2 className="h-10 w-10 text-teal-light" aria-hidden="true" />
+        <h3 className="text-2xl font-extrabold text-white">Thank you, we&apos;ve got your enquiry</h3>
+        <p className="leading-relaxed text-white/75">A counsellor will contact you, usually within one working day. If it&apos;s urgent, message us on WhatsApp.</p>
+        <a
+          href={whatsappHref(whatsapp, "Hi Edusphere, I've just sent an enquiry on your website.")}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-2 rounded-full bg-teal px-5 py-3 text-sm font-semibold text-white transition hover:bg-teal-light"
+        >
+          <WhatsAppIcon className="h-4.5 w-4.5" />
+          WhatsApp us
+        </a>
+      </div>
+    );
+  }
+
+  return (
+    <form name="enquiry" method="POST" onSubmit={onSubmit} className="grid gap-5" noValidate={false}>
+      <input type="hidden" name="form-name" value="enquiry" />
+      <p className="hidden" aria-hidden="true">
+        <label>
+          Leave this empty: <input name="bot-field" tabIndex={-1} autoComplete="off" />
+        </label>
+      </p>
+
+      <div className="grid gap-5 sm:grid-cols-2">
+        <label className={label}>
+          Your name
+          <input name="name" required autoComplete="name" className={field} placeholder="Full name" />
+        </label>
+        <label className={label}>
+          Phone or WhatsApp
+          <input name="phone" type="tel" required autoComplete="tel" inputMode="tel" pattern="[0-9+()\-\s]{7,}" className={field} placeholder="+91 …" />
+        </label>
+      </div>
+
+      <label className={label}>
+        Email <span className="font-normal text-white/45">(optional)</span>
+        <input name="email" type="email" autoComplete="email" className={field} placeholder="you@example.com" />
+      </label>
+
+      <div className="grid gap-5 sm:grid-cols-2">
+        <label className={label}>
+          Where would you like to study?
+          <select name="destination" value={destination} onChange={(e) => setPicked(e.target.value)} className={field}>
+            <option value="">Not sure yet</option>
+            {destinations.map((d) => (
+              <option key={d.value} value={d.value}>
+                {d.label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className={label}>
+          Level of study
+          <select name="level" defaultValue="" className={field}>
+            <option value="" disabled>
+              Choose one
+            </option>
+            {levels.map((l) => (
+              <option key={l}>{l}</option>
+            ))}
+          </select>
+        </label>
+      </div>
+
+      <div className={`grid gap-5 ${offices.length > 1 ? "sm:grid-cols-2" : ""}`}>
+        <label className={label}>
+          When would you like to start?
+          <select name="intake" defaultValue="" className={field}>
+            <option value="" disabled>
+              Choose an intake
+            </option>
+            {intakes.map((i) => (
+              <option key={i}>{i}</option>
+            ))}
+          </select>
+        </label>
+        {offices.length > 1 && (
+          <label className={label}>
+            Nearest office
+            <select name="office" defaultValue={offices[0]?.value} className={field}>
+              {offices.map((o) => (
+                <option key={o.value} value={o.label}>
+                  {o.label}
+                </option>
+              ))}
+              <option value="Online">Online is fine</option>
+            </select>
+          </label>
+        )}
+      </div>
+
+      <label className={label}>
+        Anything you&apos;d like us to know? <span className="font-normal text-white/45">(optional)</span>
+        <textarea name="message" rows={4} className={field} placeholder="Course interests, budget, questions from parents…" />
+      </label>
+
+      <label htmlFor={`${id}-consent`} className="flex items-start gap-3 text-sm leading-relaxed text-white/70">
+        <input id={`${id}-consent`} name="consent" type="checkbox" value="yes" required className="mt-1 h-4.5 w-4.5 shrink-0 accent-teal" />
+        I agree that Edusphere Overseas may contact me by phone, WhatsApp or email about this enquiry. We use your details only to respond to you.
+      </label>
+
+      {state === "error" && (
+        <p role="alert" className="rounded-xl border border-[#f08a8a]/40 bg-[#f08a8a]/10 px-4 py-3 text-sm text-white">
+          Sorry, your enquiry couldn&apos;t be sent just now. Please try again, or{" "}
+          <a href={whatsappHref(whatsapp, "Hi Edusphere, I'd like to book a free consultation.")} target="_blank" rel="noopener noreferrer" className="font-semibold underline">
+            message us on WhatsApp
+          </a>
+          .
+        </p>
+      )}
+
+      <button
+        type="submit"
+        disabled={state === "sending"}
+        className="group inline-flex items-center justify-center gap-2 rounded-full bg-teal px-6 py-3.5 font-semibold text-white transition hover:bg-teal-light disabled:opacity-70 sm:justify-self-start"
+      >
+        {state === "sending" ? (
+          <>
+            <Loader2 className="h-4.5 w-4.5 animate-spin" aria-hidden="true" />
+            Sending…
+          </>
+        ) : (
+          <>
+            Send enquiry
+            <ArrowRight className="h-4.5 w-4.5 transition-transform group-hover:translate-x-1" aria-hidden="true" />
+          </>
+        )}
+      </button>
+    </form>
+  );
+}
+#==EDU:FILE src/components/home/Banners.tsx
+"use client";
+
+import Link from "next/link";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { ArrowRight, ChevronLeft, ChevronRight } from "lucide-react";
+import { LogoMark } from "@/components/brand/LogoMark";
+import { SanityImage } from "@/components/ui/SanityImage";
+import { whatsappHref } from "@/lib/links";
+import type { Banner } from "@/lib/content";
+
+const INTERVAL_MS = 6500;
+
+/**
+ * Banners managed in Content → Home page → Banners. Slides sit side by side on
+ * one track and slide across (never fade over each other), and follow the
+ * finger when swiped.
+ */
+export function Banners({ banners, whatsapp }: { banners: Banner[]; whatsapp: string }) {
+  const [index, setIndex] = useState(0);
+  const [hovered, setHovered] = useState(false);
+  const [visible, setVisible] = useState(true);
+  const paused = hovered || !visible;
+  const [drag, setDrag] = useState(0); // px while swiping
+  const track = useRef<HTMLDivElement>(null);
+  const touch = useRef<{ x: number; y: number; axis: "x" | "y" | null } | null>(null);
+  const count = banners.length;
+
+  const go = useCallback((n: number) => setIndex(((n % count) + count) % count), [count]);
+
+  useEffect(() => {
+    if (count < 2 || paused || drag !== 0) return;
+    if (matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const t = setTimeout(() => go(index + 1), INTERVAL_MS);
+    return () => clearTimeout(t);
+  }, [index, paused, count, go, drag]);
+
+  // Don't rotate while the banners are off screen.
+  useEffect(() => {
+    const el = track.current;
+    if (!el || count < 2) return;
+    const io = new IntersectionObserver(([e]) => setVisible(e.isIntersecting));
+    io.observe(el);
+    return () => io.disconnect();
+  }, [count]);
+
+  if (count === 0) return null;
+
+  return (
+    <section aria-roledescription="carousel" aria-label="Highlights" className="relative pt-14 sm:pt-16">
+      <div className="mx-auto max-w-7xl px-5 sm:px-8">
+        <div
+          className="relative overflow-hidden rounded-[2rem] border border-white/10 bg-panel [touch-action:pan-y]"
+          onMouseEnter={() => setHovered(true)}
+          onMouseLeave={() => setHovered(false)}
+          onFocusCapture={() => setHovered(true)}
+          onBlurCapture={() => setHovered(false)}
+          onTouchStart={(e) => {
+            if (count < 2) return;
+            touch.current = { x: e.touches[0].clientX, y: e.touches[0].clientY, axis: null };
+          }}
+          onTouchMove={(e) => {
+            const t = touch.current;
+            if (!t) return;
+            const dx = e.touches[0].clientX - t.x;
+            const dy = e.touches[0].clientY - t.y;
+            if (!t.axis && Math.abs(dx) + Math.abs(dy) > 8) t.axis = Math.abs(dx) > Math.abs(dy) ? "x" : "y";
+            if (t.axis === "x") setDrag(dx);
+          }}
+          onTouchEnd={() => {
+            const t = touch.current;
+            touch.current = null;
+            if (!t || t.axis !== "x") return setDrag(0);
+            const width = track.current?.offsetWidth ?? 1;
+            if (Math.abs(drag) > Math.min(60, width * 0.18)) go(index + (drag < 0 ? 1 : -1));
+            setDrag(0);
+          }}
+          onTouchCancel={() => {
+            touch.current = null;
+            setDrag(0);
+          }}
+        >
+          <div
+            ref={track}
+            className={`flex ${drag ? "" : "transition-transform duration-[650ms] ease-[cubic-bezier(0.22,0.8,0.2,1)]"}`}
+            style={{ transform: `translate3d(calc(${-index * 100}% + ${drag}px), 0, 0)` }}
+          >
+            {banners.map((b, i) => {
+              const active = i === index;
+              const href = b.ctaLink || whatsappHref(whatsapp, `Hi Edusphere, I'd like to know more about: ${b.title}`);
+              const external = href.startsWith("http");
+              return (
+                <article
+                  key={b.id}
+                  aria-roledescription="slide"
+                  aria-label={`${i + 1} of ${count}`}
+                  aria-hidden={!active}
+                  inert={!active}
+                  className="relative flex min-h-[22rem] w-full shrink-0 items-end sm:min-h-[20rem] lg:min-h-[22rem]"
+                >
+                  {/* background */}
+                  {b.image ? (
+                    <div className="absolute inset-0 overflow-hidden">
+                      <SanityImage
+                        photo={b.image}
+                        fill
+                        sizes="(min-width: 1280px) 1216px, 100vw"
+                        className={`object-cover transition-transform duration-[7000ms] ease-out ${active ? "scale-105" : "scale-100"}`}
+                      />
+                      <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(8,24,42,0.95)_0%,rgba(8,24,42,0.75)_45%,rgba(8,24,42,0.2)_100%)]" />
+                    </div>
+                  ) : (
+                    <div aria-hidden="true" className="absolute inset-0 overflow-hidden bg-[linear-gradient(120deg,#16405f_0%,#13304a_50%,#0f2a43_100%)]">
+                      <div className="absolute -top-24 -left-24 h-72 w-72 rounded-full bg-teal/25 blur-3xl" />
+                      {b.flag ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={`/flags/${b.flag}.svg`}
+                          alt=""
+                          className={`absolute top-1/2 -right-10 h-[115%] -translate-y-1/2 rotate-[-10deg] rounded-[3rem] object-cover opacity-[0.16] transition-transform duration-[7000ms] ease-out sm:right-0 ${active ? "scale-105" : "scale-100"}`}
+                        />
+                      ) : (
+                        <LogoMark
+                          className={`absolute top-1/2 -right-16 h-[120%] w-auto -translate-y-1/2 opacity-[0.12] transition-transform duration-[7000ms] ease-out sm:right-4 ${active ? "scale-105" : "scale-100"}`}
+                        />
+                      )}
+                    </div>
+                  )}
+
+                  {/* text */}
+                  <div className="relative max-w-2xl p-7 pb-20 sm:p-12 sm:pb-20 lg:p-14 lg:pb-20">
+                    {b.eyebrow && (
+                      <span className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1.5 text-xs font-bold uppercase tracking-[0.16em] text-white">
+                        {b.flag && (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={`/flags/${b.flag}.svg`} alt="" className="h-3.5 w-5 rounded-[2px] object-cover" />
+                        )}
+                        {b.eyebrow}
+                      </span>
+                    )}
+                    <h2 className="mt-4 text-balance text-3xl font-extrabold leading-[1.1] tracking-[-0.02em] text-white sm:text-4xl">{b.title}</h2>
+                    {b.subtitle && <p className="mt-4 max-w-xl text-base leading-relaxed text-white/75 sm:text-lg">{b.subtitle}</p>}
+                    <Link
+                      href={href}
+                      target={external ? "_blank" : undefined}
+                      rel={external ? "noopener noreferrer" : undefined}
+                      className="group mt-7 inline-flex items-center gap-2 rounded-full bg-white px-5 py-3 text-sm font-semibold text-deep transition hover:bg-mist"
+                    >
+                      {b.ctaLabel || "Find out more"}
+                      <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" aria-hidden="true" />
+                    </Link>
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+
+          {count > 1 && (
+            <div className="absolute right-5 bottom-5 left-7 z-20 flex items-center justify-between gap-4 sm:left-12 lg:left-14">
+              <div className="flex items-center gap-2">
+                {banners.map((b, i) => (
+                  <button
+                    key={b.id}
+                    type="button"
+                    onClick={() => go(i)}
+                    aria-label={`Show banner ${i + 1}`}
+                    aria-current={i === index}
+                    className="relative h-2.5 overflow-hidden rounded-full bg-white/25 transition-all duration-300"
+                    style={{ width: i === index ? 40 : 10 }}
+                  >
+                    {i === index && (
+                      <span
+                        key={`${index}-${paused}`}
+                        className="absolute inset-y-0 left-0 bg-white"
+                        style={{
+                          width: paused ? "100%" : undefined,
+                          animation: paused ? undefined : `banner-progress ${INTERVAL_MS}ms linear forwards`,
+                        }}
+                      />
+                    )}
+                  </button>
+                ))}
+              </div>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => go(index - 1)}
+                  aria-label="Previous banner"
+                  className="flex h-10 w-10 items-center justify-center rounded-full bg-deep/40 text-white ring-1 ring-white/25 transition hover:bg-white/10"
+                >
+                  <ChevronLeft className="h-5 w-5" aria-hidden="true" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => go(index + 1)}
+                  aria-label="Next banner"
+                  className="flex h-10 w-10 items-center justify-center rounded-full bg-deep/40 text-white ring-1 ring-white/25 transition hover:bg-white/10"
+                >
+                  <ChevronRight className="h-5 w-5" aria-hidden="true" />
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </section>
+  );
+}
