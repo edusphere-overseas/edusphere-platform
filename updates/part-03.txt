@@ -1,0 +1,783 @@
+                const extra = d.university ?? d.file ?? (d.service ? d.service.replace(/_/g, " ") : null);
+                return (
+                  <li key={a.id} className="flex gap-3">
+                    <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-teal" aria-hidden="true" />
+                    <span>
+                      <span className="text-deep">
+                        <strong>{a.actor_id === id ? "Student" : displayName(people.get(a.actor_id ?? "")) || "System"}</strong>: {ACTION_LABEL[a.action] ?? a.action.replace(/_/g, " ")}
+                        {extra ? ` (${extra})` : ""}
+                        {d.reason ? `: "${d.reason}"` : ""}
+                      </span>
+                      <span className="block text-xs text-slate">{formatDate(a.created_at, true)}</span>
+                    </span>
+                  </li>
+                );
+              })}
+            </ol>
+          ) : (
+            <p className="mt-2 text-sm text-slate">Nothing yet.</p>
+          )}
+        </Card>
+      </div>
+
+      <div className="grid grid-cols-1 gap-5">
+        {s.isAdmin && (
+          <Card>
+            <h2 className="text-xs font-bold uppercase tracking-[0.16em] text-slate">Counsellor</h2>
+            <ActionForm action={assignStudent} className="mt-3 grid grid-cols-1 gap-3">
+              <input type="hidden" name="student" value={id} />
+              <label className="grid grid-cols-1 gap-1 text-sm font-semibold text-deep">
+                Looked after by
+                <select name="counsellor" defaultValue={details.counsellor_id ?? ""} className={`${input} py-2.5`}>
+                  <option value="">Nobody yet</option>
+                  {counsellors.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {displayName(c)}
+                      {c.role === "admin" ? " (admin)" : ""}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              {OFFICES.length > 1 ? (
+                <label className="grid grid-cols-1 gap-1 text-sm font-semibold text-deep">
+                  Office
+                  <select name="office" defaultValue={details.office} className={`${input} py-2.5`}>
+                    {OFFICES.map((o) => (
+                      <option key={o.key} value={o.key}>
+                        {o.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              ) : (
+                <input type="hidden" name="office" value={details.office} />
+              )}
+              <p className="text-xs leading-relaxed text-slate">The counsellor sees this student, gets their messages and requests, and is emailed when you assign them.</p>
+              <div>
+                <Submit pending="Saving…">Save</Submit>
+              </div>
+            </ActionForm>
+          </Card>
+        )}
+
+        <Card>
+          <h2 className="text-xs font-bold uppercase tracking-[0.16em] text-slate">Family</h2>
+          {links?.length ? (
+            <ul className="mt-3 grid grid-cols-1 gap-2.5">
+              {links.map((l) => {
+                const parent = people.get(l.parent_id);
+                return (
+                  <li key={l.id} className="rounded-xl bg-mist/70 px-3.5 py-3 text-sm">
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="truncate font-semibold text-deep">
+                        {displayName(parent) || "Parent"} <span className="font-normal text-slate">({l.relationship})</span>
+                      </p>
+                      <Pill tone={l.status === "approved" ? "green" : l.status === "pending" ? "amber" : "slate"}>
+                        {l.status === "approved" ? "Linked" : l.status === "pending" ? "Waiting for student" : l.status === "declined" ? "Declined" : "Removed"}
+                      </Pill>
+                    </div>
+                    {parent && (
+                      <p className="mt-1 text-slate">
+                        <a href={`mailto:${parent.email}`} className="hover:text-teal">
+                          {parent.email}
+                        </a>
+                        {parent.phone && (
+                          <>
+                            {" · "}
+                            <a href={`tel:${parent.phone.replace(/[^\d+]/g, "")}`} className="hover:text-teal">
+                              {parent.phone}
+                            </a>
+                          </>
+                        )}
+                      </p>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+          ) : (
+            <p className="mt-2 text-sm text-slate">No parent linked. Students share a link code from their Family page.</p>
+          )}
+          {student.invited_by && <p className="mt-3 text-xs text-slate">Account created by {displayName(people.get(student.invited_by)) || "a parent"}.</p>}
+        </Card>
+
+        <Card>
+          <h2 className="text-xs font-bold uppercase tracking-[0.16em] text-slate">Consent records</h2>
+          {consents?.length ? (
+            <ul className="mt-3 grid grid-cols-1 gap-2 text-sm">
+              {consents.map((c) => (
+                <li key={c.id} className="text-deep">
+                  <strong>{c.user_id === id ? "Student" : displayName(people.get(c.user_id)) || "Parent"}</strong>:{" "}
+                  {c.kind === "guardian" ? "confirmed they are the parent or guardian" : "agreed to data processing"}
+                  <span className="block text-xs text-slate">
+                    {formatDate(c.given_at, true)} · version {c.version}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="mt-2 text-sm text-slate">No consent recorded yet: the student hasn&apos;t finished signing up.</p>
+          )}
+        </Card>
+
+        {lead && (
+          <Card>
+            <h2 className="text-xs font-bold uppercase tracking-[0.16em] text-slate">How they found us</h2>
+            <p className="mt-2 text-sm text-deep">
+              {LEAD_SOURCES[lead.source] ?? lead.source} · {formatDate(lead.created_at)}
+            </p>
+            {lead.interest && <p className="mt-1 text-sm font-semibold text-deep">{lead.interest}</p>}
+            {lead.message && <p className="mt-1 text-sm whitespace-pre-wrap text-slate">{lead.message}</p>}
+          </Card>
+        )}
+      </div>
+    </div>
+  );
+}
+#==EDU:FILE src/app/staff/students/[id]/services/[rid]/page.tsx
+import type { Metadata } from "next";
+import Link from "next/link";
+import { notFound } from "next/navigation";
+import { ArrowLeft, Check } from "lucide-react";
+import { PortalServiceIcon } from "@/components/portal/ServiceIcon";
+import { Thread } from "@/components/portal/Thread";
+import { Uploader } from "@/components/portal/Uploader";
+import { Card, formatDate, input, Pill } from "@/components/portal/ui";
+import { ActionForm, Submit } from "@/components/staff/ActionForm";
+import { StaffFiles } from "@/components/staff/StaffFiles";
+import { updateServiceRequest } from "../../../../_actions";
+import { serviceByKey, statusLabel } from "@/lib/portal/services";
+import { storageConfigured } from "@/lib/portal/storage";
+import { displayName, loadPeople, loadTeam, PAYMENT_STATUSES } from "@/lib/staff/context";
+import { getStudent } from "@/lib/staff/student";
+
+export const metadata: Metadata = { title: "Service request" };
+
+const box = `${input} py-2.5`;
+
+export default async function StaffServiceRequest({ params }: PageProps<"/staff/students/[id]/services/[rid]">) {
+  const { id, rid } = await params;
+  const { s } = await getStudent(id);
+  if (!/^[0-9a-f-]{36}$/i.test(rid)) notFound();
+  const { data: r } = await s.supabase.from("service_requests").select("*").eq("id", rid).eq("student_id", id).maybeSingle();
+  if (!r) notFound();
+  const def = serviceByKey(r.service);
+  if (!def) notFound();
+
+  const [{ data: events }, { data: files }, team] = await Promise.all([
+    s.supabase.from("service_request_events").select("status, created_at, changed_by").eq("request_id", r.id).order("created_at"),
+    s.supabase.from("documents").select("*").eq("service_request_id", r.id).not("status", "in", "(uploading,replaced)").order("created_at"),
+    loadTeam(s),
+  ]);
+  const people = await loadPeople(s, [r.requested_by, ...(events ?? []).map((e) => e.changed_by), ...(files ?? []).flatMap((f) => [f.uploaded_by, f.reviewed_by])]);
+  const reached: Record<string, { at: string; by: string | null }> = {};
+  for (const e of events ?? []) reached[e.status] ??= { at: e.created_at, by: e.changed_by };
+  const at = def.steps.findIndex((st) => st.key === r.status);
+  const details = r.details as Record<string, string>;
+  const staff = team.filter((t) => t.role === "admin" || t.role === "counsellor");
+
+  return (
+    <div>
+      <Link href={`/staff/students/${id}/services`} className="inline-flex items-center gap-1.5 text-sm font-semibold text-slate hover:text-deep">
+        <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+        All requests
+      </Link>
+      <div className="mt-4 mb-6 flex flex-wrap items-start gap-4">
+        <span className="grid grid-cols-1 h-12 w-12 shrink-0 place-items-center rounded-2xl bg-teal/10 text-teal">
+          <PortalServiceIcon icon={def.icon} className="h-6 w-6" />
+        </span>
+        <div className="min-w-0 flex-1">
+          <h2 className="text-xl font-extrabold tracking-[-0.02em] text-deep sm:text-2xl">{def.title}</h2>
+          <p className="mt-1 text-sm text-slate">
+            Requested {formatDate(r.created_at, true)}
+            {r.requested_by ? ` by ${r.requested_by === id ? "the student" : displayName(people.get(r.requested_by)) || "a parent"}` : ""}
+          </p>
+        </div>
+        <Pill tone={r.status === "cancelled" ? "slate" : r.status === "requested" ? "amber" : "teal"}>{statusLabel(r.service, r.status)}</Pill>
+      </div>
+
+      <div className="grid grid-cols-1 items-start gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.3fr)]">
+        <div className="grid grid-cols-1 gap-5">
+          <Card>
+            <h3 className="text-xs font-bold uppercase tracking-[0.16em] text-slate">Update</h3>
+            <ActionForm action={updateServiceRequest} className="mt-3 grid grid-cols-1 gap-3">
+              <input type="hidden" name="id" value={r.id} />
+              <label className="grid grid-cols-1 gap-1 text-sm font-semibold text-deep">
+                Status
+                <select name="status" defaultValue={r.status} className={box}>
+                  {def.steps.map((st) => (
+                    <option key={st.key} value={st.key}>
+                      {st.label}
+                    </option>
+                  ))}
+                  <option value="cancelled">Cancelled</option>
+                </select>
+              </label>
+              <label className="grid grid-cols-1 gap-1 text-sm font-semibold text-deep">
+                Looked after by
+                <select name="assigned_to" defaultValue={r.assigned_to ?? ""} className={box}>
+                  <option value="">Nobody yet</option>
+                  {staff.map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {displayName(t)}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              {r.price ? (
+                <label className="grid grid-cols-1 gap-1 text-sm font-semibold text-deep">
+                  Payment ({r.price})
+                  <select name="payment" defaultValue={r.payment_status} className={box}>
+                    {PAYMENT_STATUSES.filter((p) => p.key !== "not_required").map((p) => (
+                      <option key={p.key} value={p.key}>
+                        {p.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              ) : (
+                <input type="hidden" name="payment" value="not_required" />
+              )}
+              <label className="flex items-center gap-2.5 text-sm text-deep">
+                <input type="checkbox" name="notify" defaultChecked className="h-4.5 w-4.5 rounded accent-teal" />
+                Email the family if the status changes
+              </label>
+              <div>
+                <Submit pending="Saving…">Save</Submit>
+              </div>
+            </ActionForm>
+          </Card>
+
+          <Card>
+            <h3 className="text-xs font-bold uppercase tracking-[0.16em] text-slate">Progress</h3>
+            {r.status === "cancelled" ? (
+              <p className="mt-3 text-sm text-slate">Cancelled{r.closed_at ? ` on ${formatDate(r.closed_at)}` : ""}.</p>
+            ) : (
+              <ol className="mt-4 grid grid-cols-1 gap-3">
+                {def.steps.map((st, i) => (
+                  <li key={st.key} className="flex items-center gap-3">
+                    <span
+                      className={`grid h-7 w-7 shrink-0 place-items-center rounded-full text-xs font-bold ${
+                        i < at || (i === at && i === def.steps.length - 1) ? "bg-teal text-white" : i === at ? "text-teal ring-2 ring-teal" : "text-slate/60 ring-1 ring-slate/25"
+                      }`}
+                    >
+                      {i < at || (i === at && i === def.steps.length - 1) ? <Check className="h-4 w-4" aria-hidden="true" /> : i + 1}
+                    </span>
+                    <div>
+                      <p className={`text-sm font-semibold ${i <= at ? "text-deep" : "text-slate/70"}`}>{st.label}</p>
+                      {reached[st.key] && i <= at && (
+                        <p className="text-xs text-slate">
+                          {formatDate(reached[st.key].at, true)}
+                          {reached[st.key].by && people.get(reached[st.key].by!) ? ` · ${displayName(people.get(reached[st.key].by!))}` : ""}
+                        </p>
+                      )}
+                    </div>
+                  </li>
+                ))}
+              </ol>
+            )}
+          </Card>
+
+          <Card>
+            <h3 className="text-xs font-bold uppercase tracking-[0.16em] text-slate">What they asked for</h3>
+            <dl className="mt-3 grid grid-cols-1 gap-3 text-sm">
+              {def.fields
+                .filter((f) => details[f.name])
+                .map((f) => (
+                  <div key={f.name}>
+                    <dt className="text-slate">{f.label}</dt>
+                    <dd className="font-semibold whitespace-pre-wrap text-deep">{f.type === "date" ? formatDate(details[f.name]) : details[f.name]}</dd>
+                  </div>
+                ))}
+            </dl>
+          </Card>
+
+          <Card>
+            <h3 className="text-xs font-bold uppercase tracking-[0.16em] text-slate">Documents for this request</h3>
+            {files?.length ? <StaffFiles files={files} people={people} studentId={id} /> : <p className="mt-2 text-sm text-slate">None yet.</p>}
+            {storageConfigured() && r.status !== "cancelled" && (
+              <div className="mt-4">
+                <Uploader studentId={id} docType="service" serviceRequestId={r.id} askLabel text="Upload a document (ticket, booking…)" primary={false} />
+              </div>
+            )}
+          </Card>
+        </div>
+
+        <Card>
+          <h3 className="mb-4 text-xs font-bold uppercase tracking-[0.16em] text-slate">Messages about this request</h3>
+          <Thread p={s} studentId={id} requestId={r.id} empty="No messages yet. Write to the family about this request; they get an email." placeholder="Write to the student and parents…" />
+        </Card>
+      </div>
+    </div>
+  );
+}
+#==EDU:FILE src/app/staff/students/[id]/services/page.tsx
+import type { Metadata } from "next";
+import Link from "next/link";
+import { ChevronRight } from "lucide-react";
+import { PortalServiceIcon } from "@/components/portal/ServiceIcon";
+import { Card, formatDate, Pill } from "@/components/portal/ui";
+import { loadRequests } from "@/lib/portal/data";
+import { FINAL_STATUSES, serviceByKey, statusLabel } from "@/lib/portal/services";
+import { displayName, loadPeople } from "@/lib/staff/context";
+import { getStudent } from "@/lib/staff/student";
+
+export const metadata: Metadata = { title: "Services" };
+
+export default async function StaffServices({ params }: PageProps<"/staff/students/[id]/services">) {
+  const { id } = await params;
+  const { s } = await getStudent(id);
+  const requests = await loadRequests(s, id);
+  const people = await loadPeople(s, requests.map((r) => r.assigned_to));
+
+  if (!requests.length) {
+    return (
+      <Card>
+        <p className="text-sm text-slate">No service requests yet. Families request airport pickup, accommodation and other services from the Services page in the portal.</p>
+      </Card>
+    );
+  }
+  return (
+    <Card className="overflow-hidden p-0 sm:p-0">
+      <ul className="divide-y divide-deep/6">
+        {requests.map((r) => {
+          const def = serviceByKey(r.service);
+          const open = !FINAL_STATUSES.includes(r.status);
+          return (
+            <li key={r.id}>
+              <Link href={`/staff/students/${id}/services/${r.id}`} className="flex items-center gap-4 px-5 py-4 transition hover:bg-mist/60 sm:px-6">
+                <span className="grid grid-cols-1 h-10 w-10 shrink-0 place-items-center rounded-xl bg-teal/10 text-teal">{def && <PortalServiceIcon icon={def.icon} />}</span>
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate font-bold text-deep">{def?.title ?? r.service}</span>
+                  <span className="block truncate text-sm text-slate">
+                    {def?.describe(r.details as Record<string, string>) || "No details"} · requested {formatDate(r.created_at)}
+                    {r.assigned_to ? ` · ${displayName(people.get(r.assigned_to))}` : ""}
+                  </span>
+                </span>
+                <span className="flex flex-wrap justify-end gap-1.5">
+                  {r.price && r.payment_status === "awaiting" && open && <Pill tone="amber">Payment due</Pill>}
+                  <Pill tone={r.status === "requested" ? "amber" : open ? "teal" : "slate"}>{r.status === "requested" ? "New" : statusLabel(r.service, r.status)}</Pill>
+                </span>
+                <ChevronRight className="h-4 w-4 shrink-0 text-slate" aria-hidden="true" />
+              </Link>
+            </li>
+          );
+        })}
+      </ul>
+    </Card>
+  );
+}
+#==EDU:FILE src/app/staff/students/page.tsx
+import type { Metadata } from "next";
+import Link from "next/link";
+import { ChevronRight, Search, Users } from "lucide-react";
+import { btnGhost, Card, Empty, formatDate, input, PageTitle, Pill } from "@/components/portal/ui";
+import { destinationName } from "@/lib/portal/journey";
+import { FINAL_STATUSES } from "@/lib/portal/services";
+import { ageFrom, displayName, getStaff, loadTeam } from "@/lib/staff/context";
+
+export const metadata: Metadata = { title: "Students" };
+
+const clean = (q: string) => q.replace(/[^\p{L}\p{N}@.+\-\s]/gu, "").trim().slice(0, 60);
+const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+export default async function StudentsPage({ searchParams }: PageProps<"/staff/students">) {
+  const s = await getStaff();
+  if (!s.allowed) return null;
+  const sp = await searchParams;
+  const q = typeof sp.q === "string" ? clean(sp.q) : "";
+  const counsellor = s.isAdmin && typeof sp.counsellor === "string" && (sp.counsellor === "none" || uuid.test(sp.counsellor)) ? sp.counsellor : "";
+
+  let query = s.supabase
+    .from("profiles")
+    .select(
+      "id, full_name, email, phone, created_at, onboarded_at, details:student_profiles!student_profiles_user_id_fkey!inner(counsellor_id, office, city, date_of_birth, preferred_countries, preferred_level, preferred_intake)",
+    )
+    .eq("role", "student")
+    .order("created_at", { ascending: false })
+    .limit(300);
+  if (q) query = query.or(["full_name", "email", "phone"].map((c) => `${c}.ilike."%${q}%"`).join(","));
+  if (counsellor === "none") query = query.is("details.counsellor_id", null);
+  else if (counsellor) query = query.eq("details.counsellor_id", counsellor);
+
+  const [{ data: students }, team, waitingDocs, openRequests] = await Promise.all([
+    query,
+    loadTeam(s),
+    s.supabase.from("documents").select("student_id").eq("status", "under_review").limit(2000),
+    s.supabase.from("service_requests").select("student_id, status").not("status", "in", `(${FINAL_STATUSES.join(",")})`).limit(2000),
+  ]);
+  const tally = (rows: { student_id: string }[] | null) => (rows ?? []).reduce((m, r) => m.set(r.student_id, (m.get(r.student_id) ?? 0) + 1), new Map<string, number>());
+  const docsByStudent = tally(waitingDocs.data);
+  const newRequests = tally((openRequests.data ?? []).filter((r) => r.status === "requested"));
+  const staffById = new Map(team.map((t) => [t.id, t]));
+  const counsellors = team.filter((t) => t.role === "admin" || t.role === "counsellor");
+
+  return (
+    <>
+      <PageTitle
+        title={s.isAdmin ? "Students" : "My students"}
+        intro={s.isAdmin ? "Every student with a portal account. New students have no counsellor until you assign one on their record." : "Students assigned to you by an admin."}
+      />
+
+      <form className="mb-5 flex flex-wrap gap-2" role="search">
+        <label htmlFor="student-search" className="sr-only">
+          Search students
+        </label>
+        <input id="student-search" name="q" defaultValue={q} placeholder="Name, email or phone" className={`${input} max-w-sm flex-1 py-2.5`} />
+        {s.isAdmin && (
+          <>
+            <label htmlFor="student-counsellor" className="sr-only">
+              Counsellor
+            </label>
+            <select id="student-counsellor" name="counsellor" defaultValue={counsellor} className={`${input} w-auto py-2.5`}>
+              <option value="">All counsellors</option>
+              <option value="none">No counsellor yet</option>
+              {counsellors.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {displayName(c)}
+                </option>
+              ))}
+            </select>
+          </>
+        )}
+        <button type="submit" className={btnGhost}>
+          <Search className="h-4 w-4" aria-hidden="true" />
+          Search
+        </button>
+      </form>
+
+      {students?.length ? (
+        <Card className="overflow-hidden p-0 sm:p-0">
+          <ul className="divide-y divide-deep/6">
+            {students.map((st) => {
+              const d = st.details;
+              const age = ageFrom(d?.date_of_birth);
+              const docs = docsByStudent.get(st.id) ?? 0;
+              const reqs = newRequests.get(st.id) ?? 0;
+              return (
+                <li key={st.id}>
+                  <Link href={`/staff/students/${st.id}`} className="flex items-center gap-4 px-5 py-4 transition hover:bg-mist/60 sm:px-6">
+                    <span className="grid grid-cols-1 h-10 w-10 shrink-0 place-items-center rounded-full bg-teal/12 text-sm font-bold text-navy">
+                      {(st.full_name || st.email).slice(0, 1).toUpperCase()}
+                    </span>
+                    <span className="grid grid-cols-1 min-w-0 flex-1 gap-0.5 sm:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_minmax(0,0.9fr)] sm:items-center sm:gap-4">
+                      <span className="min-w-0">
+                        <span className="block truncate font-bold text-deep">{displayName(st)}</span>
+                        <span className="block truncate text-sm text-slate">
+                          {[st.phone, age !== null ? `${age} yrs` : null, d?.city].filter(Boolean).join(" · ") || st.email}
+                        </span>
+                      </span>
+                      <span className="truncate text-sm text-slate">
+                        {[(d?.preferred_countries ?? []).map(destinationName).join(", "), d?.preferred_level, d?.preferred_intake].filter(Boolean).join(" · ") || "No preferences yet"}
+                      </span>
+                      <span className="flex flex-wrap items-center gap-1.5 text-sm">
+                        {s.isAdmin &&
+                          (d?.counsellor_id ? (
+                            <span className="truncate text-slate">{displayName(staffById.get(d.counsellor_id)) || "Counsellor"}</span>
+                          ) : (
+                            <Pill tone="amber">No counsellor</Pill>
+                          ))}
+                        {!st.onboarded_at && <Pill>Sign-up unfinished</Pill>}
+                        {docs > 0 && <Pill tone="amber">{docs} to review</Pill>}
+                        {reqs > 0 && <Pill tone="amber">{reqs} new request{reqs > 1 ? "s" : ""}</Pill>}
+                        {!s.isAdmin && !docs && !reqs && <span className="text-slate">Joined {formatDate(st.created_at)}</span>}
+                      </span>
+                    </span>
+                    <ChevronRight className="h-4 w-4 shrink-0 text-slate" aria-hidden="true" />
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+        </Card>
+      ) : (
+        <Empty icon={<Users className="h-6 w-6" aria-hidden="true" />} title={q || counsellor ? "No students match" : "No students yet"}>
+          {s.isAdmin ? "Students appear here when they create a portal account." : "An admin will assign students to you."}
+        </Empty>
+      )}
+      {(students?.length ?? 0) >= 300 && <p className="mt-3 text-sm text-slate">Showing the newest 300. Search to find others.</p>}
+    </>
+  );
+}
+#==EDU:FILE src/app/staff/team/page.tsx
+import type { Metadata } from "next";
+import { ShieldCheck, UserPlus } from "lucide-react";
+import { Card, input, Notice, PageTitle, Pill } from "@/components/portal/ui";
+import { ActionForm, Submit } from "@/components/staff/ActionForm";
+import { setRole } from "../_actions";
+import { FINAL_STATUSES } from "@/lib/portal/services";
+import { displayName, getStaff, loadTeam, ROLE_LABEL } from "@/lib/staff/context";
+
+export const metadata: Metadata = { title: "Team" };
+
+const box = `${input} py-2.5`;
+const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
+
+const ROLE_HELP = [
+  { role: "Counsellor", text: "Sees the students and enquiries assigned to them. Reviews documents, updates applications and services, and messages families." },
+  { role: "Admin", text: "Everything a counsellor can do, for every student, plus assigning students and enquiries and managing this team." },
+  { role: "Content editor", text: "No student records. Edits the website in Content (with their Sanity login)." },
+];
+
+export default async function TeamPage() {
+  const s = await getStaff("/staff/team");
+  if (!s.allowed) return null;
+  if (!s.isAdmin) {
+    return (
+      <div className="mx-auto max-w-xl">
+        <Notice tone="info" title="Only admins manage the team">
+          Ask an admin if someone needs access or should take over your students.
+        </Notice>
+      </div>
+    );
+  }
+
+  const [team, students, requests, leads] = await Promise.all([
+    loadTeam(s),
+    s.supabase.from("student_profiles").select("counsellor_id").not("counsellor_id", "is", null).limit(5000),
+    s.supabase.from("service_requests").select("assigned_to").not("assigned_to", "is", null).not("status", "in", `(${FINAL_STATUSES.join(",")})`).limit(5000),
+    s.supabase.from("leads").select("assigned_to").not("assigned_to", "is", null).in("status", ["new", "contacted"]).limit(5000),
+  ]);
+  const count = (rows: { [k: string]: string | null }[] | null, key: string, id: string) => (rows ?? []).filter((r) => r[key] === id).length;
+
+  return (
+    <>
+      <PageTitle title="Team" intro="Who can open student records. Everyone signs in at the same portal sign-in page; staff land on this dashboard." />
+
+      <div className="grid grid-cols-1 items-start gap-5 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
+        <Card className="overflow-hidden p-0 sm:p-0">
+          <ul className="divide-y divide-deep/6">
+            {team.map((t) => {
+              const me = t.id === s.userId;
+              return (
+                <li key={t.id} className="grid grid-cols-1 gap-3 px-5 py-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:px-6">
+                  <div className="min-w-0">
+                    <p className="flex flex-wrap items-center gap-2 font-bold text-deep">
+                      <span className="truncate">{displayName(t)}</span>
+                      <Pill tone={t.role === "admin" ? "teal" : "slate"}>{ROLE_LABEL[t.role ?? ""]}</Pill>
+                      {me && <span className="text-xs font-semibold text-slate">(you)</span>}
+                    </p>
+                    <p className="truncate text-sm text-slate">{t.email}</p>
+                    {t.role !== "editor" && (
+                      <p className="mt-0.5 text-xs text-slate">
+                        {plural(count(students.data, "counsellor_id", t.id), "student")} · {plural(count(requests.data, "assigned_to", t.id), "open request")} ·{" "}
+                        {plural(count(leads.data, "assigned_to", t.id), "open enquiry", "open enquiries")}
+                      </p>
+                    )}
+                  </div>
+                  {!me && (
+                    <ActionForm action={setRole} className="flex flex-wrap items-center gap-2">
+                      <input type="hidden" name="email" value={t.email} />
+                      <label htmlFor={`role-${t.id}`} className="sr-only">
+                        Role for {displayName(t)}
+                      </label>
+                      <select id={`role-${t.id}`} name="role" defaultValue={t.role ?? ""} className={`${box} w-auto`}>
+                        <option value="counsellor">Counsellor</option>
+                        <option value="admin">Admin</option>
+                        <option value="editor">Content editor</option>
+                        <option value="none">Remove staff access</option>
+                      </select>
+                      <Submit className="inline-flex min-h-10 items-center gap-2 rounded-full px-4 text-sm font-semibold text-deep ring-1 ring-slate/25 hover:bg-mist" pending="Saving…">
+                        Save
+                      </Submit>
+                    </ActionForm>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        </Card>
+
+        <div className="grid grid-cols-1 gap-5">
+          <Card>
+            <h2 className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.16em] text-slate">
+              <UserPlus className="h-4 w-4" aria-hidden="true" />
+              Add someone
+            </h2>
+            <ol className="mt-3 grid grid-cols-1 list-decimal gap-1 pl-5 text-sm leading-relaxed text-slate">
+              <li>They create a portal account (Sign up, or Continue with Google) with their work email.</li>
+              <li>You enter that email here and choose their role.</li>
+              <li>Next time they sign in, they land on this dashboard.</li>
+            </ol>
+            <ActionForm action={setRole} className="mt-4 grid grid-cols-1 gap-3" clearOnSave>
+              <label className="grid grid-cols-1 gap-1 text-sm font-semibold text-deep">
+                Their email
+                <input type="email" name="email" required maxLength={254} placeholder="name@example.com" className={box} />
+              </label>
+              <label className="grid grid-cols-1 gap-1 text-sm font-semibold text-deep">
+                Role
+                <select name="role" defaultValue="counsellor" className={box}>
+                  <option value="counsellor">Counsellor</option>
+                  <option value="admin">Admin</option>
+                  <option value="editor">Content editor</option>
+                </select>
+              </label>
+              <label className="flex items-start gap-2.5 text-sm text-deep">
+                <input type="checkbox" name="confirm" className="mt-0.5 h-4.5 w-4.5 shrink-0 rounded accent-teal" />
+                If they signed up as a student or parent, I confirm this account should become a staff account
+              </label>
+              <div>
+                <Submit pending="Saving…">Give access</Submit>
+              </div>
+            </ActionForm>
+          </Card>
+
+          <Card>
+            <h2 className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.16em] text-slate">
+              <ShieldCheck className="h-4 w-4" aria-hidden="true" />
+              What each role can do
+            </h2>
+            <dl className="mt-3 grid grid-cols-1 gap-3 text-sm">
+              {ROLE_HELP.map((r) => (
+                <div key={r.role}>
+                  <dt className="font-bold text-deep">{r.role}</dt>
+                  <dd className="leading-relaxed text-slate">{r.text}</dd>
+                </div>
+              ))}
+            </dl>
+            <p className="mt-4 text-xs leading-relaxed text-slate">
+              Removing someone&apos;s access hands their students, enquiries and requests back to the admins to reassign. Every view, download and change is kept in each student&apos;s activity log.
+            </p>
+          </Card>
+        </div>
+      </div>
+    </>
+  );
+}
+#==EDU:FILE src/components/portal/Thread.tsx
+import type { Portal } from "@/lib/portal/context";
+import { Composer } from "./Composer";
+import { formatDate } from "./ui";
+
+/** A message thread: the general one with the counsellor, or one per service request. */
+export async function Thread({ p, studentId, requestId, empty, placeholder }: { p: Pick<Portal, "supabase" | "userId">; studentId: string; requestId?: string; empty: string; placeholder?: string }) {
+  let q = p.supabase.from("messages").select("id, body, sender_id, sender_name, sender_role, created_at").eq("student_id", studentId);
+  q = requestId ? q.eq("service_request_id", requestId) : q.is("service_request_id", null);
+  const { data: messages } = await q.order("created_at", { ascending: true }).limit(200);
+
+  return (
+    <div>
+      {messages?.length ? (
+        <ol className="mb-5 grid gap-3">
+          {messages.map((m) => {
+            const mine = m.sender_id === p.userId;
+            const staff = ["counsellor", "admin", "editor"].includes(m.sender_role ?? "");
+            return (
+              <li key={m.id} className={`flex ${mine ? "justify-end" : "justify-start"}`}>
+                <div className={`max-w-[85%] rounded-2xl px-4 py-3 sm:max-w-[75%] ${mine ? "rounded-br-md bg-teal text-white" : staff ? "rounded-bl-md bg-deep text-white" : "rounded-bl-md bg-mist text-deep"}`}>
+                  <p className={`text-xs font-bold ${mine ? "text-white/80" : staff ? "text-teal-light" : "text-slate"}`}>
+                    {mine ? "You" : (m.sender_name ?? "Edusphere team")} · {formatDate(m.created_at, true)}
+                  </p>
+                  <p className="mt-1 whitespace-pre-wrap break-words text-[0.95rem] leading-relaxed">{m.body}</p>
+                </div>
+              </li>
+            );
+          })}
+        </ol>
+      ) : (
+        <p className="mb-5 text-sm text-slate">{empty}</p>
+      )}
+      <Composer studentId={studentId} requestId={requestId} placeholder={placeholder} />
+    </div>
+  );
+}
+#==EDU:FILE src/components/staff/ActionForm.tsx
+"use client";
+
+import { createContext, startTransition, useActionState, useContext, useEffect, useRef } from "react";
+import { CheckCircle2, Loader2 } from "lucide-react";
+import type { ActionState } from "@/app/staff/_actions";
+import { FormError } from "@/components/portal/FormBits";
+import { btnPrimary } from "@/components/portal/ui";
+
+type Props = {
+  action: (state: ActionState, form: FormData) => Promise<ActionState>;
+  children: React.ReactNode;
+  className?: string;
+  /** clear the fields after a successful save (forms that add something new) */
+  clearOnSave?: boolean;
+};
+
+const Pending = createContext(false);
+
+/**
+ * A staff form that shows the result of its server action underneath. It submits by hand
+ * rather than through the form's action, so what was typed stays put when a save fails.
+ */
+export function ActionForm({ action, children, className = "", clearOnSave }: Props) {
+  const [state, run, pending] = useActionState(action, null);
+  const form = useRef<HTMLFormElement>(null);
+  useEffect(() => {
+    if (clearOnSave && state?.ok) form.current?.reset();
+  }, [state, clearOnSave]);
+
+  return (
+    <form
+      ref={form}
+      className={className}
+      aria-busy={pending}
+      onSubmit={(e) => {
+        e.preventDefault();
+        if (pending) return;
+        const data = new FormData(e.currentTarget);
+        startTransition(() => run(data));
+      }}
+    >
+      <Pending value={pending}>{children}</Pending>
+      {state?.error && (
+        <div className="basis-full [grid-column:1/-1]">
+          <FormError message={state.error} />
+        </div>
+      )}
+      {state?.ok && !pending && (
+        <p role="status" className="flex basis-full items-center gap-1.5 text-sm font-semibold text-[#17663a] [grid-column:1/-1]">
+          <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
+          {state.ok}
+        </p>
+      )}
+    </form>
+  );
+}
+
+/** The submit button of an ActionForm, with a spinner while it saves. */
+export function Submit({ children, className = btnPrimary, pending: pendingLabel }: { children: React.ReactNode; className?: string; pending?: string }) {
+  const pending = useContext(Pending);
+  return (
+    <button type="submit" disabled={pending} className={className} aria-busy={pending}>
+      {pending && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />}
+      {pending && pendingLabel ? pendingLabel : children}
+    </button>
+  );
+}
+#==EDU:FILE src/components/staff/StaffFiles.tsx
+import { CheckCircle2, ExternalLink, FileText, ImageIcon, RotateCcw } from "lucide-react";
+import { reviewDocument } from "@/app/staff/_actions";
+import { DocBadge, formatDate, input } from "@/components/portal/ui";
+import type { DocRow } from "@/lib/portal/data";
+import { itemStatus } from "@/lib/portal/journey";
+import type { Person } from "@/lib/staff/context";
+import { displayName } from "@/lib/staff/context";
+import { ActionForm, Submit } from "./ActionForm";
+
+const kb = (n: number) => (n >= 1024 * 1024 ? `${(n / 1024 / 1024).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1024))} KB`);
+const small = "inline-flex min-h-9 items-center gap-1.5 rounded-full px-3.5 text-sm font-semibold transition disabled:opacity-60";
+
+/** Files for one checklist item (or one service request), with Approve and Ask-for-re-upload. */
+export function StaffFiles({ files, people, studentId }: { files: DocRow[]; people: Map<string, Person>; studentId: string }) {
+  if (!files.length) return null;
+  return (
+    <ul className="mt-3 grid grid-cols-1 gap-2.5">
+      {files.map((f) => {
+        const Icon = f.mime_type === "application/pdf" ? FileText : ImageIcon;
+        const by = f.uploaded_by === studentId ? "the student" : displayName(people.get(f.uploaded_by ?? "")) || "a family member";
+        return (
+          <li key={f.id} id={f.id} className={`scroll-mt-28 rounded-xl px-3.5 py-3 ${f.status === "under_review" ? "bg-[#fff8eb] ring-1 ring-[#f5b041]/40" : "bg-mist/70"}`}>
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+              <Icon className="h-4.5 w-4.5 shrink-0 text-slate" aria-hidden="true" />
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-semibold text-deep">
+                  {f.label ? `${f.label}: ` : ""}
+                  {f.file_name}
+                </p>
+                <p className="text-xs text-slate">
+                  {formatDate(f.created_at, true)} · {kb(f.size_bytes)} · uploaded by {by}
