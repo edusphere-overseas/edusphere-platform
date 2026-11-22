@@ -40,8 +40,9 @@ function Ring({
     <div className={`absolute inset-0 ${className}`}>
       {flags.map((f, i) => {
         const a = ((360 / flags.length) * i + offset) * (Math.PI / 180);
-        const left = 50 + radius * Math.cos(a);
-        const top = 50 + radius * Math.sin(a);
+        // Rounded so the server and the browser write the same value (no hydration warning)
+        const left = (50 + radius * Math.cos(a)).toFixed(3);
+        const top = (50 + radius * Math.sin(a)).toFixed(3);
         return (
           <a
             key={f.code}

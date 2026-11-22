@@ -92,7 +92,7 @@ async function loadReviews(placeId: string | null, query: string): Promise<Place
 /**
  * Live Google rating and reviews for an office (Google returns up to five).
  * Returns null, and the reviews block stays hidden, until GOOGLE_PLACES_API_KEY
- * is set in Netlify. Reviews are shown exactly as Google returns them.
+ * is set in Vercel. Reviews are shown exactly as Google returns them.
  */
 export async function getPlaceReviews(office: { googlePlaceId?: string | null; mapQuery: string } | undefined) {
   if (!office || !process.env.GOOGLE_PLACES_API_KEY) return null;

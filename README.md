@@ -2,10 +2,10 @@
 
 The new Edusphere Overseas site, built to the **Website Plan, Version 1**.
 
-**Stack:** Next.js 16 (App Router, TypeScript) · Tailwind CSS 4 · Motion · Sanity (content) · Netlify.
+**Stack:** Next.js 16 (App Router, TypeScript) · Tailwind CSS 4 · Motion · Sanity (content) · Supabase (portal) · Cloudflare R2 (documents) · Vercel.
 Coming in later steps: Supabase (portal, Mumbai region), Cloudflare R2 and Turnstile, Resend.
 
-**Live preview:** https://edusphere-overseas.netlify.app (private to the Netlify team until launch)
+**Live preview:** on Vercel (project `edusphere-platform`); search engines are kept out until launch.
 **Admin portal:** `/admin` → **Content** at `/admin/content` (Sanity Studio; sign in with your invited Sanity account)
 
 ## Run it on your computer
@@ -15,7 +15,7 @@ You need Node.js 22 or newer.
 ```bash
 npm install
 npm run dev        # http://localhost:3000
-npm run build      # production build, the same one Netlify runs
+npm run build      # production build, the same one Vercel runs
 ```
 
 ## Where things live
@@ -33,7 +33,7 @@ npm run build      # production build, the same one Netlify runs
 | Header, footer, ticker, WhatsApp button | `src/components/layout/` |
 | Country flags (MIT licence) | `public/flags/` |
 
-Published changes appear on the website within about a minute. For instant updates, add a Sanity webhook to `/api/revalidate` with a secret, and the same secret as `SANITY_REVALIDATE_SECRET` in Netlify.
+Published changes appear on the website within about a minute. For instant updates, add a Sanity webhook to `/api/revalidate` with a secret, and the same secret as `SANITY_REVALIDATE_SECRET` in Vercel.
 
 To give a team member access to Content, invite them to the **Edusphere Platform** project at sanity.io/manage → Members.
 
@@ -41,11 +41,13 @@ To give a team member access to Content, invite them to the **Edusphere Platform
 
 Plays once per browser session (about 1.6 seconds), then glides into the header logo. Tap to skip. It is skipped for visitors who have "reduce motion" turned on, and it hides itself even if JavaScript is slow.
 
-## Deploy (Netlify)
+## Deploy (Vercel)
 
-1. Push this folder to the Edusphere GitHub repository.
-2. In Netlify: **Add new project → Import from Git → GitHub →** choose the repository. Netlify detects Next.js; leave the build settings as they are (`netlify.toml` sets Node 22).
-3. Later steps add keys under **Site configuration → Environment variables** (see `.env.example`).
+1. Vercel is connected to this GitHub repository (project `edusphere-platform`). Every push to `main` deploys production; other branches get preview deployments.
+2. Keys go in Vercel under **Project Settings → Environment Variables** (see `.env.example`), then redeploy.
+3. Commits that only add files under `updates/` (update-bundle parts) are not built (`vercel.json` → `ignoreCommand`).
+
+`netlify.toml` is kept only for the earlier Netlify project and can be removed once Netlify is switched off.
 
 The site is set to `noindex` until launch; switch `robots` in `src/app/layout.tsx` at go-live (Step 8).
 

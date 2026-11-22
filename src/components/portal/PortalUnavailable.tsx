@@ -2,7 +2,7 @@ import Link from "next/link";
 import { AuthCard } from "./AuthForms";
 import { btnPrimary } from "./ui";
 
-/** Shown until the portal's database is connected (Supabase keys in Netlify). */
+/** Shown until the portal's database is connected (Supabase keys in Vercel). */
 export function PortalUnavailable() {
   return (
     <AuthCard title="The portal opens soon" intro="Student and parent accounts are being set up. Until then, our team is a message away.">
