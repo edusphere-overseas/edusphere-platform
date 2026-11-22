@@ -1,0 +1,318 @@
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f4f7fa;padding:32px 12px"><tr><td align="center">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:520px;background:#ffffff;border-radius:16px;overflow:hidden">
+<tr><td style="background:#0d2236;padding:20px 28px;color:#ffffff;font-weight:800;font-size:17px;letter-spacing:.02em">Edusphere <span style="color:#5cc0cf">Overseas</span></td></tr>
+<tr><td style="padding:28px">
+<h1 style="margin:0 0 14px;font-size:21px;line-height:1.3;color:#0d2236">{{ .Data.inviter_name }} created your Edusphere account</h1>
+<p style="margin:0 0 12px;font-size:15px;line-height:1.6;color:#333">Hi {{ .Data.full_name }},</p><p style="margin:0 0 12px;font-size:15px;line-height:1.6;color:#333">{{ .Data.inviter_name }} created an account for you on the Edusphere Overseas student portal, so they can help with your study abroad application.</p><p style="margin:0 0 12px;font-size:15px;line-height:1.6;color:#333">Choose a password to get started. You'll then be asked to approve {{ .Data.inviter_name }} as your parent or guardian.</p>
+<p style="margin:22px 0 6px"><a href="{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=invite" style="display:inline-block;background:#449aa8;color:#ffffff;text-decoration:none;font-weight:700;padding:12px 22px;border-radius:999px">Set up my account</a></p>
+<p style="margin:16px 0 0;font-size:12px;line-height:1.5;color:#777">If the button doesn't work, copy this link into your browser:<br><span style="word-break:break-all">{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=invite</span></p>
+</td></tr>
+<tr><td style="padding:16px 28px 24px;font-size:12px;line-height:1.5;color:#777;border-top:1px solid #eef1f4">If you don't know this person, you can ignore this email and no one will see your details.</td></tr>
+</table></td></tr></table></body></html>
+#==EDU:FILE supabase/templates/recovery.html
+<!doctype html>
+<html><body style="margin:0;background:#f4f7fa;font-family:Montserrat,Segoe UI,Arial,sans-serif;color:#111">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f4f7fa;padding:32px 12px"><tr><td align="center">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:520px;background:#ffffff;border-radius:16px;overflow:hidden">
+<tr><td style="background:#0d2236;padding:20px 28px;color:#ffffff;font-weight:800;font-size:17px;letter-spacing:.02em">Edusphere <span style="color:#5cc0cf">Overseas</span></td></tr>
+<tr><td style="padding:28px">
+<h1 style="margin:0 0 14px;font-size:21px;line-height:1.3;color:#0d2236">Choose a new password</h1>
+<p style="margin:0 0 12px;font-size:15px;line-height:1.6;color:#333">We received a request to reset the password for your Edusphere Overseas portal account. The link works for one hour.</p>
+<p style="margin:22px 0 6px"><a href="{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=recovery" style="display:inline-block;background:#449aa8;color:#ffffff;text-decoration:none;font-weight:700;padding:12px 22px;border-radius:999px">Choose a new password</a></p>
+<p style="margin:16px 0 0;font-size:12px;line-height:1.5;color:#777">If the button doesn't work, copy this link into your browser:<br><span style="word-break:break-all">{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=recovery</span></p>
+</td></tr>
+<tr><td style="padding:16px 28px 24px;font-size:12px;line-height:1.5;color:#777;border-top:1px solid #eef1f4">If you didn't ask for this, you can ignore this email: your password stays the same.</td></tr>
+</table></td></tr></table></body></html>
+#==EDU:FILE supabase/tests/access_rules.sql
+-- Access-rule tests for the portal. Run against a LOCAL database only:
+--   psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" -v ON_ERROR_STOP=1 -f supabase/tests/access_rules.sql
+-- Creates test accounts, checks what each role can and cannot do, then removes them.
+\set QUIET on
+set client_min_messages = notice;
+
+drop schema if exists tests cascade;
+delete from auth.users where email like 'test-%@example.test';
+create schema tests;
+grant usage on schema tests to authenticated, anon;
+
+create table tests.ids (name text primary key, id uuid not null);
+grant select on tests.ids to authenticated, anon;
+
+create function tests.id(n text) returns uuid language sql stable as $$ select id from tests.ids where name = n $$;
+-- the student's link code, read as the test runner (as if the student had shared it)
+create function tests.code(n text) returns text language sql stable security definer set search_path = '' as $$
+  select link_code from public.student_profiles where user_id = (select id from tests.ids where name = n) $$;
+
+-- Act as a signed-in person for the rest of the transaction
+create function tests.act_as(n text) returns void language plpgsql as $$
+begin
+  perform set_config('request.jwt.claims', json_build_object('sub', tests.id(n), 'role', 'authenticated')::text, true);
+  perform set_config('role', 'authenticated', true);
+end $$;
+
+create function tests.ok(cond boolean, msg text) returns void language plpgsql as $$
+begin
+  if cond is not true then raise exception 'FAILED: %', msg; end if;
+  raise notice 'ok  %', msg;
+end $$;
+
+create function tests.fails(stmt text, msg text) returns void language plpgsql as $$
+begin
+  begin
+    execute stmt;
+  exception when others then
+    raise notice 'ok  % (refused: %)', msg, left(sqlerrm, 70);
+    return;
+  end;
+  raise exception 'FAILED (was allowed): %', msg;
+end $$;
+
+create function tests.count_rows(stmt text) returns bigint language plpgsql as $$
+declare n bigint;
+begin
+  execute 'select count(*) from (' || stmt || ') x' into n;
+  return n;
+end $$;
+
+grant execute on all functions in schema tests to authenticated, anon;
+
+-- ---------------------------------------------------------------
+-- Test accounts (created as auth users, so the sign-up trigger runs)
+-- ---------------------------------------------------------------
+create function tests.make_user(n text, meta jsonb) returns uuid language plpgsql as $$
+declare uid uuid := gen_random_uuid();
+begin
+  insert into auth.users (instance_id, id, aud, role, email, encrypted_password, email_confirmed_at, raw_app_meta_data, raw_user_meta_data, created_at, updated_at)
+  values ('00000000-0000-0000-0000-000000000000', uid, 'authenticated', 'authenticated', 'test-' || n || '@example.test', '', now(),
+          '{"provider":"email","providers":["email"]}', meta, now(), now());
+  insert into tests.ids values (n, uid);
+  return uid;
+end $$;
+
+select tests.make_user('s1', '{"role":"student","full_name":"Student One","date_of_birth":"2000-01-01","consent_version":"t"}');
+select tests.make_user('s2', '{"role":"student","full_name":"Student Two","date_of_birth":"2001-05-05","consent_version":"t"}');
+select tests.make_user('minor', '{"role":"student","full_name":"Young Student","date_of_birth":"2010-03-03","consent_version":"t"}');
+select tests.make_user('p1', '{"role":"parent","full_name":"Parent Approved","consent_version":"t"}');
+select tests.make_user('p2', '{"role":"parent","full_name":"Parent Pending","consent_version":"t"}');
+select tests.make_user('p3', '{"role":"parent","full_name":"Parent Of Minor","consent_version":"t"}');
+select tests.make_user('c1', '{"full_name":"Counsellor One"}');
+select tests.make_user('c2', '{"full_name":"Counsellor Two"}');
+select tests.make_user('admin', '{"full_name":"Admin"}');
+select tests.make_user('editor', '{"full_name":"Editor"}');
+select tests.make_user('google', '{"full_name":"Google Person","role":"admin"}'); -- staff role in sign-up data must be ignored
+
+update public.profiles set role = 'counsellor' where id in (tests.id('c1'), tests.id('c2'));
+update public.profiles set role = 'admin' where id = tests.id('admin');
+update public.profiles set role = 'editor' where id = tests.id('editor');
+update public.student_profiles set counsellor_id = tests.id('c1') where user_id in (tests.id('s1'), tests.id('minor'));
+update public.student_profiles set counsellor_id = tests.id('c2') where user_id = tests.id('s2');
+
+insert into public.parent_links (parent_id, student_id, status, requested_via, guardian_confirmed_at)
+values (tests.id('p1'), tests.id('s1'), 'approved', 'email', now()),
+       (tests.id('p2'), tests.id('s1'), 'pending', 'email', now());
+
+insert into public.applications (student_id, university, course, country, stage)
+values (tests.id('s1'), 'University of Leeds', 'MSc Data Science', 'uk', 'offer'),
+       (tests.id('s2'), 'Monash University', 'Master of IT', 'australia', 'applied');
+
+insert into public.documents (id, student_id, doc_type, file_key, file_name, mime_type, size_bytes, status, uploaded_by)
+select d, tests.id('s1'), 'passport', 'students/' || tests.id('s1') || '/' || d || '/passport.pdf', 'passport.pdf', 'application/pdf', 1000, 'under_review', tests.id('s1')
+from (select '11111111-1111-1111-1111-111111111111'::uuid d) x;
+insert into public.documents (id, student_id, doc_type, file_key, file_name, mime_type, size_bytes, status, uploaded_by)
+select d, tests.id('s2'), 'passport', 'students/' || tests.id('s2') || '/' || d || '/passport.pdf', 'passport.pdf', 'application/pdf', 1000, 'under_review', tests.id('s2')
+from (select '22222222-2222-2222-2222-222222222222'::uuid d) x;
+
+insert into public.service_requests (student_id, service, details) values (tests.id('s2'), 'airport_pickup', '{"airport":"MAN"}');
+insert into public.messages (student_id, sender_id, body) values (tests.id('s2'), tests.id('s2'), 'Hello from student two');
+update public.leads set assigned_to = tests.id('c1') where profile_id = tests.id('s1');
+
+\echo '--- sign-up'
+select tests.ok((select role from public.profiles where id = tests.id('google')) is null, 'a staff role in sign-up data is ignored');
+select tests.ok((select onboarded_at from public.profiles where id = tests.id('s1')) is not null, 'email sign-up with consent is onboarded');
+select tests.ok((select count(*) from public.consents where user_id = tests.id('s1') and kind = 'data_processing') = 1, 'consent recorded with a date');
+select tests.ok((select count(*) from public.leads where profile_id = tests.id('s1')) = 1, 'verified sign-up becomes a lead');
+select tests.ok((select length(link_code) from public.student_profiles where user_id = tests.id('s1')) = 8, 'student gets a link code');
+
+\echo '--- anonymous visitor'
+begin;
+set local role anon;
+select tests.fails('select * from public.profiles', 'anonymous cannot read profiles');
+select tests.fails('select * from public.documents', 'anonymous cannot read documents');
+rollback;
+
+\echo '--- student'
+begin;
+select tests.act_as('s1');
+select tests.ok(tests.count_rows('select * from public.profiles where id = tests.id(''s1'')') = 1, 'student sees own profile');
+select tests.ok(tests.count_rows('select * from public.profiles where id = tests.id(''s2'')') = 0, 'student cannot see another student');
+select tests.ok(tests.count_rows('select * from public.documents') = 1, 'student sees only own documents');
+select tests.ok(tests.count_rows('select * from public.applications') = 1, 'student sees only own applications');
+select tests.ok(tests.count_rows('select * from public.service_requests') = 0, 'student cannot see another student''s requests');
+select tests.ok(tests.count_rows('select * from public.messages') = 0, 'student cannot see another student''s messages');
+select tests.ok(tests.count_rows('select * from public.leads') = 0, 'student cannot see leads');
+select tests.ok(tests.count_rows('select * from public.activity_log') = 0, 'student cannot see the activity log');
+select tests.ok(tests.count_rows('select * from public.profiles where id = tests.id(''c1'')') = 1, 'student sees their counsellor''s name');
+select tests.ok(tests.count_rows('select * from public.profiles where id = tests.id(''p2'')') = 1, 'student sees who asked to link');
+select tests.fails($$update public.profiles set role = 'admin' where id = tests.id('s1')$$, 'student cannot change own role');
+select tests.fails($$update public.student_profiles set counsellor_id = tests.id('c2') where user_id = tests.id('s1')$$, 'student cannot pick a counsellor');
+select tests.fails($$update public.student_profiles set date_of_birth = '1990-01-01' where user_id = tests.id('s1')$$, 'student cannot change date of birth once set');
+select tests.fails($$update public.student_profiles set link_code = 'AAAAAAAA' where user_id = tests.id('s1')$$, 'student cannot choose a link code');
+update public.student_profiles set city = 'Mangaluru' where user_id = tests.id('s2'); -- not theirs: changes nothing
+reset role;
+select tests.ok((select city from public.student_profiles where user_id = tests.id('s2')) is null, 'student cannot edit another student');
+select tests.act_as('s1');
+update public.profiles set full_name = 'Student 1' where id = tests.id('s1');
+select tests.ok((select full_name from public.profiles where id = tests.id('s1')) = 'Student 1', 'student edits own name');
+update public.documents set status = 'approved' where student_id = tests.id('s1');
+reset role;
+select tests.ok((select status from public.documents where student_id = tests.id('s1')) = 'under_review', 'student cannot approve own document');
+select tests.act_as('s1');
+select tests.fails($$delete from public.documents where student_id = tests.id('s1')$$, 'student cannot delete directly');
+select tests.fails($$insert into public.applications (student_id, university) values (tests.id('s1'), 'Fake')$$, 'student cannot add applications');
+rollback;
+
+\echo '--- student uploads'
+begin;
+select tests.act_as('s1');
+insert into public.documents (id, student_id, doc_type, file_key, file_name, mime_type, size_bytes, uploaded_by)
+values ('33333333-3333-3333-3333-333333333333', tests.id('s1'), 'sop', 'students/' || tests.id('s1') || '/33333333-3333-3333-3333-333333333333/sop.pdf', 'sop.pdf', 'application/pdf', 500, tests.id('s1'));
+select tests.ok(true, 'adult student starts an upload');
+select tests.fails($$insert into public.documents (id, student_id, doc_type, file_key, file_name, mime_type, size_bytes, uploaded_by)
+  values (gen_random_uuid(), tests.id('s1'), 'sop', 'students/' || tests.id('s2') || '/x/sop.pdf', 'sop.pdf', 'application/pdf', 500, tests.id('s1'))$$,
+  'upload cannot point at another student''s storage');
+select tests.fails($$insert into public.documents (id, student_id, doc_type, file_key, file_name, mime_type, size_bytes, uploaded_by, status)
+  values ('44444444-4444-4444-4444-444444444444', tests.id('s1'), 'sop', 'students/' || tests.id('s1') || '/44444444-4444-4444-4444-444444444444/a.pdf', 'a.pdf', 'application/pdf', 500, tests.id('s1'), 'approved')$$,
+  'upload cannot start as approved');
+select tests.fails($$insert into public.documents (id, student_id, doc_type, file_key, file_name, mime_type, size_bytes, uploaded_by)
+  values ('55555555-5555-5555-5555-555555555555', tests.id('s2'), 'sop', 'students/' || tests.id('s2') || '/55555555-5555-5555-5555-555555555555/a.pdf', 'a.pdf', 'application/pdf', 500, tests.id('s1'))$$,
+  'student cannot upload for another student');
+select tests.fails($$insert into public.documents (id, student_id, doc_type, file_key, file_name, mime_type, size_bytes, uploaded_by)
+  values ('66666666-6666-6666-6666-666666666666', tests.id('s1'), 'sop', 'students/' || tests.id('s1') || '/66666666-6666-6666-6666-666666666666/a.exe', 'a.exe', 'application/x-msdownload', 500, tests.id('s1'))$$,
+  'only PDF, JPG and PNG are accepted');
+select tests.fails($$insert into public.documents (id, student_id, doc_type, file_key, file_name, mime_type, size_bytes, uploaded_by)
+  values ('77777777-7777-7777-7777-777777777777', tests.id('s1'), 'sop', 'students/' || tests.id('s1') || '/77777777-7777-7777-7777-777777777777/big.pdf', 'big.pdf', 'application/pdf', 10485761, tests.id('s1'))$$,
+  'files over 10 MB are refused');
+rollback;
+
+\echo '--- under-18 student'
+begin;
+select tests.act_as('minor');
+select tests.fails($$insert into public.documents (id, student_id, doc_type, file_key, file_name, mime_type, size_bytes, uploaded_by)
+  values ('88888888-8888-8888-8888-888888888888', tests.id('minor'), 'passport', 'students/' || tests.id('minor') || '/88888888-8888-8888-8888-888888888888/p.pdf', 'p.pdf', 'application/pdf', 500, tests.id('minor'))$$,
+  'under-18 cannot upload before a parent is approved');
+select tests.fails($$update public.student_profiles set date_of_birth = '2000-01-01' where user_id = tests.id('minor')$$, 'under-18 cannot change date of birth to unlock uploads');
+reset role;
+-- parent asks with the student's code, student approves
+select tests.act_as('p3');
+select tests.ok((public.request_link_by_code(tests.code('minor'), 'Mother', true) ->> 'result') = 'requested', 'parent asks to link with a code');
+select tests.ok(tests.count_rows('select * from public.profiles where id = tests.id(''minor'')') = 0, 'pending parent cannot see the student yet');
+select tests.fails($$select public.update_parent_link((select id from public.parent_links where parent_id = tests.id('p3')), 'approve')$$, 'parent cannot approve their own request');
+reset role;
+select tests.act_as('minor');
+select tests.ok(public.update_parent_link((select id from public.parent_links where parent_id = tests.id('p3')), 'approve') = 'approved', 'student approves the parent');
+insert into public.documents (id, student_id, doc_type, file_key, file_name, mime_type, size_bytes, uploaded_by)
+values ('88888888-8888-8888-8888-888888888888', tests.id('minor'), 'passport', 'students/' || tests.id('minor') || '/88888888-8888-8888-8888-888888888888/p.pdf', 'p.pdf', 'application/pdf', 500, tests.id('minor'));
+select tests.ok(true, 'under-18 can upload once a parent is approved');
+reset role;
+select tests.act_as('p3');
+select tests.ok(tests.count_rows('select * from public.student_profiles where user_id = tests.id(''minor'')') = 1, 'approved parent sees the student');
+insert into public.documents (id, student_id, doc_type, file_key, file_name, mime_type, size_bytes, uploaded_by)
+values ('99999999-9999-9999-9999-999999999999', tests.id('minor'), 'marksheet_10', 'students/' || tests.id('minor') || '/99999999-9999-9999-9999-999999999999/m.pdf', 'm.pdf', 'application/pdf', 500, tests.id('p3'));
+select tests.ok(true, 'approved parent uploads for the student');
+select tests.ok((public.request_link_by_code('zzzzzzzz', 'Mother', true) ->> 'result') = 'not_found', 'wrong code is refused');
+select tests.fails($$select public.request_link_by_code('ABCDEFGH', 'Mother', false)$$, 'parent must confirm they are the guardian');
+select tests.fails($$select public.request_link_by_email(tests.id('p3'), 'test-s2@example.test', 'Father')$$, 'linking by email runs on the server only');
+rollback;
+
+\echo '--- parents'
+begin;
+select tests.act_as('p1');
+select tests.ok(tests.count_rows('select * from public.documents') = 1, 'approved parent sees the student''s documents');
+select tests.ok((public.portal_context(tests.id('s2')) -> 'student' ->> 'id')::uuid = tests.id('s1'), 'portal start-up: parent cannot switch to an unlinked student');
+select tests.ok(tests.count_rows('select * from public.applications') = 1, 'approved parent sees the tracker');
+select tests.ok(tests.count_rows('select * from public.profiles where id = tests.id(''s2'')') = 0, 'parent cannot see students they are not linked to');
+select tests.ok(tests.count_rows('select * from public.documents where student_id = tests.id(''s2'')') = 0, 'parent cannot see other students'' documents');
+insert into public.service_requests (student_id, service, details, status, assigned_to, price)
+values (tests.id('s1'), 'airport_pickup', '{"airport":"LHR","flight":"AI161"}', 'completed', tests.id('p1'), '£40');
+select tests.ok((select status from public.service_requests where student_id = tests.id('s1')) = 'requested', 'new requests always start as requested');
+select tests.ok((select assigned_to from public.service_requests where student_id = tests.id('s1')) is null, 'families cannot assign requests');
+select tests.ok((select payment_status from public.service_requests where student_id = tests.id('s1')) = 'awaiting', 'paid service waits for payment confirmation');
+select tests.fails($$update public.service_requests set details = '{"airport":"MAN"}' where student_id = tests.id('s1')$$, 'family cannot edit a request after sending');
+update public.service_requests set status = 'cancelled' where student_id = tests.id('s1');
+select tests.ok((select closed_at from public.service_requests where student_id = tests.id('s1')) is not null, 'family can cancel a new request');
+insert into public.messages (student_id, sender_id, body) values (tests.id('s1'), tests.id('p1'), 'Question from parent');
+select tests.ok(true, 'approved parent messages the counsellor');
+select tests.fails($$insert into public.messages (student_id, sender_id, body) values (tests.id('s1'), tests.id('s1'), 'pretending')$$, 'cannot send as someone else');
+select tests.fails($$insert into public.messages (student_id, sender_id, body) values (tests.id('s2'), tests.id('p1'), 'hi')$$, 'cannot message about an unlinked student');
+reset role;
+select tests.act_as('p2');
+select tests.ok(tests.count_rows('select * from public.documents') = 0, 'pending parent sees no documents');
+select tests.ok(tests.count_rows('select * from public.profiles where id = tests.id(''s1'')') = 0, 'pending parent cannot see the student''s profile');
+select tests.ok(tests.count_rows('select * from public.parent_links') = 1, 'pending parent sees their own request');
+select tests.ok(public.portal_context() -> 'student' = 'null'::jsonb, 'portal start-up: pending parent has no student in focus');
+select tests.ok(public.portal_context() -> 'links' -> 0 -> 'person' = 'null'::jsonb, 'portal start-up: pending parent sees no student details');
+select tests.fails($$insert into public.service_requests (student_id, service) values (tests.id('s1'), 'accommodation')$$, 'pending parent cannot request services');
+select tests.fails($$insert into public.documents (id, student_id, doc_type, file_key, file_name, mime_type, size_bytes, uploaded_by)
+  values ('abababab-abab-abab-abab-abababababab', tests.id('s1'), 'sop', 'students/' || tests.id('s1') || '/abababab-abab-abab-abab-abababababab/a.pdf', 'a.pdf', 'application/pdf', 500, tests.id('p2'))$$,
+  'pending parent cannot upload');
+reset role;
+select tests.act_as('s2');
+select tests.fails($$select public.update_parent_link((select id from public.parent_links where parent_id = tests.id('p2')), 'approve')$$, 'another student cannot approve the request');
+reset role;
+select tests.act_as('s1');
+select tests.ok(public.update_parent_link((select id from public.parent_links where parent_id = tests.id('p1')), 'remove') = 'removed', 'student can remove a parent');
+reset role;
+select tests.act_as('p1');
+select tests.ok(tests.count_rows('select * from public.documents') = 0, 'removed parent loses access straight away');
+rollback;
+
+\echo '--- counsellors, admin, editor'
+begin;
+select tests.act_as('c1');
+select tests.ok(tests.count_rows('select * from public.documents where student_id = tests.id(''s1'')') = 1, 'counsellor sees assigned student''s documents');
+select tests.ok(tests.count_rows('select * from public.documents where student_id = tests.id(''s2'')') = 0, 'counsellor cannot see another counsellor''s student');
+select tests.ok(tests.count_rows('select * from public.profiles where id = tests.id(''s2'')') = 0, 'counsellor cannot see another counsellor''s student profile');
+select tests.ok(tests.count_rows('select * from public.leads') = 1, 'counsellor sees only leads assigned to them');
+select tests.fails($$update public.documents set status = 'reupload', reviewer_reason = '' where id = '11111111-1111-1111-1111-111111111111'$$, 're-upload needs a reason');
+update public.documents set status = 'reupload', reviewer_reason = 'Photo page is blurred' where id = '11111111-1111-1111-1111-111111111111';
+select tests.ok((select reviewed_by from public.documents where id = '11111111-1111-1111-1111-111111111111') = tests.id('c1'), 'counsellor asks for a re-upload, reviewer recorded');
+update public.documents set status = 'approved' where id = '22222222-2222-2222-2222-222222222222';
+reset role;
+select tests.ok((select status from public.documents where id = '22222222-2222-2222-2222-222222222222') = 'under_review', 'counsellor cannot review another counsellor''s student');
+select tests.ok((select count(*) from public.activity_log where action = 'document_reupload') = 1, 'review is written to the activity log');
+select tests.act_as('c1');
+update public.student_profiles set counsellor_id = tests.id('c1') where user_id = tests.id('s2');
+reset role;
+select tests.ok((select counsellor_id from public.student_profiles where user_id = tests.id('s2')) = tests.id('c2'), 'counsellor cannot take another counsellor''s student');
+select tests.act_as('c1');
+select tests.fails($$update public.student_profiles set counsellor_id = tests.id('c2') where user_id = tests.id('s1')$$, 'only an admin reassigns students');
+update public.applications set stage = 'deposit' where student_id = tests.id('s1');
+select tests.ok(tests.count_rows('select * from public.application_events where stage = ''deposit''') = 1, 'stage change is kept in the history');
+reset role;
+select tests.act_as('admin');
+select tests.ok(tests.count_rows('select * from public.documents') = 2, 'admin sees every student''s documents');
+select tests.ok(tests.count_rows('select * from public.leads') >= 3, 'admin sees every lead');
+reset role;
+select tests.act_as('editor');
+select tests.ok(tests.count_rows('select * from public.documents') = 0, 'content editor cannot open student records');
+select tests.ok(tests.count_rows('select * from public.student_profiles') = 0, 'content editor cannot see student details');
+rollback;
+
+\echo '--- onboarding after Google sign-in'
+begin;
+select tests.act_as('google');
+select public.complete_onboarding('parent', 'Google Parent', '+91 90000 00000', null, 'privacy-2026-11');
+select tests.ok((select role from public.profiles where id = tests.id('google')) = 'parent', 'Google account chooses parent');
+select tests.fails($$select public.complete_onboarding('student', 'x', null, '2000-01-01', 'v')$$, 'cannot switch from parent to student');
+rollback;
+begin;
+select tests.act_as('google');
+select tests.fails($$select public.complete_onboarding('admin', 'x', null, null, 'v')$$, 'cannot choose a staff role');
+select tests.fails($$select public.complete_onboarding('student', 'x', null, null, 'v')$$, 'students must give a date of birth');
+rollback;
+
+\echo '--- clean up'
+delete from auth.users where id in (select id from tests.ids);
+drop schema tests cascade;
+\echo 'All access-rule tests passed.'
+#==EDU:END -
