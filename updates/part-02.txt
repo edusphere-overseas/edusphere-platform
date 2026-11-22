@@ -1,0 +1,791 @@
+      <HeaderBar below={s.allowed && <StaffNav admin={s.isAdmin} variant="bar" />}>
+        {s.allowed && <StaffNav admin={s.isAdmin} variant="header" />}
+        <details className="group relative ml-auto">
+          <summary className="flex cursor-pointer list-none items-center gap-2 rounded-full py-1 pr-2 pl-1 text-white/85 transition hover:bg-white/8 [&::-webkit-details-marker]:hidden">
+            <span className="grid grid-cols-1 h-9 w-9 place-items-center rounded-full bg-teal text-sm font-bold text-white">
+              {name
+                .split(/\s+/)
+                .filter(Boolean)
+                .slice(0, 2)
+                .map((w) => w[0]!.toUpperCase())
+                .join("")}
+            </span>
+            <span className="sr-only">Account menu</span>
+            <ChevronDown className="h-4 w-4 transition group-open:rotate-180" aria-hidden="true" />
+          </summary>
+          <div className="absolute right-0 z-50 mt-2 w-64 rounded-2xl bg-white p-2 text-ink shadow-[0_20px_50px_-20px_rgba(13,34,54,0.5)] ring-1 ring-deep/8">
+            <div className="px-3 pt-2 pb-3">
+              <p className="truncate font-bold text-deep">{name}</p>
+              <p className="truncate text-xs text-slate">{s.profile.email}</p>
+              <p className="mt-1 text-xs font-semibold text-teal">{ROLE_LABEL[s.role] ?? "No staff role"}</p>
+            </div>
+            <div className="h-px bg-deep/8" />
+            <Link href="/admin/content" className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold text-deep transition hover:bg-mist">
+              <FilePenLine className="h-4.5 w-4.5 text-slate" aria-hidden="true" />
+              Website content
+            </Link>
+            <form action={signOut}>
+              <button type="submit" className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold text-deep transition hover:bg-mist">
+                <LogOut className="h-4.5 w-4.5 text-slate" aria-hidden="true" />
+                Sign out
+              </button>
+            </form>
+          </div>
+        </details>
+      </HeaderBar>
+      <main id="main" className="mx-auto max-w-7xl px-4 pt-6 pb-20 sm:px-8 sm:pt-10">
+        {s.allowed ? (
+          children
+        ) : (
+          <div className="mx-auto max-w-xl">
+            <Notice tone="warn" title="This area is for Edusphere counsellors and admins">
+              {s.role === "editor" ? (
+                <>
+                  Your account edits website content.{" "}
+                  <Link href="/admin/content" className="font-semibold underline">
+                    Open Content
+                  </Link>
+                </>
+              ) : (
+                <>
+                  If you work at Edusphere, ask an admin to add you on the Team page of this dashboard. Students and parents use{" "}
+                  <Link href="/portal" className="font-semibold underline">
+                    the portal
+                  </Link>
+                  .
+                </>
+              )}
+            </Notice>
+          </div>
+        )}
+      </main>
+    </>
+  );
+}
+#==EDU:FILE src/app/staff/loading.tsx
+/** Shown straight away while a staff page loads. */
+export default function StaffLoading() {
+  return (
+    <div className="animate-pulse" aria-busy="true" aria-label="Loading">
+      <div className="h-8 w-56 rounded-lg bg-deep/8" />
+      <div className="mt-3 h-4 w-80 max-w-full rounded bg-deep/6" />
+      <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <div className="h-40 rounded-2xl bg-white" />
+        <div className="h-40 rounded-2xl bg-white" />
+      </div>
+    </div>
+  );
+}
+#==EDU:FILE src/app/staff/page.tsx
+import type { Metadata } from "next";
+import Link from "next/link";
+import { ArrowRight, CalendarClock, FileText, Inbox, LifeBuoy, MessageCircle, UserRoundX, Users } from "lucide-react";
+import { Card, formatDate, Pill } from "@/components/portal/ui";
+import { checklistLabel, DESTINATIONS } from "@/lib/portal/journey";
+import { FINAL_STATUSES, serviceByKey, statusLabel } from "@/lib/portal/services";
+import { ACTION_LABEL, displayName, getStaff, LEAD_SOURCES, loadPeople } from "@/lib/staff/context";
+
+export const metadata: Metadata = { title: "Overview" };
+
+const ALL_COUNTRIES = DESTINATIONS.map((d) => d.id);
+const day = 24 * 60 * 60 * 1000;
+const isoDate = (d: Date) => d.toISOString().slice(0, 10);
+
+export default async function StaffHome() {
+  const s = await getStaff();
+  if (!s.allowed) return null;
+  const db = s.supabase;
+  const today = new Date();
+
+  const [docs, requests, leads, deadlines, recentMessages, students, unassigned, activity] = await Promise.all([
+    db.from("documents").select("id, student_id, doc_type, label, file_name, created_at", { count: "exact" }).eq("status", "under_review").order("created_at").limit(8),
+    db
+      .from("service_requests")
+      .select("id, student_id, service, status, created_at, assigned_to", { count: "exact" })
+      .not("status", "in", `(${FINAL_STATUSES.join(",")})`)
+      .order("created_at")
+      .limit(8),
+    db.from("leads").select("id, name, email, phone, interest, source, created_at", { count: "exact" }).eq("status", "new").order("created_at", { ascending: false }).limit(6),
+    db
+      .from("applications")
+      .select("id, student_id, university, deadline, stage, country")
+      .eq("status", "active")
+      .gte("deadline", isoDate(today))
+      .lte("deadline", isoDate(new Date(+today + 30 * day)))
+      .order("deadline")
+      .limit(8),
+    db.from("messages").select("id, student_id, service_request_id, body, sender_name, sender_role, created_at").order("created_at", { ascending: false }).limit(120),
+    db.from("profiles").select("id", { count: "exact", head: true }).eq("role", "student"),
+    s.isAdmin
+      ? db.from("profiles").select("id, details:student_profiles!student_profiles_user_id_fkey!inner(counsellor_id)", { count: "exact", head: true }).eq("role", "student").is("details.counsellor_id", null)
+      : Promise.resolve({ count: 0 }),
+    db.from("activity_log").select("id, actor_id, student_id, action, details, created_at").not("action", "in", "(document_viewed,document_downloaded)").order("created_at", { ascending: false }).limit(10),
+  ]);
+
+  // Conversations where the family wrote last: waiting for a reply
+  const seen = new Set<string>();
+  const waiting = [];
+  for (const m of recentMessages.data ?? []) {
+    const key = `${m.student_id}:${m.service_request_id ?? ""}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    if (m.sender_role === "student" || m.sender_role === "parent") waiting.push(m);
+  }
+
+  const people = await loadPeople(s, [
+    ...(docs.data ?? []).map((d) => d.student_id),
+    ...(requests.data ?? []).flatMap((r) => [r.student_id, r.assigned_to]),
+    ...(deadlines.data ?? []).map((a) => a.student_id),
+    ...waiting.map((m) => m.student_id),
+    ...(activity.data ?? []).flatMap((a) => [a.actor_id, a.student_id]),
+  ]);
+  const who = (id: string | null) => displayName(people.get(id ?? "")) || "A student";
+
+  const stats = [
+    { href: "#documents", label: "Documents to review", value: docs.count ?? 0, Icon: FileText, warn: (docs.count ?? 0) > 0 },
+    { href: "#services", label: "Open service requests", value: requests.count ?? 0, Icon: LifeBuoy, warn: (requests.data ?? []).some((r) => r.status === "requested") },
+    { href: "/staff/enquiries", label: "New enquiries", value: leads.count ?? 0, Icon: Inbox, warn: (leads.count ?? 0) > 0 },
+    s.isAdmin && (unassigned.count ?? 0) > 0
+      ? { href: "/staff/students?counsellor=none", label: "Students without a counsellor", value: unassigned.count ?? 0, Icon: UserRoundX, warn: true }
+      : { href: "/staff/students", label: s.isAdmin ? "Students" : "My students", value: students.count ?? 0, Icon: Users, warn: false },
+  ];
+
+  return (
+    <>
+      <div className="mb-6 sm:mb-8">
+        <h1 className="text-2xl font-extrabold tracking-[-0.02em] text-deep sm:text-3xl">Hello {s.firstName}</h1>
+        <p className="mt-2 text-slate">
+          {s.isAdmin ? "Everything waiting across Edusphere." : "Everything waiting for your students."} Newest enquiries and the oldest waiting items come first.
+        </p>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
+        {stats.map(({ href, label, value, Icon, warn }) => (
+          <Link key={label} href={href} className="group rounded-2xl bg-white p-4 shadow-[0_1px_2px_rgba(13,34,54,0.06)] ring-1 ring-deep/6 transition hover:ring-teal/40 sm:p-5">
+            <Icon className={`h-5 w-5 ${warn ? "text-[#c77700]" : "text-teal"}`} aria-hidden="true" />
+            <p className="mt-3 text-3xl font-extrabold text-deep">{value}</p>
+            <p className="mt-0.5 text-sm font-semibold text-slate group-hover:text-deep">{label}</p>
+          </Link>
+        ))}
+      </div>
+
+      <div className="mt-6 grid grid-cols-1 items-start gap-5 lg:grid-cols-2">
+        <Card>
+          <SectionTitle id="documents" title="Documents waiting for review" />
+          {docs.data?.length ? (
+            <ul className="divide-y divide-deep/6">
+              {docs.data.map((d) => (
+                <li key={d.id}>
+                  <Link href={`/staff/students/${d.student_id}/documents#${d.id}`} className="flex items-center justify-between gap-3 py-3 hover:text-teal">
+                    <span className="min-w-0">
+                      <span className="block truncate font-semibold text-deep">{checklistLabel(d.doc_type, ALL_COUNTRIES, d.label)}</span>
+                      <span className="block truncate text-sm text-slate">
+                        {who(d.student_id)} · {formatDate(d.created_at, true)}
+                      </span>
+                    </span>
+                    <ArrowRight className="h-4 w-4 shrink-0 text-slate" aria-hidden="true" />
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <Nothing>No documents waiting. Well done.</Nothing>
+          )}
+          {(docs.count ?? 0) > (docs.data?.length ?? 0) && <p className="mt-3 text-sm text-slate">and {(docs.count ?? 0) - (docs.data?.length ?? 0)} more, oldest first.</p>}
+        </Card>
+
+        <Card>
+          <SectionTitle title="Messages waiting for a reply" Icon={MessageCircle} />
+          {waiting.length ? (
+            <ul className="divide-y divide-deep/6">
+              {waiting.slice(0, 6).map((m) => (
+                <li key={m.id}>
+                  <Link
+                    href={`/staff/students/${m.student_id}/${m.service_request_id ? `services/${m.service_request_id}` : "messages"}`}
+                    className="block py-3 hover:text-teal"
+                  >
+                    <span className="flex items-center justify-between gap-3">
+                      <span className="truncate font-semibold text-deep">{who(m.student_id)}</span>
+                      <span className="shrink-0 text-xs text-slate">{formatDate(m.created_at, true)}</span>
+                    </span>
+                    <span className="mt-0.5 line-clamp-2 text-sm text-slate">
+                      {m.sender_name}: {m.body}
+                    </span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <Nothing>No one is waiting for a reply.</Nothing>
+          )}
+        </Card>
+
+        <Card>
+          <SectionTitle id="services" title="Open service requests" />
+          {requests.data?.length ? (
+            <ul className="divide-y divide-deep/6">
+              {requests.data.map((r) => (
+                <li key={r.id}>
+                  <Link href={`/staff/students/${r.student_id}/services/${r.id}`} className="flex items-center justify-between gap-3 py-3 hover:text-teal">
+                    <span className="min-w-0">
+                      <span className="block truncate font-semibold text-deep">{serviceByKey(r.service)?.title ?? r.service}</span>
+                      <span className="block truncate text-sm text-slate">
+                        {who(r.student_id)} · {r.assigned_to ? `with ${displayName(people.get(r.assigned_to))}` : "not assigned"}
+                      </span>
+                    </span>
+                    <Pill tone={r.status === "requested" ? "amber" : "teal"}>{r.status === "requested" ? "New" : statusLabel(r.service, r.status)}</Pill>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <Nothing>No open requests.</Nothing>
+          )}
+        </Card>
+
+        <Card>
+          <SectionTitle title="New enquiries" href="/staff/enquiries" />
+          {leads.data?.length ? (
+            <ul className="divide-y divide-deep/6">
+              {leads.data.map((l) => (
+                <li key={l.id}>
+                  <Link href={`/staff/enquiries#${l.id}`} className="block py-3 hover:text-teal">
+                    <span className="flex items-center justify-between gap-3">
+                      <span className="truncate font-semibold text-deep">{l.name || l.email || l.phone}</span>
+                      <span className="shrink-0 text-xs text-slate">{formatDate(l.created_at, true)}</span>
+                    </span>
+                    <span className="block truncate text-sm text-slate">
+                      {LEAD_SOURCES[l.source] ?? l.source}
+                      {l.interest ? ` · ${l.interest}` : ""}
+                    </span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <Nothing>{s.isAdmin ? "No new enquiries." : "No new enquiries assigned to you."}</Nothing>
+          )}
+        </Card>
+
+        <Card>
+          <SectionTitle title="Deadlines in the next 30 days" Icon={CalendarClock} />
+          {deadlines.data?.length ? (
+            <ul className="divide-y divide-deep/6">
+              {deadlines.data.map((a) => {
+                const days = Math.round((+new Date(a.deadline + "T00:00:00Z") - +new Date(isoDate(today) + "T00:00:00Z")) / day);
+                return (
+                  <li key={a.id}>
+                    <Link href={`/staff/students/${a.student_id}/applications#${a.id}`} className="flex items-center justify-between gap-3 py-3 hover:text-teal">
+                      <span className="min-w-0">
+                        <span className="block truncate font-semibold text-deep">{a.university}</span>
+                        <span className="block truncate text-sm text-slate">
+                          {who(a.student_id)} · {formatDate(a.deadline)}
+                        </span>
+                      </span>
+                      <Pill tone={days <= 7 ? "red" : "amber"}>{days === 0 ? "Today" : days === 1 ? "Tomorrow" : `${days} days`}</Pill>
+                    </Link>
+                  </li>
+                );
+              })}
+            </ul>
+          ) : (
+            <Nothing>No deadlines coming up. Add deadlines on each application.</Nothing>
+          )}
+        </Card>
+
+        <Card>
+          <SectionTitle title="Recent activity" />
+          {activity.data?.length ? (
+            <ul className="grid grid-cols-1 gap-3">
+              {activity.data.map((a) => (
+                <li key={a.id} className="text-sm">
+                  <p className="text-deep">
+                    <strong>{displayName(people.get(a.actor_id ?? "")) || "System"}</strong>: {ACTION_LABEL[a.action] ?? a.action.replace(/_/g, " ")}
+                    {a.student_id && a.student_id !== a.actor_id && (
+                      <>
+                        {" for "}
+                        <Link href={`/staff/students/${a.student_id}`} className="font-semibold text-teal hover:text-navy">
+                          {who(a.student_id)}
+                        </Link>
+                      </>
+                    )}
+                  </p>
+                  <p className="text-xs text-slate">{formatDate(a.created_at, true)}</p>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <Nothing>Nothing yet.</Nothing>
+          )}
+        </Card>
+      </div>
+    </>
+  );
+}
+
+function SectionTitle({ title, id, href, Icon }: { title: string; id?: string; href?: string; Icon?: typeof FileText }) {
+  return (
+    <div id={id} className="mb-2 flex scroll-mt-24 items-center justify-between gap-3">
+      <h2 className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.16em] text-slate">
+        {Icon && <Icon className="h-4 w-4" aria-hidden="true" />}
+        {title}
+      </h2>
+      {href && (
+        <Link href={href} className="text-sm font-semibold text-teal hover:text-navy">
+          See all
+        </Link>
+      )}
+    </div>
+  );
+}
+
+function Nothing({ children }: { children: React.ReactNode }) {
+  return <p className="py-3 text-sm text-slate">{children}</p>;
+}
+#==EDU:FILE src/app/staff/students/[id]/applications/page.tsx
+import type { Metadata } from "next";
+import { Plus } from "lucide-react";
+import { StageBar } from "@/components/portal/Tracker";
+import { btnDanger, btnGhost, Card, formatDate, input, Pill } from "@/components/portal/ui";
+import { ActionForm, Submit } from "@/components/staff/ActionForm";
+import { deleteApplication, saveApplication } from "../../../_actions";
+import { loadApplications, type ApplicationRow } from "@/lib/portal/data";
+import { DESTINATIONS, destinationName, stageLabel, STAGES } from "@/lib/portal/journey";
+import { APPLICATION_STATUSES } from "@/lib/staff/context";
+import { getStudent } from "@/lib/staff/student";
+
+export const metadata: Metadata = { title: "Applications" };
+
+const field = "grid gap-1 text-sm font-semibold text-deep";
+const box = `${input} py-2.5`;
+
+export default async function StaffApplications({ params }: PageProps<"/staff/students/[id]/applications">) {
+  const { id } = await params;
+  const { s, details } = await getStudent(id);
+  const apps = await loadApplications(s, id);
+  const fallbackCountry = details.preferred_countries.length === 1 ? details.preferred_countries[0] : "";
+
+  return (
+    <div className="grid grid-cols-1 gap-5">
+      <p className="max-w-2xl text-sm leading-relaxed text-slate">
+        The student and linked parents see each application in their tracker, with your note. When you move an application to a new stage you can email the family.
+      </p>
+
+      {apps.length ? (
+        apps.map((a) => (
+          <Card key={a.id} className="scroll-mt-28">
+            <div id={a.id} className="flex flex-wrap items-start justify-between gap-3">
+              <div className="min-w-0">
+                <h2 className="text-lg font-bold text-deep">{a.university}</h2>
+                <p className="text-sm text-slate">{[a.course, destinationName(a.country), a.intake].filter(Boolean).join(" · ") || "No course details yet"}</p>
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                {a.deadline && <Pill tone="amber">Deadline {formatDate(a.deadline)}</Pill>}
+                <Pill tone={a.status === "active" ? "teal" : "slate"}>{a.status === "active" ? stageLabel(a.stage, a.country) : APPLICATION_STATUSES.find((x) => x.key === a.status)?.label}</Pill>
+              </div>
+            </div>
+            <div className="mt-4">
+              <StageBar stage={a.stage} country={a.country} muted={a.status !== "active"} />
+            </div>
+            {a.note && <p className="mt-4 rounded-xl bg-mist/70 px-3.5 py-2.5 text-sm whitespace-pre-wrap text-deep">{a.note}</p>}
+            <details className="mt-4 group">
+              <summary className={`${btnGhost} min-h-10 cursor-pointer list-none py-2 [&::-webkit-details-marker]:hidden`}>Update</summary>
+              <div className="mt-4 rounded-xl bg-mist/60 p-4">
+                <ApplicationForm studentId={id} app={a} />
+                {s.isAdmin && (
+                  <ActionForm action={deleteApplication} className="mt-4 flex flex-wrap items-center gap-3 border-t border-deep/8 pt-4">
+                    <input type="hidden" name="id" value={a.id} />
+                    <p className="text-xs text-slate">Added by mistake? Remove it. Otherwise mark it withdrawn or unsuccessful, so the history stays.</p>
+                    <Submit className={`${btnDanger} min-h-9 py-1.5`} pending="Removing…">
+                      Remove application
+                    </Submit>
+                  </ActionForm>
+                )}
+              </div>
+            </details>
+          </Card>
+        ))
+      ) : (
+        <Card>
+          <p className="text-sm text-slate">No applications yet. Add the first one below once you&apos;ve shortlisted universities with the student.</p>
+        </Card>
+      )}
+
+      <Card>
+        <h2 className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.16em] text-slate">
+          <Plus className="h-4 w-4" aria-hidden="true" />
+          Add an application
+        </h2>
+        <div className="mt-4">
+          <ApplicationForm studentId={id} defaultCountry={fallbackCountry} />
+        </div>
+      </Card>
+    </div>
+  );
+}
+
+function ApplicationForm({ studentId, app, defaultCountry = "" }: { studentId: string; app?: ApplicationRow; defaultCountry?: string }) {
+  return (
+    <ActionForm action={saveApplication} className="grid grid-cols-1 gap-3 sm:grid-cols-2" clearOnSave={!app}>
+      <input type="hidden" name="student" value={studentId} />
+      {app && <input type="hidden" name="id" value={app.id} />}
+      <label className={field}>
+        University
+        <input name="university" required maxLength={160} defaultValue={app?.university} placeholder="For example: University of Leeds" className={box} />
+      </label>
+      <label className={field}>
+        Course
+        <input name="course" maxLength={200} defaultValue={app?.course} placeholder="For example: MSc Data Science" className={box} />
+      </label>
+      <label className={field}>
+        Country
+        <select name="country" defaultValue={app?.country ?? defaultCountry} className={box}>
+          <option value="">Choose…</option>
+          {DESTINATIONS.map((d) => (
+            <option key={d.id} value={d.id}>
+              {d.name}
+            </option>
+          ))}
+        </select>
+      </label>
+      <label className={field}>
+        Intake
+        <input name="intake" maxLength={40} defaultValue={app?.intake ?? ""} placeholder="For example: September 2027" className={box} />
+      </label>
+      <label className={field}>
+        Stage
+        <select name="stage" defaultValue={app?.stage ?? "shortlist"} className={box}>
+          {STAGES.map((st) => (
+            <option key={st.key} value={st.key}>
+              {stageLabel(st.key, app?.country)}
+            </option>
+          ))}
+        </select>
+      </label>
+      <label className={field}>
+        Status
+        <select name="status" defaultValue={app?.status ?? "active"} className={box}>
+          {APPLICATION_STATUSES.map((st) => (
+            <option key={st.key} value={st.key}>
+              {st.label}
+            </option>
+          ))}
+        </select>
+      </label>
+      <label className={field}>
+        Deadline <span className="font-normal text-slate">(optional)</span>
+        <input type="date" name="deadline" defaultValue={app?.deadline ?? ""} className={box} />
+      </label>
+      <label className={`${field} sm:col-span-2`}>
+        Note for the family <span className="font-normal text-slate">(optional, they see this)</span>
+        <textarea name="note" rows={2} maxLength={1000} defaultValue={app?.note ?? ""} placeholder="For example: Offer is conditional on IELTS 6.5 overall" className={`${box} resize-y`} />
+      </label>
+      <label className="flex items-center gap-2.5 text-sm text-deep sm:col-span-2">
+        <input type="checkbox" name="notify" defaultChecked className="h-4.5 w-4.5 rounded accent-teal" />
+        {app ? "Email the student and parents if the stage changes" : "Email the student and parents about this application"}
+      </label>
+      <div className="sm:col-span-2">
+        <Submit pending="Saving…">{app ? "Save changes" : "Add application"}</Submit>
+      </div>
+    </ActionForm>
+  );
+}
+#==EDU:FILE src/app/staff/students/[id]/documents/page.tsx
+import type { Metadata } from "next";
+import { Uploader } from "@/components/portal/Uploader";
+import { Card, DocBadge, Notice } from "@/components/portal/ui";
+import { StaffFiles } from "@/components/staff/StaffFiles";
+import { checklistCountries, checklistWithStatus, loadApplications, loadDocuments, type ChecklistEntry } from "@/lib/portal/data";
+import { buildChecklist, destinationName, GROUP_TITLES, type DocGroup } from "@/lib/portal/journey";
+import { storageConfigured } from "@/lib/portal/storage";
+import { loadPeople } from "@/lib/staff/context";
+import { getStudent } from "@/lib/staff/student";
+
+export const metadata: Metadata = { title: "Documents" };
+
+export default async function StaffDocuments({ params }: PageProps<"/staff/students/[id]/documents">) {
+  const { id } = await params;
+  const { s, details } = await getStudent(id);
+  const [docs, apps] = await Promise.all([loadDocuments(s, id), loadApplications(s, id)]);
+  const countries = checklistCountries(apps, details.preferred_countries);
+  const list = checklistWithStatus(buildChecklist({ countries, level: details.preferred_level }), docs);
+  const people = await loadPeople(s, docs.flatMap((d) => [d.uploaded_by, d.reviewed_by]));
+  const canUpload = storageConfigured();
+
+  const groups = new Map<DocGroup, ChecklistEntry[]>();
+  for (const e of list.entries) groups.set(e.group, [...(groups.get(e.group) ?? []), e]);
+  const serviceDocs = docs.filter((d) => d.service_request_id).length;
+
+  return (
+    <>
+      <div className="mb-5 flex flex-wrap items-center justify-between gap-4">
+        <p className="max-w-2xl text-sm leading-relaxed text-slate">
+          {countries.length ? <>Checklist for {countries.map(destinationName).join(", ")}. </> : <>No destination chosen yet, so only the general checklist shows. </>}
+          Approving needs no email; asking for a new upload emails the family with your reason. Files you upload here (offer letters, for example) are approved at once.
+          {serviceDocs > 0 && <> Documents sent with a service request are on that request&apos;s page.</>}
+        </p>
+        <div className="flex gap-3">
+          <div className="rounded-2xl bg-white px-4 py-3 text-right shadow-sm ring-1 ring-deep/6">
+            <p className="text-2xl font-extrabold text-deep">
+              {list.approvedCount}/{list.requiredCount}
+            </p>
+            <p className="text-xs font-semibold text-slate">key documents approved</p>
+          </div>
+          {list.reviewCount > 0 && (
+            <div className="rounded-2xl bg-[#fff8eb] px-4 py-3 text-right ring-1 ring-[#f5b041]/40">
+              <p className="text-2xl font-extrabold text-[#9a5b00]">{list.reviewCount}</p>
+              <p className="text-xs font-semibold text-[#9a5b00]">to review</p>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {!canUpload && (
+        <div className="mb-5">
+          <Notice tone="info">Uploads are switched off because document storage isn&apos;t connected on this server.</Notice>
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 gap-5">
+        {[...groups.entries()].map(([group, entries]) => (
+          <Card key={group}>
+            <h2 className="text-xs font-bold uppercase tracking-[0.16em] text-slate">{GROUP_TITLES[group]}</h2>
+            <ul className="mt-2 divide-y divide-deep/6">
+              {entries.map((e) => (
+                <li key={e.key} className="py-4 last:pb-1">
+                  <div className="flex items-start justify-between gap-3">
+                    <p className="font-bold text-deep">
+                      {e.label}
+                      {!e.required && <span className="ml-2 text-xs font-semibold text-slate">if it applies</span>}
+                    </p>
+                    <DocBadge status={e.status} />
+                  </div>
+                  <StaffFiles files={e.files} people={people} studentId={id} />
+                  {canUpload && (
+                    <div className="mt-3">
+                      <Uploader studentId={id} docType={e.key} text={e.files.length ? "Upload another" : "Upload for the student"} primary={false} />
+                    </div>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </Card>
+        ))}
+
+        <Card>
+          <h2 className="text-xs font-bold uppercase tracking-[0.16em] text-slate">{GROUP_TITLES.other}</h2>
+          {list.other.files.length ? <StaffFiles files={list.other.files} people={people} studentId={id} /> : <p className="mt-2 text-sm text-slate">Nothing else uploaded.</p>}
+          {canUpload && (
+            <div className="mt-4">
+              <Uploader studentId={id} docType="other" askLabel text="Upload another document" primary={false} />
+            </div>
+          )}
+        </Card>
+      </div>
+    </>
+  );
+}
+#==EDU:FILE src/app/staff/students/[id]/layout.tsx
+import Link from "next/link";
+import { ArrowLeft, Mail, MessageCircle, Phone } from "lucide-react";
+import { Pill } from "@/components/portal/ui";
+import { StudentTabs } from "@/components/staff/StaffNav";
+import { ageFrom, displayName, officeLabel, OFFICES } from "@/lib/staff/context";
+import { getStudent } from "@/lib/staff/student";
+
+const whatsapp = (phone: string) => {
+  const d = phone.replace(/\D/g, "");
+  return `https://wa.me/${d.length === 10 ? `91${d}` : d.replace(/^0+/, "")}`;
+};
+
+export default async function StudentLayout({ children, params }: LayoutProps<"/staff/students/[id]">) {
+  const { id } = await params;
+  const { s, student, details, name } = await getStudent(id);
+  const [docs, requests, counsellor] = await Promise.all([
+    s.supabase.from("documents").select("id", { count: "exact", head: true }).eq("student_id", id).eq("status", "under_review"),
+    s.supabase.from("service_requests").select("id", { count: "exact", head: true }).eq("student_id", id).eq("status", "requested"),
+    details.counsellor_id ? s.supabase.from("profiles").select("full_name, email").eq("id", details.counsellor_id).maybeSingle() : Promise.resolve({ data: null }),
+  ]);
+  const age = ageFrom(details.date_of_birth);
+
+  return (
+    <>
+      <Link href="/staff/students" className="inline-flex items-center gap-1.5 text-sm font-semibold text-slate hover:text-deep">
+        <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+        Students
+      </Link>
+      <div className="mt-4 mb-5 flex flex-wrap items-start gap-4">
+        <span className="grid grid-cols-1 h-14 w-14 shrink-0 place-items-center rounded-2xl bg-teal/12 text-xl font-extrabold text-navy">{name.slice(0, 1).toUpperCase()}</span>
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <h1 className="text-2xl font-extrabold tracking-[-0.02em] text-deep sm:text-3xl">{name}</h1>
+            {age !== null && age < 18 && <Pill tone="amber">Under 18</Pill>}
+            {!student.onboarded_at && <Pill>Sign-up unfinished</Pill>}
+          </div>
+          <p className="mt-1 text-sm text-slate">
+            {[age !== null ? `${age} years old` : null, details.city, OFFICES.length > 1 ? officeLabel(details.office) : null].filter(Boolean).join(" · ")}
+            {age !== null || details.city ? " · " : ""}
+            Counsellor:{" "}
+            {counsellor.data ? <strong className="text-deep">{displayName(counsellor.data)}</strong> : <strong className="text-[#9a5b00]">not assigned yet</strong>}
+          </p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {student.phone && (
+              <>
+                <a href={`tel:${student.phone.replace(/[^\d+]/g, "")}`} className="inline-flex min-h-9 items-center gap-1.5 rounded-full bg-white px-3 text-sm font-semibold text-deep ring-1 ring-deep/12 hover:bg-mist">
+                  <Phone className="h-3.5 w-3.5" aria-hidden="true" />
+                  {student.phone}
+                </a>
+                <a href={whatsapp(student.phone)} target="_blank" rel="noopener" className="inline-flex min-h-9 items-center gap-1.5 rounded-full bg-white px-3 text-sm font-semibold text-[#17663a] ring-1 ring-[#17663a]/25 hover:bg-[#e7f6ee]">
+                  <MessageCircle className="h-3.5 w-3.5" aria-hidden="true" />
+                  WhatsApp
+                </a>
+              </>
+            )}
+            <a href={`mailto:${student.email}`} className="inline-flex min-h-9 max-w-full items-center gap-1.5 rounded-full bg-white px-3 text-sm font-semibold text-deep ring-1 ring-deep/12 hover:bg-mist">
+              <Mail className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+              <span className="truncate">{student.email}</span>
+            </a>
+          </div>
+        </div>
+      </div>
+      <StudentTabs id={id} counts={{ documents: docs.count ?? 0, services: requests.count ?? 0 }} />
+      {children}
+    </>
+  );
+}
+#==EDU:FILE src/app/staff/students/[id]/loading.tsx
+/** Shown under the student's name while a tab loads. */
+export default function StudentTabLoading() {
+  return (
+    <div className="grid grid-cols-1 animate-pulse gap-4" aria-busy="true" aria-label="Loading">
+      <div className="h-32 rounded-2xl bg-white" />
+      <div className="h-48 rounded-2xl bg-white" />
+    </div>
+  );
+}
+#==EDU:FILE src/app/staff/students/[id]/messages/page.tsx
+import type { Metadata } from "next";
+import { Card } from "@/components/portal/ui";
+import { Thread } from "@/components/portal/Thread";
+import { getStudent } from "@/lib/staff/student";
+
+export const metadata: Metadata = { title: "Messages" };
+
+export default async function StaffMessages({ params }: PageProps<"/staff/students/[id]/messages">) {
+  const { id } = await params;
+  const { s } = await getStudent(id);
+  return (
+    <div className="mx-auto max-w-3xl">
+      <p className="mb-4 text-sm leading-relaxed text-slate">
+        The general conversation with the student and linked parents. They get an email when you write, and reply in the portal. Messages about a service request are on that request.
+      </p>
+      <Card>
+        <Thread p={s} studentId={id} empty="No messages yet. Say hello and introduce yourself." placeholder="Write to the student and parents…" />
+      </Card>
+    </div>
+  );
+}
+#==EDU:FILE src/app/staff/students/[id]/page.tsx
+import type { Metadata } from "next";
+import { Card, formatDate, input, Pill } from "@/components/portal/ui";
+import { ActionForm, Submit } from "@/components/staff/ActionForm";
+import { assignStudent } from "../../_actions";
+import { destinationName } from "@/lib/portal/journey";
+import { ACTION_LABEL, displayName, LEAD_SOURCES, loadPeople, loadTeam, OFFICES } from "@/lib/staff/context";
+import { getStudent } from "@/lib/staff/student";
+
+export async function generateMetadata({ params }: PageProps<"/staff/students/[id]">): Promise<Metadata> {
+  const { name } = await getStudent((await params).id);
+  return { title: name };
+}
+
+type Row = Record<string, string>;
+const rows = (v: unknown) => (Array.isArray(v) ? (v as Row[]).filter((r) => r && typeof r === "object") : []);
+
+export default async function StudentOverview({ params }: PageProps<"/staff/students/[id]">) {
+  const { id } = await params;
+  const { s, student, details } = await getStudent(id);
+  const [{ data: links }, { data: consents }, { data: lead }, { data: activity }, team] = await Promise.all([
+    s.supabase.from("parent_links").select("id, parent_id, relationship, status, requested_via, created_at, decided_at").eq("student_id", id).order("created_at"),
+    s.supabase.from("consents").select("id, user_id, kind, version, given_at").or(`user_id.eq.${id},student_id.eq.${id}`).order("given_at"),
+    s.supabase.from("leads").select("source, interest, message, created_at, status").eq("profile_id", id).maybeSingle(),
+    s.supabase.from("activity_log").select("id, actor_id, action, details, created_at").eq("student_id", id).order("created_at", { ascending: false }).limit(40),
+    s.isAdmin ? loadTeam(s) : Promise.resolve([]),
+  ]);
+  const people = await loadPeople(s, [...(links ?? []).map((l) => l.parent_id), ...(consents ?? []).map((c) => c.user_id), ...(activity ?? []).map((a) => a.actor_id), student.invited_by]);
+  const education = rows(details.academic_history);
+  const tests = rows(details.test_scores);
+  const counsellors = team.filter((t) => t.role === "admin" || t.role === "counsellor");
+
+  const facts: [string, string | null | undefined][] = [
+    ["Email", student.email],
+    ["Phone", student.phone],
+    ["Date of birth", details.date_of_birth ? formatDate(details.date_of_birth) : null],
+    ["City", details.city],
+    ["Countries", details.preferred_countries.map(destinationName).join(", ")],
+    ["Level", details.preferred_level],
+    ["Course", details.preferred_course],
+    ["Intake", details.preferred_intake],
+    ["Funding", details.funding],
+    ["Joined", formatDate(student.created_at, true)],
+  ];
+
+  return (
+    <div className="grid grid-cols-1 items-start gap-5 lg:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]">
+      <div className="grid grid-cols-1 gap-5">
+        <Card>
+          <h2 className="text-xs font-bold uppercase tracking-[0.16em] text-slate">Profile</h2>
+          <dl className="mt-3 grid grid-cols-1 gap-x-6 gap-y-3 text-sm sm:grid-cols-2">
+            {facts.map(([k, v]) => (
+              <div key={k} className="min-w-0">
+                <dt className="text-slate">{k}</dt>
+                <dd className="truncate font-semibold text-deep">{v || <span className="font-normal text-slate/70">Not given</span>}</dd>
+              </div>
+            ))}
+          </dl>
+          {details.work_experience && (
+            <div className="mt-4 text-sm">
+              <p className="text-slate">Work experience</p>
+              <p className="font-semibold whitespace-pre-wrap text-deep">{details.work_experience}</p>
+            </div>
+          )}
+        </Card>
+
+        <Card>
+          <h2 className="text-xs font-bold uppercase tracking-[0.16em] text-slate">Education and tests</h2>
+          {education.length || tests.length ? (
+            <div className="mt-3 grid grid-cols-1 gap-4 text-sm">
+              {education.length > 0 && (
+                <ul className="grid grid-cols-1 gap-2">
+                  {education.map((e, i) => (
+                    <li key={i} className="rounded-xl bg-mist/70 px-3.5 py-2.5">
+                      <p className="font-semibold text-deep">{[e.level, e.institution].filter(Boolean).join(", ") || "Qualification"}</p>
+                      <p className="text-slate">{[e.board, e.year, e.score && `Score ${e.score}`].filter(Boolean).join(" · ")}</p>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {tests.length > 0 && (
+                <ul className="flex flex-wrap gap-2">
+                  {tests.map((t, i) => (
+                    <li key={i} className="rounded-xl bg-mist/70 px-3.5 py-2.5">
+                      <span className="font-semibold text-deep">
+                        {t.test} {t.score}
+                      </span>
+                      {t.date && <span className="text-slate"> · {formatDate(t.date)}</span>}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          ) : (
+            <p className="mt-2 text-sm text-slate">The student hasn&apos;t added any yet. They add these on their Profile page in the portal.</p>
+          )}
+        </Card>
+
+        <Card>
+          <h2 className="text-xs font-bold uppercase tracking-[0.16em] text-slate">Activity</h2>
+          {activity?.length ? (
+            <ol className="mt-3 grid grid-cols-1 gap-2.5 text-sm">
+              {activity.map((a) => {
+                const d = (a.details ?? {}) as Record<string, string | null>;
