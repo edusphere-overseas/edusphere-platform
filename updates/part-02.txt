@@ -1,0 +1,624 @@
+export async function requestLinkByCode(_: LinkState, form: FormData): Promise<LinkState> {
+  const actor = await getActor();
+  if (!actor || actor.profile.role !== "parent") return { error: "Only parent accounts can link to a student." };
+  const code = str(form, "code").toUpperCase().replace(/[^A-Z0-9]/g, "");
+  const relationship = RELATIONSHIPS.includes(str(form, "relationship")) ? str(form, "relationship") : "Parent";
+  if (code.length !== 8) return { error: "The code has 8 letters and numbers, like ABCD-2345." };
+  if (form.get("guardian") !== "on") return { error: "Please confirm you are the parent or legal guardian." };
+
+  const { data, error } = await actor.supabase.rpc("request_link_by_code", {
+    p_code: code,
+    p_relationship: relationship,
+    p_guardian_confirmed: true,
+  });
+  if (error) return { error: "Something went wrong. Please try again." };
+  const result = data as { result: string; link_id?: string };
+  if (result.result === "rate_limited") return { error: "Too many attempts. Please try again in an hour." };
+  if (result.result === "not_found") return { error: "We couldn't find that code. Check it with your child." };
+  if (result.result === "already_linked") return { error: "You're already linked to this student." };
+  if (result.link_id) {
+    const admin = createAdminClient();
+    const { data: link } = await admin.from("parent_links").select("student_id").eq("id", result.link_id).single();
+    const { data: student } = link ? await admin.from("profiles").select("email").eq("id", link.student_id).single() : { data: null };
+    if (student?.email) await emails.linkRequest(student.email, actor.name);
+  }
+  refresh();
+  return { done: "code" };
+}
+
+/** Student approves or declines; either side can remove a link. */
+export async function updateLink(form: FormData) {
+  const actor = await getActor();
+  if (!actor) return;
+  const id = str(form, "link");
+  const action = str(form, "action");
+  if (!["approve", "decline", "remove"].includes(action)) return;
+  const { data: status, error } = await actor.supabase.rpc("update_parent_link", { p_link: id, p_action: action });
+  if (error) return;
+  if (status === "approved") {
+    const admin = createAdminClient();
+    const { data: link } = await admin.from("parent_links").select("parent_id").eq("id", id).single();
+    const { data: parent } = link ? await admin.from("profiles").select("email").eq("id", link.parent_id).single() : { data: null };
+    if (parent?.email) await emails.linkApproved(parent.email, actor.name);
+  }
+  refresh();
+}
+
+export async function newLinkCode() {
+  const actor = await getActor();
+  if (!actor || actor.profile.role !== "student") return;
+  await actor.supabase.rpc("regenerate_link_code");
+  refresh();
+}
+
+/** Parent with more than one child: which student the portal shows. */
+export async function chooseStudent(form: FormData) {
+  const id = str(form, "student");
+  if (!/^[0-9a-f-]{36}$/.test(id)) return;
+  (await cookies()).set(STUDENT_COOKIE, id, { httpOnly: true, sameSite: "lax", secure: process.env.NODE_ENV === "production", path: "/", maxAge: 60 * 60 * 24 * 180 });
+  refresh();
+}
+#==EDU:FILE src/app/portal/_actions/messages.ts
+"use server";
+
+import { refresh } from "next/cache";
+import { familyContacts, getActor } from "@/lib/portal/actor";
+import { emails, staffInbox } from "@/lib/portal/email";
+
+export type MessageState = { error?: string; sent?: number } | null;
+
+const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+export async function sendMessage(_: MessageState, form: FormData): Promise<MessageState> {
+  const actor = await getActor();
+  if (!actor) return { error: "Please sign in again." };
+  const studentId = String(form.get("student") ?? "");
+  const requestId = String(form.get("request") ?? "") || null;
+  const body = String(form.get("body") ?? "").trim();
+  if (!uuid.test(studentId) || (requestId && !uuid.test(requestId))) return { error: "Something went wrong. Please refresh the page." };
+  if (!body) return { error: "Please write a message." };
+  if (body.length > 4000) return { error: "Please keep messages under 4,000 characters." };
+
+  const { error } = await actor.supabase.from("messages").insert({ student_id: studentId, service_request_id: requestId, sender_id: actor.uid, body });
+  if (error) return { error: "Your message couldn't be sent. Please try again." };
+
+  if (!actor.staff) {
+    const contacts = await familyContacts(studentId);
+    const to = contacts.counsellorEmail ?? staffInbox();
+    if (to) await emails.newMessageForStaff(to, contacts.studentName, `${actor.name}: ${body}`);
+  }
+  refresh();
+  return { sent: Date.now() };
+}
+#==EDU:FILE src/app/portal/_actions/profile.ts
+"use server";
+
+import { refresh } from "next/cache";
+import { getActor } from "@/lib/portal/actor";
+import { DESTINATIONS, FUNDING, LEVELS } from "@/lib/portal/journey";
+
+export type ProfileState = { error?: string; saved?: number } | null;
+
+const str = (f: FormData, k: string, max: number) => String(f.get(k) ?? "").trim().slice(0, max);
+
+export async function updateAccount(_: ProfileState, form: FormData): Promise<ProfileState> {
+  const actor = await getActor();
+  if (!actor) return { error: "Please sign in again." };
+  const full_name = str(form, "full_name", 120);
+  if (!full_name) return { error: "Please enter your full name." };
+  const phone = str(form, "phone", 30) || null;
+  const { error } = await actor.supabase.from("profiles").update({ full_name, phone }).eq("id", actor.uid);
+  if (error) return { error: "Couldn't save. Please try again." };
+  refresh();
+  return { saved: Date.now() };
+}
+
+type Row = Record<string, string>;
+
+/** Rows from the repeatable sections (education, tests), cleaned and limited. */
+function rows(raw: FormDataEntryValue | null, keys: string[], max = 8): Row[] {
+  try {
+    const parsed = JSON.parse(String(raw ?? "[]"));
+    if (!Array.isArray(parsed)) return [];
+    return parsed
+      .slice(0, max)
+      .map((r) => Object.fromEntries(keys.map((k) => [k, String(r?.[k] ?? "").trim().slice(0, 120)])))
+      .filter((r) => Object.values(r).some(Boolean));
+  } catch {
+    return [];
+  }
+}
+
+export async function updateStudentDetails(_: ProfileState, form: FormData): Promise<ProfileState> {
+  const actor = await getActor();
+  if (!actor || actor.profile.role !== "student") return { error: "Only the student can edit these details." };
+  const countries = form.getAll("countries").map(String).filter((c) => DESTINATIONS.some((d) => d.id === c));
+  const level = str(form, "level", 60);
+  const funding = str(form, "funding", 60);
+  const update = {
+    city: str(form, "city", 80) || null,
+    preferred_countries: countries,
+    preferred_level: LEVELS.includes(level) ? level : null,
+    preferred_course: str(form, "course", 160) || null,
+    preferred_intake: str(form, "intake", 40) || null,
+    work_experience: str(form, "work", 2000) || null,
+    funding: FUNDING.includes(funding) ? funding : null,
+    academic_history: rows(form.get("education"), ["level", "institution", "board", "year", "score"]),
+    test_scores: rows(form.get("tests"), ["test", "score", "date"]),
+  };
+  const dob = str(form, "date_of_birth", 10);
+  const { error } = await actor.supabase
+    .from("student_profiles")
+    .update(/^\d{4}-\d{2}-\d{2}$/.test(dob) ? { ...update, date_of_birth: dob } : update)
+    .eq("user_id", actor.uid);
+  if (error) return { error: error.code === "42501" ? error.message : "Couldn't save. Please try again." };
+  refresh();
+  return { saved: Date.now() };
+}
+#==EDU:FILE src/app/portal/_actions/services.ts
+"use server";
+
+import { refresh } from "next/cache";
+import { redirect } from "next/navigation";
+import { familyContacts, getActor } from "@/lib/portal/actor";
+import { emails, staffInbox } from "@/lib/portal/email";
+import { serviceByKey, validateServiceForm } from "@/lib/portal/services";
+import { getSiteContent } from "@/lib/content";
+
+export type ServiceFormState = { error?: string; fieldErrors?: Record<string, string>; values?: Record<string, string> } | null;
+
+const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+export async function requestService(_: ServiceFormState, form: FormData): Promise<ServiceFormState> {
+  const actor = await getActor();
+  if (!actor) return { error: "Please sign in again." };
+  const def = serviceByKey(String(form.get("service") ?? ""));
+  const studentId = String(form.get("student") ?? "");
+  if (!def || !uuid.test(studentId)) return { error: "Something went wrong. Please refresh the page." };
+
+  const { portalServices } = await getSiteContent();
+  const setting = portalServices[def.settingsKey];
+  if (!setting.show) return { error: "This service isn't available in the portal right now. Please message us instead." };
+
+  const input: Record<string, string> = {};
+  for (const f of def.fields) input[f.name] = String(form.get(f.name) ?? "");
+  const { values, errors, ok } = validateServiceForm(def, input);
+  if (!ok) return { error: "Please check the highlighted fields.", fieldErrors: errors, values: input };
+  if (setting.price && form.get("accept_price") !== "on") {
+    return { error: "Please confirm you've seen the price.", values: input };
+  }
+
+  const { data, error } = await actor.supabase
+    .from("service_requests")
+    .insert({ student_id: studentId, service: def.key, details: values, price: setting.price || null })
+    .select("id")
+    .single();
+  if (error || !data) {
+    return { error: error?.code === "42501" ? "You can't request services for this student." : "Something went wrong. Please try again.", values: input };
+  }
+
+  const contacts = await familyContacts(studentId);
+  await emails.serviceRequested(contacts.family, def.title, contacts.studentName);
+  const staff = contacts.counsellorEmail ?? staffInbox();
+  if (staff) await emails.staffServiceRequested(staff, def.title, contacts.studentName, def.describe(values));
+
+  redirect(`/portal/services/${data.id}?new=1`);
+}
+
+export async function cancelServiceRequest(form: FormData) {
+  const actor = await getActor();
+  const id = String(form.get("id") ?? "");
+  if (!actor || !uuid.test(id)) return;
+  await actor.supabase.from("service_requests").update({ status: "cancelled" }).eq("id", id).eq("status", "requested");
+  refresh();
+}
+#==EDU:FILE src/app/portal/applications/page.tsx
+import type { Metadata } from "next";
+import { CalendarClock, ListChecks } from "lucide-react";
+import { StageBar, StageSteps } from "@/components/portal/Tracker";
+import { Card, Empty, formatDate, PageTitle, Pill } from "@/components/portal/ui";
+import { NoStudent } from "@/components/portal/NoStudent";
+import { getPortal } from "@/lib/portal/context";
+import { loadApplications } from "@/lib/portal/data";
+import { DESTINATIONS, destinationName, stageLabel } from "@/lib/portal/journey";
+
+export const metadata: Metadata = { title: "Application tracker" };
+
+export default async function ApplicationsPage() {
+  const p = await getPortal();
+  if (!p.student) return <NoStudent />;
+  const apps = await loadApplications(p, p.student.id);
+  const { data: events } = apps.length
+    ? await p.supabase.from("application_events").select("application_id, stage, created_at").in("application_id", apps.map((a) => a.id)).order("created_at")
+    : { data: [] };
+
+  return (
+    <>
+      <PageTitle
+        title="Application tracker"
+        intro="Each university application moves through these stages. You'll get an email whenever a stage changes."
+      />
+      {apps.length === 0 ? (
+        <div className="grid items-start gap-5 lg:grid-cols-[1fr_1.2fr]">
+          <Card>
+            <h2 className="mb-5 font-bold text-deep">Your journey</h2>
+            <StageSteps stage="counselling" reached={{}} />
+          </Card>
+          <Empty icon={<ListChecks className="h-6 w-6" />} title="No applications yet">
+            After counselling, your counsellor adds each university you apply to. Their stages appear here, from shortlist to visa.
+          </Empty>
+        </div>
+      ) : (
+        <div className="grid gap-5">
+          {apps.map((a) => {
+            const reached: Record<string, string> = {};
+            for (const e of events ?? []) if (e.application_id === a.id && !reached[e.stage]) reached[e.stage] = e.created_at;
+            const flag = DESTINATIONS.find((d) => d.id === a.country)?.flag;
+            const overdue = a.deadline && a.status === "active" && new Date(a.deadline + "T23:59:59") < new Date();
+            return (
+              <Card key={a.id} as="article">
+                <div className="flex flex-wrap items-start gap-4">
+                  {flag && (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={`/flags/${flag}.svg`} alt="" className="mt-1 h-7 w-9 rounded-md object-cover ring-1 ring-deep/10" />
+                  )}
+                  <div className="min-w-0 flex-1">
+                    <h2 className="text-lg font-bold text-deep">{a.university}</h2>
+                    <p className="text-sm text-slate">{[a.course, destinationName(a.country), a.intake].filter(Boolean).join(" · ")}</p>
+                  </div>
+                  {a.status === "active" ? (
+                    <Pill tone="teal">{stageLabel(a.stage, a.country)}</Pill>
+                  ) : (
+                    <Pill tone="slate">{a.status === "withdrawn" ? "Withdrawn" : "Unsuccessful"}</Pill>
+                  )}
+                </div>
+                <div className="mt-5">
+                  <StageBar stage={a.stage} country={a.country} muted={a.status !== "active"} />
+                </div>
+                {(a.deadline || a.note) && (
+                  <div className="mt-4 grid gap-2 text-sm">
+                    {a.deadline && (
+                      <p className={`flex items-center gap-2 ${overdue ? "font-semibold text-[#b42318]" : "text-slate"}`}>
+                        <CalendarClock className="h-4 w-4" aria-hidden="true" />
+                        Next deadline: {formatDate(a.deadline)}
+                        {overdue && " (passed)"}
+                      </p>
+                    )}
+                    {a.note && <p className="rounded-xl bg-mist px-3.5 py-2.5 leading-relaxed text-deep">{a.note}</p>}
+                  </div>
+                )}
+                <details className="group mt-4">
+                  <summary className="cursor-pointer list-none text-sm font-semibold text-teal hover:text-navy">
+                    <span className="group-open:hidden">Show all stages</span>
+                    <span className="hidden group-open:inline">Hide stages</span>
+                  </summary>
+                  <div className="mt-4">
+                    <StageSteps stage={a.stage} country={a.country} reached={reached} />
+                  </div>
+                </details>
+              </Card>
+            );
+          })}
+        </div>
+      )}
+    </>
+  );
+}
+#==EDU:FILE src/app/portal/documents/page.tsx
+import type { Metadata } from "next";
+import Link from "next/link";
+import { FileList } from "@/components/portal/FileList";
+import { NoStudent } from "@/components/portal/NoStudent";
+import { Uploader } from "@/components/portal/Uploader";
+import { Card, DocBadge, Notice, PageTitle } from "@/components/portal/ui";
+import { getPortal } from "@/lib/portal/context";
+import { loadApplications, loadDocuments, studentChecklist, type ChecklistEntry } from "@/lib/portal/data";
+import { destinationName, GROUP_TITLES, type DocGroup } from "@/lib/portal/journey";
+import { storageConfigured } from "@/lib/portal/storage";
+
+export const metadata: Metadata = { title: "Documents" };
+
+export default async function DocumentsPage() {
+  const p = await getPortal();
+  if (!p.student) return <NoStudent />;
+  const s = p.student;
+  const [docs, apps] = await Promise.all([loadDocuments(p, s.id), loadApplications(p, s.id)]);
+  const list = studentChecklist(p, apps, docs);
+  const canUpload = p.canUpload && storageConfigured();
+
+  const groups = new Map<DocGroup, ChecklistEntry[]>();
+  for (const e of list.entries) groups.set(e.group, [...(groups.get(e.group) ?? []), e]);
+
+  return (
+    <>
+      <PageTitle
+        title="Documents"
+        intro={
+          <>
+            PDF, JPG or PNG, up to 10 MB each. Files are stored privately: only {p.role === "parent" ? "your child, linked parents and their" : "you, linked parents and your"} counsellor can open them.
+          </>
+        }
+      >
+        <div className="rounded-2xl bg-white px-4 py-3 text-right shadow-sm ring-1 ring-deep/6">
+          <p className="text-2xl font-extrabold text-deep">
+            {list.approvedCount}/{list.requiredCount}
+          </p>
+          <p className="text-xs font-semibold text-slate">key documents approved</p>
+        </div>
+      </PageTitle>
+
+      <div className="grid gap-4">
+        {!storageConfigured() && <Notice tone="info">Uploads switch on once document storage is connected. You can see your checklist already.</Notice>}
+        {p.uploadBlock === "under18" && (
+          <Notice tone="warn" title="A parent needs to link first">
+            You&apos;re under 18, so a parent or guardian must link to your account, and you approve it, before documents are uploaded.{" "}
+            <Link href="/portal/family" className="font-semibold underline">
+              Share your link code
+            </Link>
+          </Notice>
+        )}
+        {p.uploadBlock === "no_dob" && (
+          <Notice tone="warn">
+            Please add your date of birth in your{" "}
+            <Link href="/portal/profile" className="font-semibold underline">
+              profile
+            </Link>{" "}
+            before uploading.
+          </Notice>
+        )}
+        <p className="text-sm text-slate">
+          {list.countries.length ? (
+            <>Checklist for {list.countries.map(destinationName).join(", ")}.</>
+          ) : (
+            <>
+              Add your preferred countries in your{" "}
+              <Link href="/portal/profile" className="font-semibold text-teal underline">
+                profile
+              </Link>{" "}
+              to see country-specific visa documents.
+            </>
+          )}
+        </p>
+      </div>
+
+      <div className="mt-6 grid gap-5">
+        {[...groups.entries()].map(([group, entries]) => (
+          <Card key={group}>
+            <h2 className="text-xs font-bold uppercase tracking-[0.16em] text-slate">{GROUP_TITLES[group]}</h2>
+            <ul className="mt-2 divide-y divide-deep/6">
+              {entries.map((e) => (
+                <li key={e.key} id={e.key} className="py-4 last:pb-1">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="font-bold text-deep">
+                        {e.label}
+                        {!e.required && <span className="ml-2 text-xs font-semibold text-slate">if it applies</span>}
+                      </p>
+                      <p className="mt-0.5 text-sm leading-relaxed text-slate">{e.hint}</p>
+                    </div>
+                    <DocBadge status={e.status} />
+                  </div>
+                  <FileList files={e.files} me={p.userId} canUpload={canUpload} studentId={s.id} badges={e.files.length > 1} />
+                  {canUpload && (e.files.length === 0 || e.multiple) && (
+                    <div className="mt-3">
+                      <Uploader studentId={s.id} docType={e.key} text={e.files.length ? "Add another" : "Upload"} primary={e.files.length === 0} />
+                    </div>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </Card>
+        ))}
+
+        <Card>
+          <h2 className="text-xs font-bold uppercase tracking-[0.16em] text-slate">{GROUP_TITLES.other}</h2>
+          <p className="mt-2 text-sm text-slate">Anything else your counsellor asked for.</p>
+          <FileList files={list.other.files} me={p.userId} canUpload={canUpload} studentId={s.id} />
+          {canUpload && (
+            <div className="mt-4">
+              <Uploader studentId={s.id} docType="other" askLabel text="Upload" primary={false} />
+            </div>
+          )}
+        </Card>
+      </div>
+    </>
+  );
+}
+#==EDU:FILE src/app/portal/family/page.tsx
+import type { Metadata } from "next";
+import { LinkChildForm, LinkCode } from "@/components/portal/Family";
+import { LinkedPeople, PendingRequests } from "@/components/portal/LinkLists";
+import { Card, Notice, PageTitle } from "@/components/portal/ui";
+import { getPortal } from "@/lib/portal/context";
+import { siteOrigin } from "@/lib/supabase/env";
+
+export const metadata: Metadata = { title: "Family" };
+
+export default async function FamilyPage() {
+  const p = await getPortal();
+
+  if (p.role === "parent") {
+    return (
+      <>
+        <PageTitle title="My children" intro="Link to your child's account to follow their documents, applications and services. They approve each request." />
+        <div className="grid items-start gap-5 lg:grid-cols-[1.1fr_1fr]">
+          <Card>
+            <h2 className="text-lg font-bold text-deep">Link to your child</h2>
+            <div className="mt-4">
+              <LinkChildForm />
+            </div>
+          </Card>
+          <Card>
+            <h2 className="text-lg font-bold text-deep">Your links</h2>
+            <div className="mt-4">
+              {p.links.length ? <LinkedPeople links={p.links} viewer="parent" /> : <p className="text-sm text-slate">No links yet.</p>}
+            </div>
+          </Card>
+        </div>
+      </>
+    );
+  }
+
+  const code = p.student?.details?.link_code ?? "";
+  const approved = p.links.filter((l) => l.status === "approved");
+  return (
+    <>
+      <PageTitle title="Family" intro="Parents and guardians can follow your application once you approve them. You decide who sees your records." />
+      <div className="grid gap-5">
+        <PendingRequests links={p.links} />
+        {p.uploadBlock === "under18" && (
+          <Notice tone="warn" title="A parent needs to link first">
+            Because you&apos;re under 18, a parent or guardian must link to your account, and you approve it, before documents are uploaded. Send them your code below.
+          </Notice>
+        )}
+        <div className="grid items-start gap-5 lg:grid-cols-2">
+          <Card>
+            <h2 className="text-lg font-bold text-deep">Your link code</h2>
+            <p className="mt-1 mb-5 text-sm leading-relaxed text-slate">
+              Your parent creates a parent account and enters this code. You&apos;ll still be asked to approve them.
+            </p>
+            <LinkCode code={code} signUpUrl={`${siteOrigin()}/sign-up?role=parent`} />
+          </Card>
+          <Card>
+            <h2 className="text-lg font-bold text-deep">Linked parents</h2>
+            <div className="mt-4">
+              {approved.length ? (
+                <LinkedPeople links={p.links} viewer="student" />
+              ) : (
+                <p className="text-sm leading-relaxed text-slate">No one is linked yet. Parents you approve can see your documents, stages and requests, upload documents and message your counsellor.</p>
+              )}
+            </div>
+          </Card>
+        </div>
+      </div>
+    </>
+  );
+}
+#==EDU:FILE src/app/portal/files/[id]/route.ts
+import { NextResponse, type NextRequest } from "next/server";
+import { logActivity } from "@/lib/portal/actor";
+import { signedDownloadUrl, storageConfigured } from "@/lib/portal/storage";
+import { createClient } from "@/lib/supabase/server";
+
+/**
+ * Open a document: checks access (database rules), records the view in the activity log,
+ * then sends the browser to a private link that expires after 5 minutes.
+ */
+export async function GET(request: NextRequest, { params }: RouteContext<"/portal/files/[id]">) {
+  const { id } = await params;
+  const supabase = await createClient();
+  const { data: claims } = await supabase.auth.getClaims();
+  const uid = claims?.claims?.sub;
+  if (!uid) return NextResponse.redirect(new URL("/sign-in", request.url));
+  if (!/^[0-9a-f-]{36}$/i.test(id) || !storageConfigured()) return new NextResponse("Not found", { status: 404 });
+
+  const { data: doc } = await supabase.from("documents").select("id, student_id, file_key, file_name, mime_type, status").eq("id", id).maybeSingle();
+  if (!doc || doc.status === "uploading") return new NextResponse("Not found", { status: 404 });
+
+  const download = request.nextUrl.searchParams.get("download") === "1";
+  await logActivity(uid, doc.student_id, download ? "document_downloaded" : "document_viewed", "document", doc.id, { file: doc.file_name });
+  const url = await signedDownloadUrl(doc.file_key, doc.file_name, doc.mime_type, download);
+  const res = NextResponse.redirect(url);
+  res.headers.set("Cache-Control", "private, no-store");
+  res.headers.set("Referrer-Policy", "no-referrer");
+  return res;
+}
+#==EDU:FILE src/app/portal/layout.tsx
+import type { Metadata } from "next";
+import Link from "next/link";
+import { Suspense } from "react";
+import { Logo } from "@/components/brand/Logo";
+import { AccountMenu } from "@/components/portal/AccountMenu";
+import { DesktopNav, MobileNav } from "@/components/portal/PortalNav";
+import { PortalUnavailable } from "@/components/portal/PortalUnavailable";
+import { StudentSwitcher } from "@/components/portal/StudentSwitcher";
+import { Notice } from "@/components/portal/ui";
+import { getPortal } from "@/lib/portal/context";
+import { portalConfigured } from "@/lib/supabase/env";
+
+export const metadata: Metadata = {
+  title: { default: "Portal", template: "%s | Edusphere portal" },
+  robots: { index: false, follow: false },
+};
+
+export default function PortalLayout({ children }: LayoutProps<"/portal">) {
+  if (!portalConfigured) {
+    return (
+      <div className="grid min-h-dvh place-items-center bg-deep px-4 [color-scheme:light]">
+        <div className="w-full max-w-md">
+          <PortalUnavailable />
+        </div>
+      </div>
+    );
+  }
+  return (
+    <div className="min-h-dvh bg-mist text-ink [color-scheme:light]">
+      <Suspense fallback={<ShellLoading />}>
+        <PortalFrame>{children}</PortalFrame>
+      </Suspense>
+    </div>
+  );
+}
+
+function HeaderBar({ children }: { children?: React.ReactNode }) {
+  return (
+    <header className="sticky top-0 z-40 bg-deep/95 pt-[env(safe-area-inset-top)] text-white backdrop-blur">
+      <div className="mx-auto flex h-16 max-w-6xl items-center gap-4 px-4 sm:px-8">
+        <Link href="/portal" aria-label="Portal home" className="shrink-0">
+          <Logo showTagline={false} />
+        </Link>
+        {children}
+      </div>
+    </header>
+  );
+}
+
+function ShellLoading() {
+  return (
+    <>
+      <HeaderBar />
+      <div className="mx-auto max-w-6xl animate-pulse px-4 pt-8 sm:px-8" aria-busy="true" aria-label="Loading">
+        <div className="h-8 w-56 rounded-lg bg-deep/8" />
+        <div className="mt-6 grid gap-4 sm:grid-cols-2">
+          <div className="h-40 rounded-2xl bg-white" />
+          <div className="h-40 rounded-2xl bg-white" />
+        </div>
+      </div>
+    </>
+  );
+}
+
+async function PortalFrame({ children }: { children: React.ReactNode }) {
+  const p = await getPortal();
+  return (
+    <>
+      <HeaderBar>
+        <DesktopNav />
+        <div className="ml-auto flex min-w-0 items-center gap-2">
+          {p.students.length > 1 && p.student && <StudentSwitcher students={p.students} current={p.student.id} />}
+          <AccountMenu name={p.profile.full_name || p.profile.email} email={p.profile.email} role={p.role ?? "member"} />
+        </div>
+      </HeaderBar>
+      <main id="main" className="mx-auto max-w-6xl px-4 pt-6 pb-32 sm:px-8 sm:pt-10 lg:pb-16">
+        {p.staff ? (
+          <Notice title="Staff accounts" tone="info">
+            Student records for staff open in the admin dashboard, which comes in the next step of the build.{" "}
+            <Link href="/admin" className="font-semibold underline">
+              Go to the admin portal
+            </Link>
+          </Notice>
+        ) : (
+          children
+        )}
+      </main>
+      {!p.staff && <MobileNav />}
+    </>
+  );
+}
+#==EDU:FILE src/app/portal/messages/page.tsx
+import type { Metadata } from "next";
+import { NoStudent } from "@/components/portal/NoStudent";
+import { Thread } from "@/components/portal/Thread";
+import { Card, PageTitle } from "@/components/portal/ui";
+import { getPortal } from "@/lib/portal/context";
+
