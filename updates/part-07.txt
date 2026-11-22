@@ -1,0 +1,626 @@
+  scholarships: {
+    _id: string;
+    title: string;
+    kind?: "scholarship" | "loan" | null;
+    provider?: string | null;
+    flag?: string | null;
+    amount?: string | null;
+    eligibility?: string | null;
+    deadline?: string | null;
+    officialLink: string;
+    lastChecked: string;
+  }[];
+};
+
+const orList = <T,>(v: T[] | null | undefined, fb: T[]) => (v && v.length ? v : fb);
+
+function fullDestination(d: Partial<Destination> & DestinationCard): Destination {
+  const fb = destinationDetails[d.id];
+  return {
+    ...d,
+    intro: d.intro || fb?.intro || d.summary,
+    highlights: orList(d.highlights, fb?.highlights ?? []),
+    popularCourses: orList(d.popularCourses, fb?.popularCourses ?? []),
+    countries: orList(d.countries ?? null, fb?.countries ?? []),
+    visaSteps: orList(d.visaSteps, fb?.visaSteps ?? []),
+    postStudyWork: d.postStudyWork || fb?.postStudyWork || "",
+    officialLinks: d.officialLinks ?? [],
+    faqs: orList(d.faqs, destinationFaqs(d.name === "United Kingdom" ? "the UK" : d.name === "United States" ? "the USA" : d.name)),
+    heroImage: d.heroImage?.asset?.url ? d.heroImage : null,
+  };
+}
+
+function fullService(sv: Partial<ServiceFull> & { title: string; description: string }): ServiceFull {
+  const slug = sv.slug || slugify(sv.title);
+  const fb = serviceDetails.find((x) => x.slug === slug || x.title === sv.title);
+  return {
+    title: sv.title,
+    slug,
+    description: sv.description,
+    icon: sv.icon ?? fb?.icon,
+    steps: orList(sv.steps, fb?.steps ?? []),
+    included: orList(sv.included, fb?.included ?? []),
+  };
+}
+
+export async function getLibrary(): Promise<Library> {
+  const data = await sanityQuery<Partial<Library> & { destinations?: (Partial<Destination> & DestinationCard)[] }>(LIBRARY_QUERY);
+  const site = await getSiteContent();
+  const destinations = data?.destinations?.length
+    ? data.destinations.filter((d) => d.id).map(fullDestination)
+    : site.destinations.map((d) => fullDestination(d));
+  const services = data?.services?.length ? data.services.map(fullService) : serviceDetails.map(fullService);
+  return {
+    destinations,
+    services,
+    stories: (data?.stories ?? []).map(hasPhoto),
+    posts: (data?.posts ?? []).map(hasImage),
+    faqs: data?.faqs?.length ? data.faqs : defaultFaqs,
+    universities: data?.universities ?? [],
+    scholarships: data?.scholarships ?? [],
+  };
+}
+
+export type Post = PostCard & { body?: PortableTextBlock[] | null; sourceLink?: string | null };
+
+export async function getPost(slug: string): Promise<Post | null> {
+  const p = await sanityQuery<Post | null>(POST_QUERY, { slug });
+  return p ? hasImage(p) : null;
+}
+
+export { telHref, whatsappHref } from "./links";
+
+function portalServiceSettings(raw?: Partial<Record<keyof PortalServiceSettings, Partial<PortalServiceSetting> | null>> | null): PortalServiceSettings {
+  const out = { ...defaultPortalServices };
+  for (const key of Object.keys(out) as (keyof PortalServiceSettings)[]) {
+    const r = raw?.[key];
+    if (!r) continue;
+    out[key] = {
+      show: r.show ?? out[key].show,
+      price: (r.price ?? "").trim(),
+      includes: (r.includes ?? []).map((x) => x.trim()).filter(Boolean),
+    };
+  }
+  return out;
+}
+#==EDU:FILE src/lib/portal/actor.ts
+import "server-only";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { createClient } from "@/lib/supabase/server";
+
+/** The signed-in person, for server actions. Null when signed out. */
+export async function getActor() {
+  const supabase = await createClient();
+  const { data } = await supabase.auth.getClaims();
+  const uid = data?.claims?.sub;
+  if (!uid) return null;
+  const { data: profile } = await supabase.from("profiles").select("id, role, full_name, email, onboarded_at").eq("id", uid).single();
+  if (!profile) return null;
+  const staff = profile.role === "admin" || profile.role === "counsellor";
+  return { supabase, uid, profile, staff, name: profile.full_name || profile.email };
+}
+
+/** Who to email about a student: the student, approved parents and their counsellor. */
+export async function familyContacts(studentId: string) {
+  try {
+    const admin = createAdminClient();
+    const [{ data: student }, { data: links }, { data: details }] = await Promise.all([
+      admin.from("profiles").select("full_name, email").eq("id", studentId).single(),
+      admin.from("parent_links").select("parent_id").eq("student_id", studentId).eq("status", "approved"),
+      admin.from("student_profiles").select("counsellor_id").eq("user_id", studentId).maybeSingle(),
+    ]);
+    const ids = [...(links ?? []).map((l) => l.parent_id), ...(details?.counsellor_id ? [details.counsellor_id] : [])];
+    const { data: people } = ids.length ? await admin.from("profiles").select("id, email").in("id", ids) : { data: [] as { id: string; email: string }[] };
+    return {
+      studentName: student?.full_name || student?.email || "the student",
+      family: [student?.email, ...(links ?? []).map((l) => people?.find((p) => p.id === l.parent_id)?.email)].filter(Boolean) as string[],
+      counsellorEmail: people?.find((p) => p.id === details?.counsellor_id)?.email ?? null,
+    };
+  } catch (error) {
+    console.error("[portal] could not look up contacts:", error instanceof Error ? error.message : error);
+    return { studentName: "the student", family: [] as string[], counsellorEmail: null };
+  }
+}
+
+/** Write to the activity log (views, downloads and other events without a database trigger). */
+export async function logActivity(actorId: string, studentId: string | null, action: string, entity: string, entityId: string | null, details: Record<string, unknown> = {}) {
+  try {
+    await createAdminClient().from("activity_log").insert({
+      actor_id: actorId,
+      student_id: studentId,
+      action,
+      entity,
+      entity_id: entityId,
+      details: details as never,
+    });
+  } catch (error) {
+    console.error("[portal] activity log failed:", error instanceof Error ? error.message : error);
+  }
+}
+#==EDU:FILE src/lib/portal/consent.ts
+/**
+ * Consent wording shown at sign-up. Each acceptance is stored with this version and the date.
+ * Change the version whenever the wording changes (Step 7 adds the privacy notice and terms;
+ * have the wording checked by the lawyer reviewing them).
+ */
+export const CONSENT_VERSION = "2026-11-v1";
+
+export const consentText = {
+  student:
+    "I agree to Edusphere Overseas using my personal details and documents to advise me and to share them with universities, visa authorities and service partners for my applications.",
+  parent:
+    "I agree to Edusphere Overseas using my personal details to provide its services to me and the student I link to.",
+  guardian: "I confirm I am this student's parent or legal guardian.",
+};
+#==EDU:FILE src/lib/portal/context.ts
+import "server-only";
+import { cookies } from "next/headers";
+import { redirect } from "next/navigation";
+import { cache } from "react";
+import { createClient } from "@/lib/supabase/server";
+import type { Tables } from "@/lib/supabase/database.types";
+
+export type Profile = Tables<"profiles">;
+export type StudentDetails = Tables<"student_profiles">;
+
+export type FamilyLink = {
+  id: string;
+  status: string;
+  relationship: string;
+  requestedVia: string;
+  requestedAs: string | null;
+  createdAt: string;
+  /** the other person: the parent (for a student) or the student (for a parent, once approved) */
+  person: { id: string; name: string; email: string; phone: string | null } | null;
+};
+
+export type FocusStudent = {
+  id: string;
+  name: string;
+  email: string;
+  phone: string | null;
+  details: StudentDetails | null;
+  counsellor: { name: string; email: string } | null;
+  hasApprovedParent: boolean;
+  isAdult: boolean;
+};
+
+export const STUDENT_COOKIE = "es-student";
+
+function isAdult(dob: string | null | undefined) {
+  if (!dob) return false;
+  const d = new Date(dob + "T00:00:00Z");
+  const now = new Date();
+  const eighteenth = Date.UTC(d.getUTCFullYear() + 18, d.getUTCMonth(), d.getUTCDate());
+  return eighteenth <= Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+}
+
+/**
+ * Who is signed in, and which student the portal is showing (the student themselves,
+ * or for a parent the linked student they picked). Runs once per request.
+ */
+export const getPortal = cache(async () => {
+  const supabase = await createClient();
+  const { data: claims } = await supabase.auth.getClaims();
+  const userId = claims?.claims?.sub;
+  if (!userId) redirect("/sign-in");
+
+  // One database call for the person, their family links and the student in focus
+  const chosen = (await cookies()).get(STUDENT_COOKIE)?.value;
+  const { data } = await supabase.rpc("portal_context", { p_student: chosen && /^[0-9a-f-]{36}$/i.test(chosen) ? chosen : undefined });
+  const ctx = data as unknown as {
+    profile: Profile;
+    links: FamilyLink[];
+    student: (Omit<FocusStudent, "isAdult"> & { details: StudentDetails | null }) | null;
+  } | null;
+  if (!ctx?.profile) redirect("/sign-in");
+
+  const profile = ctx.profile;
+  const role = profile.role;
+  const staff = role === "admin" || role === "counsellor" || role === "editor";
+  if (!staff && !profile.onboarded_at) redirect("/welcome");
+
+  const links = ctx.links;
+  const student: FocusStudent | null = ctx.student
+    ? { ...ctx.student, hasApprovedParent: role === "parent" || ctx.student.hasApprovedParent, isAdult: isAdult(ctx.student.details?.date_of_birth) }
+    : null;
+  const firstName = (profile.full_name || profile.email).split(/[\s@]/)[0];
+
+  return {
+    supabase,
+    userId,
+    profile,
+    role,
+    staff,
+    firstName,
+    links,
+    students: role === "parent" ? links.filter((l) => l.status === "approved" && l.person).map((l) => ({ id: l.person!.id, name: l.person!.name })) : [],
+    student,
+    /** Under-18 students need an approved parent before documents are uploaded */
+    canUpload: !!student && (role === "parent" || student.isAdult || student.hasApprovedParent),
+    uploadBlock:
+      !student || role === "parent" || student.isAdult || student.hasApprovedParent
+        ? null
+        : student.details?.date_of_birth
+          ? ("under18" as const)
+          : ("no_dob" as const),
+  };
+});
+
+export type Portal = Awaited<ReturnType<typeof getPortal>>;
+#==EDU:FILE src/lib/portal/data.ts
+import "server-only";
+import type { Portal } from "./context";
+import { buildChecklist, itemStatus, OTHER_DOC, type ChecklistItem, type DocStatus } from "./journey";
+import type { Tables } from "@/lib/supabase/database.types";
+
+export type DocRow = Tables<"documents">;
+export type ApplicationRow = Tables<"applications">;
+export type RequestRow = Tables<"service_requests">;
+
+/** Countries that decide the checklist: from active applications, else the student's preferences. */
+export function checklistCountries(apps: Pick<ApplicationRow, "country" | "status">[], preferred: string[] | null | undefined) {
+  const fromApps = [...new Set(apps.filter((a) => a.status === "active" && a.country).map((a) => a.country!))];
+  return fromApps.length ? fromApps : (preferred ?? []);
+}
+
+export async function loadDocuments(p: Portal, studentId: string) {
+  const { data } = await p.supabase
+    .from("documents")
+    .select("*")
+    .eq("student_id", studentId)
+    .not("status", "in", "(uploading,replaced)")
+    .order("created_at", { ascending: true });
+  return data ?? [];
+}
+
+export async function loadApplications(p: Portal, studentId: string) {
+  const { data } = await p.supabase.from("applications").select("*").eq("student_id", studentId).order("created_at", { ascending: true });
+  return data ?? [];
+}
+
+export async function loadRequests(p: Portal, studentId: string) {
+  const { data } = await p.supabase.from("service_requests").select("*").eq("student_id", studentId).order("created_at", { ascending: false });
+  return data ?? [];
+}
+
+export type ChecklistEntry = ChecklistItem & { status: DocStatus; files: DocRow[] };
+
+export function checklistWithStatus(items: ChecklistItem[], docs: DocRow[]) {
+  const general = docs.filter((d) => !d.service_request_id);
+  const entries: ChecklistEntry[] = items.map((item) => {
+    const files = general.filter((d) => d.doc_type === item.key);
+    return { ...item, files, status: itemStatus(files) };
+  });
+  // Documents of a kind that's no longer on the checklist still show, under "Other documents"
+  const known = new Set(items.map((i) => i.key));
+  const others = general.filter((d) => !known.has(d.doc_type));
+  const otherEntry: ChecklistEntry = { ...OTHER_DOC, files: others, status: itemStatus(others) };
+  const required = entries.filter((e) => e.required);
+  return {
+    entries,
+    other: otherEntry,
+    requiredCount: required.length,
+    approvedCount: required.filter((e) => e.status === "approved").length,
+    reuploadCount: entries.filter((e) => e.status === "reupload").length + (otherEntry.status === "reupload" ? 1 : 0),
+    reviewCount: entries.filter((e) => e.status === "under_review").length + (otherEntry.status === "under_review" ? 1 : 0),
+  };
+}
+
+export function studentChecklist(p: Portal, apps: ApplicationRow[], docs: DocRow[]) {
+  const countries = checklistCountries(apps, p.student?.details?.preferred_countries);
+  const items = buildChecklist({ countries, level: p.student?.details?.preferred_level });
+  return { countries, ...checklistWithStatus(items, docs) };
+}
+#==EDU:FILE src/lib/portal/email.ts
+import "server-only";
+import { appendFile } from "node:fs/promises";
+import { Resend } from "resend";
+import { siteOrigin } from "@/lib/supabase/env";
+
+/**
+ * Portal emails, sent with Resend. Until RESEND_API_KEY and EMAIL_FROM are set they are
+ * only written to the server log, so nothing breaks before the domain is verified.
+ * (Sign-up verification and password reset emails are sent by Supabase itself.)
+ */
+
+type Email = {
+  to: string | string[];
+  subject: string;
+  heading: string;
+  lines: string[];
+  button?: { label: string; path: string };
+  replyTo?: string;
+};
+
+const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+
+export function renderEmail({ heading, lines, button }: Email) {
+  const url = button ? `${siteOrigin()}${button.path}` : "";
+  const html = `<!doctype html><html><body style="margin:0;background:#f4f7fa;font-family:Montserrat,Segoe UI,Arial,sans-serif;color:#111">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f4f7fa;padding:32px 12px"><tr><td align="center">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:520px;background:#fff;border-radius:16px;overflow:hidden">
+<tr><td style="background:#0d2236;padding:20px 28px;color:#fff;font-weight:800;font-size:17px;letter-spacing:.02em">Edusphere <span style="color:#5cc0cf">Overseas</span></td></tr>
+<tr><td style="padding:28px">
+<h1 style="margin:0 0 14px;font-size:21px;line-height:1.3;color:#0d2236">${esc(heading)}</h1>
+${lines.map((l) => `<p style="margin:0 0 12px;font-size:15px;line-height:1.6;color:#333">${esc(l)}</p>`).join("")}
+${button ? `<p style="margin:22px 0 6px"><a href="${esc(url)}" style="display:inline-block;background:#449aa8;color:#fff;text-decoration:none;font-weight:700;padding:12px 22px;border-radius:999px">${esc(button.label)}</a></p>` : ""}
+</td></tr>
+<tr><td style="padding:16px 28px 24px;font-size:12px;line-height:1.5;color:#777;border-top:1px solid #eef1f4">You're receiving this because you have an account on the Edusphere Overseas student and parent portal.</td></tr>
+</table></td></tr></table></body></html>`;
+  const text = [heading, "", ...lines, ...(button ? ["", `${button.label}: ${url}`] : [])].join("\n");
+  return { html, text };
+}
+
+export async function sendEmail(email: Email) {
+  const to = (Array.isArray(email.to) ? email.to : [email.to]).filter(Boolean);
+  if (!to.length) return;
+  const { html, text } = renderEmail(email);
+  const key = process.env.RESEND_API_KEY;
+  const from = process.env.EMAIL_FROM;
+
+  if (!key || !from) {
+    console.info(`[email] (not sent: no RESEND_API_KEY/EMAIL_FROM) to=${to.join(",")} subject="${email.subject}"`);
+    if (process.env.EMAIL_OUTBOX) {
+      await appendFile(process.env.EMAIL_OUTBOX, JSON.stringify({ to, subject: email.subject, text }) + "\n").catch(() => {});
+    }
+    return;
+  }
+  try {
+    const { error } = await new Resend(key).emails.send({ from, to, subject: email.subject, html, text, replyTo: email.replyTo });
+    if (error) console.error("[email] failed:", error.message);
+  } catch (error) {
+    console.error("[email] failed:", error instanceof Error ? error.message : error);
+  }
+}
+
+/** Where staff notifications go until the admin dashboard assigns owners. */
+export const staffInbox = () => process.env.STAFF_EMAIL ?? "";
+
+// ---------------------------------------------------------------------
+// Messages
+// ---------------------------------------------------------------------
+
+export const emails = {
+  linkRequest: (to: string, parentName: string) =>
+    sendEmail({
+      to,
+      subject: `${parentName} asked to follow your application`,
+      heading: `${parentName} would like to follow your application`,
+      lines: [
+        `${parentName} has asked to link to your Edusphere portal account as your parent or guardian.`,
+        "If you approve, they can see your documents, application stages and service requests, upload documents and message your counsellor. You can remove them at any time.",
+        "If you don't know this person, decline the request.",
+      ],
+      button: { label: "Review the request", path: "/portal/family" },
+    }),
+
+  linkApproved: (to: string, studentName: string) =>
+    sendEmail({
+      to,
+      subject: `${studentName} approved your request`,
+      heading: "You're now linked",
+      lines: [`${studentName} approved your request. You can now follow their documents, applications and services in the portal.`],
+      button: { label: "Open the portal", path: "/portal" },
+    }),
+
+  serviceRequested: (to: string[], serviceTitle: string, studentName: string) =>
+    sendEmail({
+      to,
+      subject: `We've received your request: ${serviceTitle}`,
+      heading: "Request received",
+      lines: [
+        `Thank you. We've received the ${serviceTitle.toLowerCase()} request for ${studentName}.`,
+        "Our team will confirm the next steps. You'll get an email each time the status changes, and you can message us from the request page.",
+      ],
+      button: { label: "View the request", path: "/portal/services" },
+    }),
+
+  staffServiceRequested: (to: string, serviceTitle: string, studentName: string, summary: string) =>
+    sendEmail({
+      to,
+      subject: `New request: ${serviceTitle} for ${studentName}`,
+      heading: `New ${serviceTitle.toLowerCase()} request`,
+      lines: [`${studentName} requested ${serviceTitle.toLowerCase()}.`, summary].filter(Boolean),
+      button: { label: "Open the admin portal", path: "/admin" },
+    }),
+
+  newMessageForStaff: (to: string, studentName: string, preview: string) =>
+    sendEmail({
+      to,
+      subject: `New portal message about ${studentName}`,
+      heading: `New message about ${studentName}`,
+      lines: [preview.length > 280 ? preview.slice(0, 277) + "…" : preview],
+      button: { label: "Open the admin portal", path: "/admin" },
+    }),
+
+  // Sent from the admin dashboard (Step 5)
+  documentDecision: (to: string[], documentName: string, approved: boolean, reason?: string | null) =>
+    sendEmail({
+      to,
+      subject: approved ? `Approved: ${documentName}` : `Please upload ${documentName} again`,
+      heading: approved ? `${documentName} is approved` : `${documentName} needs a new upload`,
+      lines: approved
+        ? ["Your counsellor has checked and approved this document."]
+        : ["Your counsellor has asked for a new upload of this document.", reason ? `Reason: ${reason}` : ""].filter(Boolean),
+      button: { label: "Open your documents", path: "/portal/documents" },
+    }),
+
+  stageChanged: (to: string[], university: string, stage: string) =>
+    sendEmail({
+      to,
+      subject: `${university}: ${stage}`,
+      heading: `Your application moved to "${stage}"`,
+      lines: [`Your application to ${university} is now at the "${stage}" stage.`],
+      button: { label: "Open your tracker", path: "/portal/applications" },
+    }),
+
+  serviceStatus: (to: string[], serviceTitle: string, status: string) =>
+    sendEmail({
+      to,
+      subject: `${serviceTitle}: ${status}`,
+      heading: `${serviceTitle}: ${status}`,
+      lines: [`Your ${serviceTitle.toLowerCase()} request is now "${status}".`],
+      button: { label: "View the request", path: "/portal/services" },
+    }),
+};
+#==EDU:FILE src/lib/portal/journey.ts
+/**
+ * Application stages and the document checklist.
+ */
+
+export const STAGES = [
+  { key: "counselling", label: "Counselling" },
+  { key: "shortlist", label: "Shortlist" },
+  { key: "applied", label: "Applied" },
+  { key: "offer", label: "Offer" },
+  { key: "deposit", label: "Deposit" },
+  { key: "cas", label: "CAS / CoE / I-20" },
+  { key: "visa_filed", label: "Visa filed" },
+  { key: "visa_granted", label: "Visa granted" },
+  { key: "pre_departure", label: "Pre-departure" },
+] as const;
+
+const confirmationName: Record<string, string> = {
+  uk: "CAS",
+  australia: "CoE",
+  usa: "I-20",
+  canada: "Letter of acceptance",
+  europe: "Admission letter",
+};
+
+/** "CAS" for the UK, "CoE" for Australia, "I-20" for the US… */
+export function stageLabel(stage: string, country?: string | null) {
+  if (stage === "cas" && country && confirmationName[country]) return confirmationName[country];
+  return STAGES.find((s) => s.key === stage)?.label ?? stage;
+}
+
+export const stageIndex = (stage: string) => STAGES.findIndex((s) => s.key === stage);
+
+export const DESTINATIONS: { id: string; name: string; flag: string }[] = [
+  { id: "uk", name: "United Kingdom", flag: "gb" },
+  { id: "australia", name: "Australia", flag: "au" },
+  { id: "canada", name: "Canada", flag: "ca" },
+  { id: "usa", name: "United States", flag: "us" },
+  { id: "new-zealand", name: "New Zealand", flag: "nz" },
+  { id: "europe", name: "Europe", flag: "eu" },
+];
+export const destinationName = (id?: string | null) => DESTINATIONS.find((d) => d.id === id)?.name ?? id ?? "";
+
+// ---------------------------------------------------------------------
+// Document checklist
+// ---------------------------------------------------------------------
+
+export type DocGroup = "identity" | "academic" | "english" | "application" | "finance" | "university" | "visa" | "other";
+
+export const GROUP_TITLES: Record<DocGroup, string> = {
+  identity: "Identity",
+  academic: "Academic records",
+  english: "English test",
+  application: "Application documents",
+  finance: "Finances",
+  university: "From your university",
+  visa: "Visa",
+  other: "Other documents",
+};
+
+export type ChecklistItem = {
+  key: string;
+  label: string;
+  hint: string;
+  group: DocGroup;
+  required: boolean; // false: "if it applies to you"
+  multiple?: boolean;
+};
+
+export type DocStatus = "missing" | "under_review" | "approved" | "reupload";
+
+export const DOC_STATUS_LABEL: Record<DocStatus, string> = {
+  missing: "Not uploaded",
+  under_review: "Under review",
+  approved: "Approved",
+  reupload: "Re-upload needed",
+};
+
+type ChecklistInput = { countries: string[]; level?: string | null };
+
+/** The checklist for a student, generated from their destinations (and study level). */
+export function buildChecklist({ countries, level }: ChecklistInput): ChecklistItem[] {
+  const pg = !!level && /post|master|phd|doctor|mba/i.test(level);
+  const has = (c: string) => countries.includes(c);
+  const confirmations = countries.map((c) => confirmationName[c]).filter(Boolean);
+
+  const items: ChecklistItem[] = [
+    { key: "passport", label: "Passport", hint: "The pages with your photo and personal details, and the last page.", group: "identity", required: true },
+    { key: "marksheet_10", label: "10th marksheet", hint: "SSLC or equivalent.", group: "academic", required: true },
+    { key: "marksheet_12", label: "12th marksheet", hint: "PUC, HSC or equivalent.", group: "academic", required: true },
+    {
+      key: "degree",
+      label: "Degree marksheets and certificate",
+      hint: "Every semester's marksheet, plus the provisional or final certificate.",
+      group: "academic",
+      required: pg,
+      multiple: true,
+    },
+    { key: "english_test", label: "IELTS, PTE or TOEFL score report", hint: "Upload it once you have your score.", group: "english", required: true },
+    { key: "sop", label: "Statement of purpose (SOP)", hint: "Your latest draft; your counsellor will review it.", group: "application", required: true },
+    { key: "lor", label: "Letters of recommendation", hint: "Usually two, from teachers or employers.", group: "application", required: true, multiple: true },
+    { key: "cv", label: "CV or résumé", hint: "One or two pages.", group: "application", required: true },
+    { key: "work_letters", label: "Work experience letters", hint: "If you have worked: letters from each employer.", group: "application", required: false, multiple: true },
+    { key: "bank_statements", label: "Bank statements", hint: "Recent statements showing the funds for your studies.", group: "finance", required: true, multiple: true },
+    { key: "loan_letter", label: "Education loan sanction letter", hint: "If you are funding your studies with a loan.", group: "finance", required: false },
+    { key: "offer_letter", label: "Offer letter", hint: "From each university that makes you an offer.", group: "university", required: false, multiple: true },
+  ];
+
+  if (confirmations.length || countries.length === 0) {
+    items.push({
+      key: "confirmation",
+      label: confirmations.length ? [...new Set(confirmations)].join(" / ") : "CAS / CoE / I-20",
+      hint: "Issued by your university once you accept an offer and pay the deposit.",
+      group: "university",
+      required: false,
+    });
+  }
+
+  if (has("uk")) items.push({ key: "tb_test", label: "TB test certificate (UK)", hint: "From a clinic approved by the UK Home Office.", group: "visa", required: false });
+  if (has("australia")) {
+    items.push({ key: "oshc", label: "Overseas Student Health Cover (Australia)", hint: "Your OSHC policy certificate.", group: "visa", required: false });
+    items.push({ key: "gs_statement", label: "Genuine Student answers (Australia)", hint: "Your draft answers for the Genuine Student requirement.", group: "visa", required: false });
+  }
+  if (has("usa")) {
+    items.push({ key: "ds160", label: "DS-160 confirmation (US)", hint: "The confirmation page after you submit the DS-160.", group: "visa", required: false });
+    items.push({ key: "sevis_fee", label: "SEVIS fee receipt (US)", hint: "The I-901 SEVIS fee payment receipt.", group: "visa", required: false });
+  }
+  if (has("canada")) items.push({ key: "pal", label: "Provincial attestation letter (Canada)", hint: "If your programme needs one; your university helps you get it.", group: "visa", required: false });
+  if (has("new-zealand")) items.push({ key: "medical", label: "Medical and chest X-ray certificates (New Zealand)", hint: "If required for your visa.", group: "visa", required: false });
+  items.push({ key: "visa_forms", label: "Visa application forms", hint: "Completed forms and any confirmation pages.", group: "visa", required: false, multiple: true });
+
+  return items;
+}
+
+export const OTHER_DOC: ChecklistItem = {
+  key: "other",
+  label: "Other document",
+  hint: "Anything else your counsellor asked for.",
+  group: "other",
+  required: false,
+  multiple: true,
+};
+
+export function itemStatus(files: { status: string }[]): DocStatus {
+  const live = files.filter((f) => f.status !== "uploading" && f.status !== "replaced");
+  if (!live.length) return "missing";
+  if (live.some((f) => f.status === "reupload")) return "reupload";
+  if (live.some((f) => f.status === "under_review")) return "under_review";
+  return "approved";
+}
+
+export function checklistLabel(key: string, countries: string[], label?: string | null) {
+  if (key === "other") return label || "Other document";
+  return [...buildChecklist({ countries, level: "postgraduate" }), OTHER_DOC].find((i) => i.key === key)?.label ?? key;
+}
+
+export const ALLOWED_TYPES = ["application/pdf", "image/jpeg", "image/png"] as const;
+export const MAX_FILE_BYTES = 10 * 1024 * 1024;
+
+// Profile choices
