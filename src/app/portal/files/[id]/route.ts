@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { logActivity } from "@/lib/portal/actor";
 import { signedDownloadUrl, storageConfigured } from "@/lib/portal/storage";
+import { portalConfigured } from "@/lib/supabase/env";
 import { createClient } from "@/lib/supabase/server";
 
 /**
@@ -9,6 +10,7 @@ import { createClient } from "@/lib/supabase/server";
  */
 export async function GET(request: NextRequest, { params }: RouteContext<"/portal/files/[id]">) {
   const { id } = await params;
+  if (!portalConfigured) return NextResponse.redirect(new URL("/portal", request.url));
   const supabase = await createClient();
   const { data: claims } = await supabase.auth.getClaims();
   const uid = claims?.claims?.sub;

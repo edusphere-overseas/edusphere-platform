@@ -2,12 +2,15 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { Suspense } from "react";
 import { WelcomeForm } from "@/components/portal/AuthForms";
+import { PortalUnavailable } from "@/components/portal/PortalUnavailable";
+import { portalConfigured } from "@/lib/supabase/env";
 import { createClient } from "@/lib/supabase/server";
 
 export const metadata: Metadata = { title: "Welcome" };
 
 /** First visit after Google sign-in or an invitation: choose student or parent, and consent. */
 export default function WelcomePage({ searchParams }: PageProps<"/welcome">) {
+  if (!portalConfigured) return <PortalUnavailable />;
   return (
     <Suspense fallback={<div className="h-[30rem] rounded-3xl bg-white/90" />}>
       <Welcome searchParams={searchParams} />
