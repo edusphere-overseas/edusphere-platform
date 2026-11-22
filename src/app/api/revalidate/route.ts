@@ -6,7 +6,7 @@ import { SANITY_TAG } from "@/sanity/tags";
 /**
  * Called by a Sanity webhook whenever content is published, so the website
  * updates straight away instead of within the usual minute.
- * Requires SANITY_REVALIDATE_SECRET in Netlify and the same secret on the webhook.
+ * Requires SANITY_REVALIDATE_SECRET in Vercel and the same secret on the webhook.
  */
 export async function POST(req: NextRequest) {
   const secret = process.env.SANITY_REVALIDATE_SECRET;

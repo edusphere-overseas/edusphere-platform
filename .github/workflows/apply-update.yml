@@ -5,7 +5,8 @@ name: Apply update bundle
 
 on:
   push:
-    branches: [main]
+    # main, plus the free preview branch (Netlify deploy previews cost no credits)
+    branches: [main, netlify-skip-bundle-builds]
     paths: ["updates/APPLY"]
   workflow_dispatch:
 

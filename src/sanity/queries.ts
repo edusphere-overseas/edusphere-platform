@@ -14,7 +14,8 @@ export const SITE_QUERY = defineQuery(`{
     heroEyebrow, heroTitleLine1, heroTitleLine2, heroIntro, heroNote,
     "stats": stats[]{ value, label },
     intro,
-    sections
+    sections,
+    portalServices
   },
   "offices": *[_type == "office" && showOnWebsite == true && count(addressLines) > 0] | order(isHeadOffice desc, order asc){
     _id, name, legalName, isHeadOffice, country, countryCode, addressLines, mapQuery, googleBusinessUrl, googlePlaceId, timeZone, hours,

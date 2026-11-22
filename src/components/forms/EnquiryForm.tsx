@@ -3,6 +3,7 @@
 import { useId, useState, useSyncExternalStore } from "react";
 import { ArrowRight, CheckCircle2, Loader2 } from "lucide-react";
 import { WhatsAppIcon } from "@/components/icons";
+import { submitEnquiry } from "@/lib/enquiry";
 import { whatsappHref } from "@/lib/links";
 
 type Option = { value: string; label: string };
@@ -41,12 +42,12 @@ const field =
 const label = "block text-sm font-semibold text-white/85";
 
 /**
- * Enquiry form. Submissions go to Netlify Forms (form "enquiry", declared in
- * public/__forms.html) and arrive by email once notifications are set up.
+ * Enquiry form. Submissions are saved to the enquiry inbox in Supabase and emailed
+ * to the team (see lib/enquiry.ts). Until Supabase is connected, the form offers WhatsApp.
  */
 export function EnquiryForm({ destinations, offices, whatsapp }: Props) {
   const id = useId();
-  const [state, setState] = useState<"idle" | "sending" | "sent" | "error">("idle");
+  const [state, setState] = useState<"idle" | "sending" | "sent" | "error" | "invalid">("idle");
   const intakes = useSyncExternalStore(noSubscribe, browserIntakes, () => serverIntakes);
   const query = useSyncExternalStore(noSubscribe, browserQuery, serverQuery);
   const fromUrl = new URLSearchParams(query).get("destination") ?? "";
@@ -63,14 +64,13 @@ export function EnquiryForm({ destinations, offices, whatsapp }: Props) {
     const dest = destinations.find((o) => o.value === data.get("destination"));
     if (dest) data.set("destination", dest.label);
     try {
-      const res = await fetch("/__forms.html", {
-        method: "POST",
-        headers: { "Content-Type": "application/x-www-form-urlencoded" },
-        body: new URLSearchParams(data as unknown as Record<string, string>).toString(),
-      });
-      if (!res.ok) throw new Error(String(res.status));
-      setState("sent");
-      form.reset();
+      const result = await submitEnquiry(data);
+      if (result.ok) {
+        setState("sent");
+        form.reset();
+      } else {
+        setState(result.reason === "invalid" ? "invalid" : "error");
+      }
     } catch {
       setState("error");
     }
@@ -97,7 +97,6 @@ export function EnquiryForm({ destinations, offices, whatsapp }: Props) {
 
   return (
     <form name="enquiry" method="POST" onSubmit={onSubmit} className="grid gap-5" noValidate={false}>
-      <input type="hidden" name="form-name" value="enquiry" />
       <p className="hidden" aria-hidden="true">
         <label>
           Leave this empty: <input name="bot-field" tabIndex={-1} autoComplete="off" />
@@ -181,6 +180,12 @@ export function EnquiryForm({ destinations, offices, whatsapp }: Props) {
         <input id={`${id}-consent`} name="consent" type="checkbox" value="yes" required className="mt-1 h-4.5 w-4.5 shrink-0 accent-teal" />
         I agree that Edusphere Overseas may contact me by phone, WhatsApp or email about this enquiry. We use your details only to respond to you.
       </label>
+
+      {state === "invalid" && (
+        <p role="alert" className="rounded-xl border border-[#f08a8a]/40 bg-[#f08a8a]/10 px-4 py-3 text-sm text-white">
+          Please check your name and phone number, and tick the consent box, then send again.
+        </p>
+      )}
 
       {state === "error" && (
         <p role="alert" className="rounded-xl border border-[#f08a8a]/40 bg-[#f08a8a]/10 px-4 py-3 text-sm text-white">

@@ -1,14 +1,12 @@
 # Netlify detects Next.js automatically (OpenNext adapter).
 [build]
   command = "npm run build"
+  # Each production deploy uses Netlify credits. Skip the build when a commit only
+  # adds files under updates/ (parts of an update bundle); the workflow commit that
+  # applies the bundle changes real files and is built as normal. Errors build.
+  ignore = "git diff --quiet HEAD^ HEAD -- . ':(exclude)updates'"
 
 [build.environment]
   NODE_VERSION = "22"
 
-[[headers]]
-  for = "/*"
-  [headers.values]
-    X-Frame-Options = "DENY"
-    X-Content-Type-Options = "nosniff"
-    Referrer-Policy = "strict-origin-when-cross-origin"
-    Permissions-Policy = "camera=(), microphone=(), geolocation=()"
+# Security headers are set in next.config.ts, so they apply on any host (Vercel or Netlify).
