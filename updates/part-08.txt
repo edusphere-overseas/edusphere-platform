@@ -1,0 +1,567 @@
+export const LEVELS = ["Foundation or diploma", "Undergraduate", "Postgraduate", "MBA", "PhD"];
+export const FUNDING = ["Family savings", "Education loan", "Scholarship", "Sponsor or employer", "A mix of these", "Not sure yet"];
+export const TESTS = ["IELTS", "PTE", "TOEFL", "Duolingo", "GRE", "GMAT", "SAT", "Other"];
+#==EDU:FILE src/lib/portal/services.ts
+/**
+ * Student services that can be requested in the portal.
+ * Each has its own form, status steps and (in the admin dashboard) an owner.
+ * Switches and prices live in Content → Website settings → Portal services.
+ */
+
+export type ServiceKey = "airport_pickup" | "accommodation" | "post_study_work_visa" | "scholarship" | "uk_onshore";
+
+export type Field = {
+  name: string;
+  label: string;
+  type: "text" | "textarea" | "date" | "time" | "number" | "select";
+  required?: boolean;
+  options?: string[];
+  placeholder?: string;
+  hint?: string;
+  max?: number; // characters, or the highest number
+  min?: number;
+};
+
+export type ServiceDef = {
+  key: ServiceKey;
+  settingsKey: "airportPickup" | "accommodation" | "postStudyWorkVisa" | "scholarship" | "ukOnshore";
+  title: string;
+  summary: string;
+  icon: "plane" | "home" | "briefcase" | "award" | "landmark";
+  weDo: string;
+  steps: { key: string; label: string }[];
+  fields: Field[];
+  /** one line describing the request in lists */
+  describe: (d: Record<string, string>) => string;
+};
+
+const destinationOptions = ["United Kingdom", "Australia", "Canada", "United States", "New Zealand", "Ireland", "Europe (other)"];
+
+export const services: ServiceDef[] = [
+  {
+    key: "airport_pickup",
+    settingsKey: "airportPickup",
+    title: "Airport pickup and drop",
+    summary: "A trusted driver meets you on arrival, or takes you to the airport.",
+    icon: "plane",
+    weDo: "We arrange the pickup or drop with a trusted partner and send you the driver and meeting-point details.",
+    steps: [
+      { key: "requested", label: "Requested" },
+      { key: "confirmed", label: "Confirmed" },
+      { key: "details_sent", label: "Details sent" },
+      { key: "completed", label: "Completed" },
+    ],
+    fields: [
+      { name: "direction", label: "What do you need?", type: "select", required: true, options: ["Pickup when I arrive", "Drop for my departure", "Both"] },
+      { name: "airport", label: "Airport", type: "text", required: true, placeholder: "For example London Heathrow (LHR)", max: 120 },
+      { name: "flight", label: "Flight number", type: "text", required: true, placeholder: "For example AI 161", max: 20 },
+      { name: "date", label: "Date", type: "date", required: true },
+      { name: "time", label: "Landing or departure time (local)", type: "time", required: true },
+      { name: "passengers", label: "Passengers", type: "number", required: true, min: 1, max: 8 },
+      { name: "luggage", label: "Luggage", type: "text", required: true, placeholder: "For example 2 large suitcases and a backpack", max: 120 },
+      { name: "address", label: "Destination or pickup address", type: "textarea", required: true, placeholder: "Accommodation name and full address", max: 400 },
+      { name: "notes", label: "Anything else?", type: "textarea", max: 600 },
+    ],
+    describe: (d) => [d.direction, d.airport, d.date].filter(Boolean).join(" · "),
+  },
+  {
+    key: "accommodation",
+    settingsKey: "accommodation",
+    title: "Accommodation abroad",
+    summary: "Student halls or private rooms near your university, shortlisted for you.",
+    icon: "home",
+    weDo: "We shortlist student halls or private options and help with booking and paperwork.",
+    steps: [
+      { key: "requested", label: "Requested" },
+      { key: "options_sent", label: "Options sent" },
+      { key: "booked", label: "Booked" },
+      { key: "completed", label: "Completed" },
+    ],
+    fields: [
+      { name: "city", label: "City", type: "text", required: true, max: 80 },
+      { name: "university", label: "University", type: "text", required: true, max: 160 },
+      { name: "moveIn", label: "Move-in date", type: "date", required: true },
+      { name: "budget", label: "Budget", type: "text", required: true, placeholder: "For example £180 a week", max: 60 },
+      { name: "roomType", label: "Room type", type: "select", required: true, options: ["Shared room", "Private room", "En-suite room", "Studio", "Homestay", "Not sure yet"] },
+      { name: "preferences", label: "Preferences", type: "textarea", placeholder: "Food, distance to campus, sharing with friends…", max: 600 },
+    ],
+    describe: (d) => [d.city, d.university, d.moveIn && `from ${d.moveIn}`].filter(Boolean).join(" · "),
+  },
+  {
+    key: "post_study_work_visa",
+    settingsKey: "postStudyWorkVisa",
+    title: "Post-study work visa",
+    summary: "Help to check eligibility and prepare your post-study work visa application.",
+    icon: "briefcase",
+    weDo: "We check eligibility from official guidance, prepare your application checklist and review your application.",
+    steps: [
+      { key: "requested", label: "Requested" },
+      { key: "eligibility_checked", label: "Eligibility checked" },
+      { key: "documents_ready", label: "Documents ready" },
+      { key: "submitted", label: "Submitted" },
+      { key: "decision", label: "Decision" },
+    ],
+    fields: [
+      { name: "country", label: "Country you're studying in", type: "select", required: true, options: destinationOptions },
+      { name: "currentVisa", label: "Current visa", type: "text", required: true, placeholder: "For example Student visa", max: 80 },
+      { name: "visaExpiry", label: "Visa expiry date", type: "date", required: true },
+      { name: "courseEnd", label: "Course end date", type: "date", required: true },
+      { name: "notes", label: "Anything else?", type: "textarea", max: 600 },
+    ],
+    describe: (d) => [d.country, d.courseEnd && `course ends ${d.courseEnd}`].filter(Boolean).join(" · "),
+  },
+  {
+    key: "scholarship",
+    settingsKey: "scholarship",
+    title: "Scholarship assistance",
+    summary: "Scholarships matched to your profile, with deadlines planned and essays reviewed.",
+    icon: "award",
+    weDo: "We match scholarships to your profile, plan the deadlines and review your essays.",
+    steps: [
+      { key: "requested", label: "Requested" },
+      { key: "shortlist_sent", label: "Shortlist sent" },
+      { key: "applied", label: "Applied" },
+      { key: "result", label: "Result" },
+    ],
+    fields: [
+      { name: "universities", label: "Target universities", type: "textarea", required: true, max: 600 },
+      { name: "intake", label: "Intake", type: "text", required: true, placeholder: "For example September 2027", max: 40 },
+      { name: "awards", label: "Past awards or achievements", type: "textarea", max: 800 },
+      { name: "notes", label: "Anything else?", type: "textarea", max: 600 },
+    ],
+    describe: (d) => [d.intake].filter(Boolean).join(" · "),
+  },
+  {
+    key: "uk_onshore",
+    settingsKey: "ukOnshore",
+    title: "UK onshore admission and Graduate visa",
+    summary: "Already in the UK? Admission to a further course, with help on your Graduate visa application.",
+    icon: "landmark",
+    weDo: "Our London team checks your options, helps with admission and supports your Graduate visa application.",
+    steps: [
+      { key: "requested", label: "Requested" },
+      { key: "eligibility_checked", label: "Eligibility checked" },
+      { key: "admission_applied", label: "Admission applied" },
+      { key: "visa_submitted", label: "Visa submitted" },
+      { key: "decision", label: "Decision" },
+    ],
+    fields: [
+      { name: "currentVisa", label: "Current visa", type: "text", required: true, placeholder: "For example Student visa", max: 80 },
+      { name: "visaExpiry", label: "Visa expiry date", type: "date", required: true },
+      { name: "courseEnd", label: "Current course end date", type: "date", required: true },
+      { name: "intendedCourse", label: "Course you'd like to study next", type: "text", required: true, max: 160 },
+      { name: "notes", label: "Anything else?", type: "textarea", max: 600 },
+    ],
+    describe: (d) => [d.intendedCourse, d.courseEnd && `course ends ${d.courseEnd}`].filter(Boolean).join(" · "),
+  },
+];
+
+export const serviceByKey = (key: string) => services.find((s) => s.key === key);
+
+export const FINAL_STATUSES = ["completed", "decision", "result", "cancelled"];
+
+export function statusLabel(service: string, status: string) {
+  if (status === "cancelled") return "Cancelled";
+  return serviceByKey(service)?.steps.find((s) => s.key === status)?.label ?? status;
+}
+
+export type PortalServiceSetting = { show: boolean; price: string; includes: string[] };
+export type PortalServiceSettings = Record<ServiceDef["settingsKey"], PortalServiceSetting>;
+
+export const defaultPortalServices: PortalServiceSettings = {
+  airportPickup: { show: true, price: "", includes: [] },
+  accommodation: { show: true, price: "", includes: [] },
+  postStudyWorkVisa: { show: true, price: "", includes: [] },
+  scholarship: { show: true, price: "", includes: [] },
+  // UK immigration advice needs an IAA-regulated adviser: off until the London office is ready
+  ukOnshore: { show: false, price: "", includes: [] },
+};
+
+/** Check a submitted form against the service's fields. Returns clean values or errors. */
+export function validateServiceForm(def: ServiceDef, input: Record<string, string>) {
+  const values: Record<string, string> = {};
+  const errors: Record<string, string> = {};
+  for (const f of def.fields) {
+    const raw = (input[f.name] ?? "").trim();
+    if (!raw) {
+      if (f.required) errors[f.name] = f.type === "select" ? "Please choose one" : "Please fill this in";
+      continue;
+    }
+    if (f.type === "select" && f.options && !f.options.includes(raw)) {
+      errors[f.name] = "Please choose an option";
+    } else if (f.type === "date" && !/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
+      errors[f.name] = "Please enter a date";
+    } else if (f.type === "time" && !/^\d{2}:\d{2}$/.test(raw)) {
+      errors[f.name] = "Please enter a time";
+    } else if (f.type === "number") {
+      const n = Number(raw);
+      if (!Number.isInteger(n) || (f.min != null && n < f.min) || (f.max != null && n > f.max)) {
+        errors[f.name] = `Please enter a number from ${f.min ?? 0} to ${f.max ?? 99}`;
+      }
+    } else if (raw.length > (f.max ?? 400)) {
+      errors[f.name] = `Please keep this under ${f.max ?? 400} characters`;
+    }
+    values[f.name] = raw;
+  }
+  return { values, errors, ok: Object.keys(errors).length === 0 };
+}
+#==EDU:FILE src/lib/portal/storage.ts
+import "server-only";
+import { DeleteObjectCommand, GetObjectCommand, HeadObjectCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
+import { ALLOWED_TYPES, MAX_FILE_BYTES } from "./journey";
+
+/**
+ * Private document storage in Cloudflare R2 (any S3-compatible store works locally).
+ * Files are never public: uploads and downloads use signed links that expire in minutes.
+ */
+
+const bucket = () => process.env.R2_BUCKET ?? "";
+
+export const storageConfigured = () =>
+  Boolean(bucket() && process.env.R2_ACCESS_KEY_ID && process.env.R2_SECRET_ACCESS_KEY && (process.env.R2_ENDPOINT || process.env.R2_ACCOUNT_ID));
+
+let s3: S3Client | null = null;
+function client() {
+  if (!storageConfigured()) throw new Error("Document storage is not configured");
+  s3 ??= new S3Client({
+    region: "auto",
+    endpoint: process.env.R2_ENDPOINT || `https://${process.env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com`,
+    forcePathStyle: true,
+    credentials: { accessKeyId: process.env.R2_ACCESS_KEY_ID!, secretAccessKey: process.env.R2_SECRET_ACCESS_KEY! },
+    // R2 rejects the extra checksum headers newer SDKs add to signed browser uploads
+    requestChecksumCalculation: "WHEN_REQUIRED",
+    responseChecksumValidation: "WHEN_REQUIRED",
+  });
+  return s3;
+}
+
+/** Letters, digits, dot, dash and underscore only; keeps the extension. */
+export function safeFileName(name: string, mime: string) {
+  const ext = mime === "application/pdf" ? "pdf" : mime === "image/png" ? "png" : "jpg";
+  const base = name
+    .normalize("NFKD")
+    .replace(/\.[^.]*$/, "")
+    .replace(/[^A-Za-z0-9._-]+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^[-.]+|[-.]+$/g, "")
+    .slice(0, 80);
+  return `${base || "document"}.${ext}`;
+}
+
+export const objectKey = (studentId: string, documentId: string, fileName: string) => `students/${studentId}/${documentId}/${fileName}`;
+
+/** A link the browser uses to send one file, valid for 10 minutes. Type and size are part of the signature. */
+export async function signedUploadUrl(key: string, mime: string, size: number) {
+  return getSignedUrl(client(), new PutObjectCommand({ Bucket: bucket(), Key: key, ContentType: mime, ContentLength: size }), {
+    expiresIn: 600,
+    signableHeaders: new Set(["content-type", "content-length"]),
+  });
+}
+
+/** A link to open or download one file, valid for 5 minutes. */
+export async function signedDownloadUrl(key: string, fileName: string, mime: string, download = false) {
+  const disposition = `${download ? "attachment" : "inline"}; filename="${fileName.replace(/"/g, "")}"`;
+  return getSignedUrl(
+    client(),
+    new GetObjectCommand({ Bucket: bucket(), Key: key, ResponseContentDisposition: disposition, ResponseContentType: mime }),
+    { expiresIn: 300 },
+  );
+}
+
+const MAGIC: Record<(typeof ALLOWED_TYPES)[number], (b: Uint8Array) => boolean> = {
+  "application/pdf": (b) => b[0] === 0x25 && b[1] === 0x50 && b[2] === 0x44 && b[3] === 0x46, // %PDF
+  "image/png": (b) => b[0] === 0x89 && b[1] === 0x50 && b[2] === 0x4e && b[3] === 0x47,
+  "image/jpeg": (b) => b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff,
+};
+
+/**
+ * After the browser says the upload finished: the file must exist, match the size and
+ * type that were signed, and really be a PDF, JPG or PNG (checked from its first bytes).
+ */
+export async function verifyUpload(key: string, mime: string, size: number): Promise<{ ok: true } | { ok: false; reason: string }> {
+  try {
+    const head = await client().send(new HeadObjectCommand({ Bucket: bucket(), Key: key }));
+    if (!head.ContentLength || head.ContentLength !== size || head.ContentLength > MAX_FILE_BYTES) {
+      return { ok: false, reason: "The file size didn't match. Please try again." };
+    }
+    const part = await client().send(new GetObjectCommand({ Bucket: bucket(), Key: key, Range: "bytes=0-15" }));
+    const bytes = new Uint8Array(await part.Body!.transformToByteArray());
+    const check = MAGIC[mime as keyof typeof MAGIC];
+    if (!check || !check(bytes)) return { ok: false, reason: "That file isn't a real PDF, JPG or PNG." };
+    return { ok: true };
+  } catch (error) {
+    const name = (error as { name?: string })?.name;
+    if (name === "NotFound" || name === "NoSuchKey") return { ok: false, reason: "The upload didn't arrive. Please try again." };
+    throw error;
+  }
+}
+
+export async function deleteObject(key: string) {
+  await client().send(new DeleteObjectCommand({ Bucket: bucket(), Key: key }));
+}
+#==EDU:FILE src/lib/portal/urls.ts
+/** Only same-site paths are allowed after sign-in (no links to other websites). */
+export function safeNext(next: unknown, fallback = "/portal") {
+  const value = typeof next === "string" ? next : "";
+  if (!value.startsWith("/") || value.startsWith("//") || value.startsWith("/\\")) return fallback;
+  return value;
+}
+#==EDU:FILE src/lib/supabase/admin.ts
+import "server-only";
+import { createClient } from "@supabase/supabase-js";
+import type { Database } from "./database.types";
+import { supabaseUrl } from "./env";
+
+/**
+ * Supabase with full access, for the few server-side steps that need it (inviting a
+ * student, confirming a checked upload, looking up who to email). Never sent to a browser.
+ */
+export function createAdminClient() {
+  const key = process.env.SUPABASE_SECRET_KEY ?? process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!supabaseUrl || !key) throw new Error("SUPABASE_SECRET_KEY is not set");
+  return createClient<Database>(supabaseUrl, key, {
+    auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
+  });
+}
+#==EDU:FILE src/lib/supabase/database.types.ts
+
+export type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[]
+
+export type Database = {
+  
+  "public": {
+          Tables: {
+            "activity_log": {
+                  Row: {
+                    "action": string,"actor_id": string | null,"created_at": string,"details": NonNullable<Json>,"entity": string,"entity_id": string | null,"id": number,"student_id": string | null
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "action": string,"actor_id"?: string | null,"created_at"?: string,"details"?: NonNullable<Json>,"entity": string,"entity_id"?: string | null,"id"?: never,"student_id"?: string | null
+                  }
+                  Update: {
+                    "action"?: string,"actor_id"?: string | null,"created_at"?: string,"details"?: NonNullable<Json>,"entity"?: string,"entity_id"?: string | null,"id"?: never,"student_id"?: string | null
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "activity_log_actor_id_fkey"
+      columns: ["actor_id"]
+isOneToOne: false
+      referencedRelation: "profiles"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "activity_log_student_id_fkey"
+      columns: ["student_id"]
+isOneToOne: false
+      referencedRelation: "profiles"
+      referencedColumns: ["id"]
+    }
+                  ]
+                },"application_events": {
+                  Row: {
+                    "application_id": string,"changed_by": string | null,"created_at": string,"id": number,"stage": string,"status": string
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "application_id": string,"changed_by"?: string | null,"created_at"?: string,"id"?: never,"stage": string,"status": string
+                  }
+                  Update: {
+                    "application_id"?: string,"changed_by"?: string | null,"created_at"?: string,"id"?: never,"stage"?: string,"status"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "application_events_application_id_fkey"
+      columns: ["application_id"]
+isOneToOne: false
+      referencedRelation: "applications"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "application_events_changed_by_fkey"
+      columns: ["changed_by"]
+isOneToOne: false
+      referencedRelation: "profiles"
+      referencedColumns: ["id"]
+    }
+                  ]
+                },"applications": {
+                  Row: {
+                    "country": string | null,"course": string,"created_at": string,"created_by": string | null,"deadline": string | null,"id": string,"intake": string | null,"note": string | null,"stage": string,"status": string,"student_id": string,"university": string,"updated_at": string
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "country"?: string | null,"course"?: string,"created_at"?: string,"created_by"?: string | null,"deadline"?: string | null,"id"?: string,"intake"?: string | null,"note"?: string | null,"stage"?: string,"status"?: string,"student_id": string,"university": string,"updated_at"?: string
+                  }
+                  Update: {
+                    "country"?: string | null,"course"?: string,"created_at"?: string,"created_by"?: string | null,"deadline"?: string | null,"id"?: string,"intake"?: string | null,"note"?: string | null,"stage"?: string,"status"?: string,"student_id"?: string,"university"?: string,"updated_at"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "applications_created_by_fkey"
+      columns: ["created_by"]
+isOneToOne: false
+      referencedRelation: "profiles"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "applications_student_id_fkey"
+      columns: ["student_id"]
+isOneToOne: false
+      referencedRelation: "profiles"
+      referencedColumns: ["id"]
+    }
+                  ]
+                },"consents": {
+                  Row: {
+                    "given_at": string,"id": string,"kind": string,"student_id": string | null,"user_id": string,"version": string
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "given_at"?: string,"id"?: string,"kind": string,"student_id"?: string | null,"user_id": string,"version": string
+                  }
+                  Update: {
+                    "given_at"?: string,"id"?: string,"kind"?: string,"student_id"?: string | null,"user_id"?: string,"version"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "consents_student_id_fkey"
+      columns: ["student_id"]
+isOneToOne: false
+      referencedRelation: "profiles"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "consents_user_id_fkey"
+      columns: ["user_id"]
+isOneToOne: false
+      referencedRelation: "profiles"
+      referencedColumns: ["id"]
+    }
+                  ]
+                },"documents": {
+                  Row: {
+                    "application_id": string | null,"created_at": string,"doc_type": string,"file_key": string,"file_name": string,"id": string,"label": string | null,"mime_type": string,"replaces": string | null,"reviewed_at": string | null,"reviewed_by": string | null,"reviewer_reason": string | null,"service_request_id": string | null,"size_bytes": number,"status": string,"student_id": string,"updated_at": string,"uploaded_by": string | null
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "application_id"?: string | null,"created_at"?: string,"doc_type": string,"file_key": string,"file_name": string,"id"?: string,"label"?: string | null,"mime_type": string,"replaces"?: string | null,"reviewed_at"?: string | null,"reviewed_by"?: string | null,"reviewer_reason"?: string | null,"service_request_id"?: string | null,"size_bytes": number,"status"?: string,"student_id": string,"updated_at"?: string,"uploaded_by"?: string | null
+                  }
+                  Update: {
+                    "application_id"?: string | null,"created_at"?: string,"doc_type"?: string,"file_key"?: string,"file_name"?: string,"id"?: string,"label"?: string | null,"mime_type"?: string,"replaces"?: string | null,"reviewed_at"?: string | null,"reviewed_by"?: string | null,"reviewer_reason"?: string | null,"service_request_id"?: string | null,"size_bytes"?: number,"status"?: string,"student_id"?: string,"updated_at"?: string,"uploaded_by"?: string | null
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "documents_application_id_fkey"
+      columns: ["application_id"]
+isOneToOne: false
+      referencedRelation: "applications"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "documents_replaces_fkey"
+      columns: ["replaces"]
+isOneToOne: false
+      referencedRelation: "documents"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "documents_reviewed_by_fkey"
+      columns: ["reviewed_by"]
+isOneToOne: false
+      referencedRelation: "profiles"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "documents_service_request_id_fkey"
+      columns: ["service_request_id"]
+isOneToOne: false
+      referencedRelation: "service_requests"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "documents_student_id_fkey"
+      columns: ["student_id"]
+isOneToOne: false
+      referencedRelation: "profiles"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "documents_uploaded_by_fkey"
+      columns: ["uploaded_by"]
+isOneToOne: false
+      referencedRelation: "profiles"
+      referencedColumns: ["id"]
+    }
+                  ]
+                },"leads": {
+                  Row: {
+                    "assigned_to": string | null,"created_at": string,"email": string | null,"id": string,"interest": string | null,"message": string | null,"name": string | null,"office": string,"phone": string | null,"profile_id": string | null,"source": string,"status": string,"updated_at": string
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "assigned_to"?: string | null,"created_at"?: string,"email"?: string | null,"id"?: string,"interest"?: string | null,"message"?: string | null,"name"?: string | null,"office"?: string,"phone"?: string | null,"profile_id"?: string | null,"source": string,"status"?: string,"updated_at"?: string
+                  }
+                  Update: {
+                    "assigned_to"?: string | null,"created_at"?: string,"email"?: string | null,"id"?: string,"interest"?: string | null,"message"?: string | null,"name"?: string | null,"office"?: string,"phone"?: string | null,"profile_id"?: string | null,"source"?: string,"status"?: string,"updated_at"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "leads_assigned_to_fkey"
+      columns: ["assigned_to"]
+isOneToOne: false
+      referencedRelation: "profiles"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "leads_profile_id_fkey"
+      columns: ["profile_id"]
+isOneToOne: true
+      referencedRelation: "profiles"
+      referencedColumns: ["id"]
+    }
+                  ]
+                },"messages": {
+                  Row: {
+                    "body": string,"created_at": string,"id": string,"sender_id": string | null,"sender_name": string | null,"sender_role": string | null,"service_request_id": string | null,"student_id": string
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "body": string,"created_at"?: string,"id"?: string,"sender_id"?: string | null,"sender_name"?: string | null,"sender_role"?: string | null,"service_request_id"?: string | null,"student_id": string
+                  }
+                  Update: {
+                    "body"?: string,"created_at"?: string,"id"?: string,"sender_id"?: string | null,"sender_name"?: string | null,"sender_role"?: string | null,"service_request_id"?: string | null,"student_id"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "messages_sender_id_fkey"
+      columns: ["sender_id"]
+isOneToOne: false
+      referencedRelation: "profiles"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "messages_service_request_id_fkey"
+      columns: ["service_request_id"]
+isOneToOne: false
+      referencedRelation: "service_requests"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "messages_student_id_fkey"
+      columns: ["student_id"]
+isOneToOne: false
+      referencedRelation: "profiles"
+      referencedColumns: ["id"]
+    }
+                  ]
+                },"parent_links": {
+                  Row: {
+                    "created_at": string,"decided_at": string | null,"guardian_confirmed_at": string,"id": string,"parent_id": string,"relationship": string,"requested_as": string | null,"requested_via": string,"status": string,"student_id": string,"updated_at": string
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "created_at"?: string,"decided_at"?: string | null,"guardian_confirmed_at": string,"id"?: string,"parent_id": string,"relationship"?: string,"requested_as"?: string | null,"requested_via": string,"status"?: string,"student_id": string,"updated_at"?: string
+                  }
+                  Update: {
+                    "created_at"?: string,"decided_at"?: string | null,"guardian_confirmed_at"?: string,"id"?: string,"parent_id"?: string,"relationship"?: string,"requested_as"?: string | null,"requested_via"?: string,"status"?: string,"student_id"?: string,"updated_at"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "parent_links_parent_id_fkey"
+      columns: ["parent_id"]
+isOneToOne: false
+      referencedRelation: "profiles"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "parent_links_student_id_fkey"
+      columns: ["student_id"]
