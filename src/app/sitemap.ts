@@ -15,6 +15,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     "/faqs",
     "/about",
     "/contact",
+    "/privacy",
     ...(c.sections.courseFinder ? ["/course-finder"] : []),
   ];
   return [

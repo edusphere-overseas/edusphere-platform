@@ -257,6 +257,12 @@ export function SignUpForm({ next, initialRole }: { next?: string; initialRole?:
           <input name="consent" type="checkbox" required className="mt-0.5 h-5 w-5 shrink-0 accent-teal" />
           <span>{role === "student" ? consentText.student : consentText.parent}</span>
         </label>
+        <p className="-mt-2 pl-8 text-xs text-slate">
+          How we use your data:{" "}
+          <Link href="/privacy" target="_blank" className="font-semibold text-teal hover:text-navy">
+            Privacy policy
+          </Link>
+        </p>
         <Turnstile resetKey={state} />
         <FormError message={state?.error} />
         <SubmitButton className={`${btnPrimary} w-full`} pending="Creating your account…">
@@ -386,6 +392,12 @@ export function WelcomeForm({
           <input name="consent" type="checkbox" required className="mt-0.5 h-5 w-5 shrink-0 accent-teal" />
           <span>{role === "student" ? consentText.student : consentText.parent}</span>
         </label>
+        <p className="-mt-2 pl-8 text-xs text-slate">
+          How we use your data:{" "}
+          <Link href="/privacy" target="_blank" className="font-semibold text-teal hover:text-navy">
+            Privacy policy
+          </Link>
+        </p>
         <FormError message={state?.error} />
         <SubmitButton className={`${btnPrimary} w-full`} pending="Saving…">
           Continue to the portal

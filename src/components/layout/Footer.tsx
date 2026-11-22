@@ -123,7 +123,10 @@ export function Footer({ content: c }: { content: SiteContent }) {
       <div className="border-t border-white/8">
         <div className="mx-auto flex max-w-7xl flex-col gap-2 px-5 py-6 text-xs text-white/45 sm:flex-row sm:items-center sm:justify-between sm:px-8">
           <p>
-            © {COPYRIGHT_YEAR} {legal}. All rights reserved.
+            © {COPYRIGHT_YEAR} {legal}. All rights reserved.{" "}
+            <Link href="/privacy" className="ml-2 text-white/60 underline-offset-4 transition hover:text-white hover:underline">
+              Privacy policy
+            </Link>
           </p>
           <p>{c.tagline}</p>
         </div>

@@ -180,6 +180,12 @@ export function EnquiryForm({ destinations, offices, whatsapp }: Props) {
         <input id={`${id}-consent`} name="consent" type="checkbox" value="yes" required className="mt-1 h-4.5 w-4.5 shrink-0 accent-teal" />
         I agree that Edusphere Overseas may contact me by phone, WhatsApp or email about this enquiry. We use your details only to respond to you.
       </label>
+      <p className="-mt-2 pl-8 text-xs text-white/55">
+        How we use your data:{" "}
+        <a href="/privacy" target="_blank" className="font-semibold text-teal-light underline-offset-4 hover:underline">
+          Privacy policy
+        </a>
+      </p>
 
       {state === "invalid" && (
         <p role="alert" className="rounded-xl border border-[#f08a8a]/40 bg-[#f08a8a]/10 px-4 py-3 text-sm text-white">
