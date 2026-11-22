@@ -16,6 +16,7 @@ import {
   slugify,
 } from "@/config/defaults";
 import { sanityQuery } from "@/sanity/fetch";
+import { defaultPortalServices, type PortalServiceSetting, type PortalServiceSettings } from "@/lib/portal/services";
 import { defaultIntro, introSettings, type IntroSettings } from "./intro";
 import { LIBRARY_QUERY, POST_QUERY, SITE_QUERY } from "@/sanity/queries";
 
@@ -140,6 +141,7 @@ export type SiteContent = {
   stats: { value: string; label: string }[];
   intro: IntroSettings;
   sections: Sections;
+  portalServices: PortalServiceSettings;
   offices: Office[];
   ticker: { tag: string; text: string; link?: string | null }[];
   banners: Banner[];
@@ -197,6 +199,7 @@ function defaults(): SiteContent {
     stats: defaultStats(defaultDestinations.length, serviceDetails.length),
     intro: defaultIntro,
     sections: defaultSections,
+    portalServices: defaultPortalServices,
     offices: defaultOffices
       .filter((o) => o.showOnWebsite)
       .map((o) => ({
@@ -255,6 +258,7 @@ type QueryResult = {
     stats?: { value: string; label: string }[] | null;
     intro?: Partial<IntroSettings> | null;
     sections?: Partial<Sections> | null;
+    portalServices?: Partial<Record<keyof PortalServiceSettings, Partial<PortalServiceSetting> | null>> | null;
   }> | null;
   offices: (Omit<Office, "id" | "contacts" | "photos" | "mapQuery" | "hours"> & {
     _id: string;
@@ -306,6 +310,7 @@ export async function getSiteContent(): Promise<SiteContent> {
     stats: s.stats?.length ? s.stats : defaultStats((data.destinations ?? []).length || fallback.destinations.length, (data.services ?? []).length || fallback.services.length),
     intro: introSettings(s.intro),
     sections: { ...defaultSections, ...(s.sections ?? {}) },
+    portalServices: portalServiceSettings(s.portalServices),
     offices: (data.offices ?? []).map((o) => ({
       ...o,
       id: o._id,
@@ -429,3 +434,17 @@ export async function getPost(slug: string): Promise<Post | null> {
 }
 
 export { telHref, whatsappHref } from "./links";
+
+function portalServiceSettings(raw?: Partial<Record<keyof PortalServiceSettings, Partial<PortalServiceSetting> | null>> | null): PortalServiceSettings {
+  const out = { ...defaultPortalServices };
+  for (const key of Object.keys(out) as (keyof PortalServiceSettings)[]) {
+    const r = raw?.[key];
+    if (!r) continue;
+    out[key] = {
+      show: r.show ?? out[key].show,
+      price: (r.price ?? "").trim(),
+      includes: (r.includes ?? []).map((x) => x.trim()).filter(Boolean),
+    };
+  }
+  return out;
+}

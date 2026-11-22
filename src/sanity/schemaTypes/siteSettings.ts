@@ -13,6 +13,7 @@ export const siteSettings = defineType({
     { name: "trust", title: "Numbers" },
     { name: "switches", title: "Section switches" },
     { name: "intro", title: "Logo intro" },
+    { name: "portal", title: "Portal services" },
   ],
   fields: [
     defineField({ name: "companyName", type: "string", group: "company", validation: (r) => r.required() }),
@@ -121,6 +122,54 @@ export const siteSettings = defineType({
         defineField({ name: "gallery", title: "Office photos (About page)", type: "boolean", initialValue: true }),
       ],
     }),
+    defineField({
+      name: "portalServices",
+      title: "Services students can request in the portal",
+      type: "object",
+      group: "portal",
+      description:
+        "Switch each service on or off. If a service is paid, enter the price: the portal shows it, with what's included, before the student confirms. Leave the price empty if there's no charge. Payment is confirmed by staff for now.",
+      options: { collapsible: false },
+      fields: [
+        portalService("airportPickup", "Airport pickup and drop", true),
+        portalService("accommodation", "Accommodation abroad", true),
+        portalService("postStudyWorkVisa", "Post-study work visa", true),
+        portalService("scholarship", "Scholarship assistance", true),
+        portalService(
+          "ukOnshore",
+          "UK onshore admission and Graduate visa",
+          false,
+          "UK immigration advice may only be given by an IAA-regulated adviser or solicitor. Switch this on once the London office is registered or works with a regulated partner.",
+        ),
+      ],
+    }),
   ],
   preview: { prepare: () => ({ title: "Website settings" }) },
 });
+
+function portalService(name: string, title: string, on: boolean, note?: string) {
+  return defineField({
+    name,
+    title,
+    type: "object",
+    description: note,
+    options: { collapsible: true, collapsed: true },
+    fields: [
+      defineField({ name: "show", title: "Students can request this", type: "boolean", initialValue: on }),
+      defineField({
+        name: "price",
+        title: "Price",
+        type: "string",
+        description: 'For example "₹2,500" or "£45 per trip". Leave empty if there is no charge.',
+        validation: (r) => r.max(60),
+      }),
+      defineField({
+        name: "includes",
+        title: "What's included",
+        type: "array",
+        of: [{ type: "string" }],
+        description: "Shown before the student confirms. One line each.",
+      }),
+    ],
+  });
+}

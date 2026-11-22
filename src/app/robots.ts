@@ -8,7 +8,7 @@ import { site } from "@/config/site";
 export default function robots(): MetadataRoute.Robots {
   if (process.env.SITE_LAUNCHED !== "true") return { rules: { userAgent: "*", disallow: "/" } };
   return {
-    rules: { userAgent: "*", allow: "/", disallow: ["/admin", "/portal", "/api", "/__forms.html"] },
+    rules: { userAgent: "*", allow: "/", disallow: ["/admin", "/portal", "/api", "/__forms.html", "/sign-in", "/sign-up", "/forgot-password", "/reset-password", "/welcome", "/auth"] },
     sitemap: `${site.url}/sitemap.xml`,
     host: site.url,
   };
