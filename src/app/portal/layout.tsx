@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { Suspense } from "react";
 import { Logo } from "@/components/brand/Logo";
 import { AccountMenu } from "@/components/portal/AccountMenu";
@@ -64,6 +65,8 @@ function ShellLoading() {
 
 async function PortalFrame({ children }: { children: React.ReactNode }) {
   const p = await getPortal();
+  // Counsellors and admins work in the staff dashboard
+  if (p.role === "admin" || p.role === "counsellor") redirect("/staff");
   return (
     <>
       <HeaderBar>
@@ -76,9 +79,9 @@ async function PortalFrame({ children }: { children: React.ReactNode }) {
       <main id="main" className="mx-auto max-w-6xl px-4 pt-6 pb-32 sm:px-8 sm:pt-10 lg:pb-16">
         {p.staff ? (
           <Notice title="Staff accounts" tone="info">
-            Student records for staff open in the admin dashboard, which comes in the next step of the build.{" "}
-            <Link href="/admin" className="font-semibold underline">
-              Go to the admin portal
+            Content editors work in the website content area.{" "}
+            <Link href="/admin/content" className="font-semibold underline">
+              Open Content
             </Link>
           </Notice>
         ) : (

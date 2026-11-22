@@ -17,11 +17,11 @@ const areas = [
     ready: true,
   },
   {
-    href: "#",
+    href: "/staff",
     icon: ClipboardList,
-    title: "Operations",
-    text: "Enquiries, students, documents, applications, appointments and service requests.",
-    ready: false,
+    title: "Students and enquiries",
+    text: "The staff dashboard: enquiries, students, documents, applications, service requests and messages.",
+    ready: true,
   },
 ];
 
@@ -69,8 +69,8 @@ export default function AdminHome() {
           )}
         </div>
         <p className="mt-10 text-sm text-white/45">
-          Sign in to Content with the Sanity account you were invited to. Changes appear on the website within about a
-          minute of publishing.
+          Content uses the Sanity account you were invited to; changes appear on the website within about a minute of
+          publishing. The staff dashboard uses your Edusphere portal sign-in.
         </p>
       </main>
     </div>

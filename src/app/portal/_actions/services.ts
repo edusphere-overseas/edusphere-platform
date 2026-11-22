@@ -42,7 +42,7 @@ export async function requestService(_: ServiceFormState, form: FormData): Promi
   const contacts = await familyContacts(studentId);
   await emails.serviceRequested(contacts.family, def.title, contacts.studentName);
   const staff = contacts.counsellorEmail ?? staffInbox();
-  if (staff) await emails.staffServiceRequested(staff, def.title, contacts.studentName, def.describe(values));
+  if (staff) await emails.staffServiceRequested(staff, def.title, contacts.studentName, def.describe(values), `/staff/students/${studentId}/services/${data.id}`);
 
   redirect(`/portal/services/${data.id}?new=1`);
 }

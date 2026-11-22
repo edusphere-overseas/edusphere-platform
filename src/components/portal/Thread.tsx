@@ -3,7 +3,7 @@ import { Composer } from "./Composer";
 import { formatDate } from "./ui";
 
 /** A message thread: the general one with the counsellor, or one per service request. */
-export async function Thread({ p, studentId, requestId, empty }: { p: Portal; studentId: string; requestId?: string; empty: string }) {
+export async function Thread({ p, studentId, requestId, empty, placeholder }: { p: Pick<Portal, "supabase" | "userId">; studentId: string; requestId?: string; empty: string; placeholder?: string }) {
   let q = p.supabase.from("messages").select("id, body, sender_id, sender_name, sender_role, created_at").eq("student_id", studentId);
   q = requestId ? q.eq("service_request_id", requestId) : q.is("service_request_id", null);
   const { data: messages } = await q.order("created_at", { ascending: true }).limit(200);
@@ -30,7 +30,7 @@ export async function Thread({ p, studentId, requestId, empty }: { p: Portal; st
       ) : (
         <p className="mb-5 text-sm text-slate">{empty}</p>
       )}
-      <Composer studentId={studentId} requestId={requestId} />
+      <Composer studentId={studentId} requestId={requestId} placeholder={placeholder} />
     </div>
   );
 }

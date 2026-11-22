@@ -27,7 +27,8 @@ export async function proxy(request: NextRequest) {
   const signedIn = Boolean(data?.claims?.sub);
   const { pathname, search } = request.nextUrl;
 
-  if (!signedIn && (pathname === "/portal" || pathname.startsWith("/portal/") || pathname === "/welcome")) {
+  const isPrivate = ["/portal", "/staff"].some((p) => pathname === p || pathname.startsWith(p + "/")) || pathname === "/welcome";
+  if (!signedIn && isPrivate) {
     const url = request.nextUrl.clone();
     url.pathname = "/sign-in";
     url.search = "";
@@ -52,5 +53,5 @@ function redirectWith(response: NextResponse, url: URL) {
 }
 
 export const config = {
-  matcher: ["/portal/:path*", "/welcome", "/sign-in", "/sign-up", "/reset-password", "/auth/:path*"],
+  matcher: ["/portal/:path*", "/staff/:path*", "/welcome", "/sign-in", "/sign-up", "/reset-password", "/auth/:path*"],
 };

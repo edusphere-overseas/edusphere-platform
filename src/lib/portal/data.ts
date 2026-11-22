@@ -3,6 +3,9 @@ import type { Portal } from "./context";
 import { buildChecklist, itemStatus, OTHER_DOC, type ChecklistItem, type DocStatus } from "./journey";
 import type { Tables } from "@/lib/supabase/database.types";
 
+/** Anything with a signed-in database client: the portal for families, or the staff dashboard. */
+type Db = Pick<Portal, "supabase">;
+
 export type DocRow = Tables<"documents">;
 export type ApplicationRow = Tables<"applications">;
 export type RequestRow = Tables<"service_requests">;
@@ -13,7 +16,7 @@ export function checklistCountries(apps: Pick<ApplicationRow, "country" | "statu
   return fromApps.length ? fromApps : (preferred ?? []);
 }
 
-export async function loadDocuments(p: Portal, studentId: string) {
+export async function loadDocuments(p: Db, studentId: string) {
   const { data } = await p.supabase
     .from("documents")
     .select("*")
@@ -23,12 +26,12 @@ export async function loadDocuments(p: Portal, studentId: string) {
   return data ?? [];
 }
 
-export async function loadApplications(p: Portal, studentId: string) {
+export async function loadApplications(p: Db, studentId: string) {
   const { data } = await p.supabase.from("applications").select("*").eq("student_id", studentId).order("created_at", { ascending: true });
   return data ?? [];
 }
 
-export async function loadRequests(p: Portal, studentId: string) {
+export async function loadRequests(p: Db, studentId: string) {
   const { data } = await p.supabase.from("service_requests").select("*").eq("student_id", studentId).order("created_at", { ascending: false });
   return data ?? [];
 }

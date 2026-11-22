@@ -59,8 +59,10 @@ export async function sendEmail(email: Email) {
   }
 }
 
-/** Where staff notifications go until the admin dashboard assigns owners. */
+/** Where staff notifications go when a student has no counsellor yet. */
 export const staffInbox = () => process.env.STAFF_EMAIL ?? "";
+
+const shorten = (s: string, max = 280) => (s.length > max ? s.slice(0, max - 1) + "…" : s);
 
 // ---------------------------------------------------------------------
 // Messages
@@ -101,25 +103,34 @@ export const emails = {
       button: { label: "View the request", path: "/portal/services" },
     }),
 
-  staffServiceRequested: (to: string, serviceTitle: string, studentName: string, summary: string) =>
+  staffServiceRequested: (to: string, serviceTitle: string, studentName: string, summary: string, path = "/staff") =>
     sendEmail({
       to,
       subject: `New request: ${serviceTitle} for ${studentName}`,
       heading: `New ${serviceTitle.toLowerCase()} request`,
       lines: [`${studentName} requested ${serviceTitle.toLowerCase()}.`, summary].filter(Boolean),
-      button: { label: "Open the admin portal", path: "/admin" },
+      button: { label: "Open in the staff dashboard", path },
     }),
 
-  newMessageForStaff: (to: string, studentName: string, preview: string) =>
+  newMessageForStaff: (to: string, studentName: string, preview: string, path = "/staff") =>
     sendEmail({
       to,
       subject: `New portal message about ${studentName}`,
       heading: `New message about ${studentName}`,
-      lines: [preview.length > 280 ? preview.slice(0, 277) + "…" : preview],
-      button: { label: "Open the admin portal", path: "/admin" },
+      lines: [shorten(preview)],
+      button: { label: "Reply in the staff dashboard", path },
     }),
 
-  // Sent from the admin dashboard (Step 5)
+  // Sent from the staff dashboard
+  newMessageForFamily: (to: string[], senderName: string, preview: string, path: string) =>
+    sendEmail({
+      to,
+      subject: `New message from ${senderName} at Edusphere`,
+      heading: `${senderName} sent you a message`,
+      lines: [shorten(preview), "Reply in the portal so your counsellor and linked family members all see it."],
+      button: { label: "Read and reply", path },
+    }),
+
   documentDecision: (to: string[], documentName: string, approved: boolean, reason?: string | null) =>
     sendEmail({
       to,
