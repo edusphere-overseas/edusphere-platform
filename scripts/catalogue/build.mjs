@@ -4,10 +4,11 @@
  * Run by .github/workflows/catalogue.yml (monthly, or when data/catalogue/REFRESH is committed).
  *
  * Sources (all free to reuse, credited on the course finder page):
- *  - UK: Discover Uni dataset (HESA / OfS), CC BY 4.0: universities and undergraduate courses
+ *  - UK: Discover Uni dataset (HESA / OfS), CC BY 4.0: universities and undergraduate courses;
+ *    if it can't be downloaded, the Home Office register of student sponsors (OGL): institutions only
  *  - Australia: CRICOS (Department of Education), CC BY: providers and courses for student-visa holders
  *  - USA: College Scorecard (US Department of Education), public domain: colleges and fields of study
- *  - Canada: IRCC list of post-secondary designated learning institutions: institutions only
+ *  - Canada: IRCC list of designated learning institutions (OGL – Canada): institutions only
  *  - New Zealand and Europe: Wikidata, CC0: universities only
  *
  * Each source is independent: if one fails, that country keeps its previous data and the
@@ -403,26 +404,31 @@ async function australia() {
 // USA: College Scorecard
 // ---------------------------------------------------------------------------
 
+// Last known download links (Nov 2026), used if the data page can't be read
+const SCORECARD_FALLBACK = {
+  inst: "https://ed-public-download.scorecard.network/downloads/Most-Recent-Cohorts-Institution_11022026.zip",
+  fos: "https://ed-public-download.scorecard.network/downloads/Most-Recent-Cohorts-Field-of-Study_10152026.zip",
+};
+
 async function scorecardUrls() {
   const found = {};
-  try {
-    const html = await getText("https://collegescorecard.ed.gov/data/");
-    for (const m of html.matchAll(/href="([^"]+\.zip)"/gi)) {
-      const u = new URL(m[1], "https://collegescorecard.ed.gov/data/").toString();
-      if (/Most-Recent-Cohorts-Institution/i.test(u)) found.inst ??= u;
-      if (/Most-Recent-Cohorts-Field-of-Study/i.test(u)) found.fos ??= u;
+  const scan = (text) => {
+    for (const m of text.matchAll(/https?:[^"'\s<>]+?Most-Recent-Cohorts-(Institution|Field-of-Study)[^"'\s<>]*?\.zip/gi)) {
+      const u = m[0].replace(/\\u002F/gi, "/").replace(/\\\//g, "/");
+      if (/Institution/i.test(m[1])) found.inst ??= u;
+      else found.fos ??= u;
     }
-  } catch (e) {
-    log("scorecard page:", e.message);
-  }
-  if (!found.inst || !found.fos) {
-    const pkg = await getJson("https://data.ed.gov/api/3/action/package_show?id=9dc70e6b-8426-4d71-b9d5-70ce6094a3f4");
-    for (const r of pkg.result.resources) {
-      if (/institution/i.test(r.name) && /most recent/i.test(r.name)) found.inst ??= r.url;
-      if (/field of study/i.test(r.name) && /most recent/i.test(r.name)) found.fos ??= r.url;
+  };
+  for (const page of ["https://collegescorecard.ed.gov/data/", "https://collegescorecard.ed.gov/data/_payload.json"]) {
+    if (found.inst && found.fos) break;
+    try {
+      scan(await getText(page, { headers: { accept: "text/html,application/json" } }));
+    } catch (e) {
+      log("scorecard page:", e.message);
     }
   }
-  if (!found.inst || !found.fos) throw new Error("College Scorecard: download links not found");
+  found.inst ??= SCORECARD_FALLBACK.inst;
+  found.fos ??= SCORECARD_FALLBACK.fos;
   return found;
 }
 
@@ -484,6 +490,46 @@ async function usa() {
 // ---------------------------------------------------------------------------
 
 async function uk() {
+  try {
+    return await discoverUni();
+  } catch (error) {
+    log("Discover Uni unavailable, using the register of student sponsors:", error.message);
+    const info = await ukSponsors();
+    return { ...info, coursesFrom: "none", discoverUniError: String(error.message).slice(0, 300) };
+  }
+}
+
+/** UK universities and colleges licensed to teach international students (GOV.UK, Open Government Licence). */
+async function ukSponsors() {
+  const page = await getJson("https://www.gov.uk/api/content/government/publications/register-of-licensed-sponsors-students");
+  const att = (page.details?.attachments ?? []).find((a) => /csv/i.test(a.content_type || a.url));
+  if (!att) throw new Error("Student sponsor register: no CSV attachment");
+  const file = await download(att.url, "uk-sponsors.csv");
+  const { rows } = await readTable(
+    file,
+    { name: ["Sponsor Name", "Organisation Name"], city: ["Town/City"], type: ["Sponsor Type"], route: ["Route"], status: ["Status"] },
+    ["name", "type", "route"],
+    "Student sponsor register",
+  );
+  const rank = { "higher education institution (hei)": 3, "embedded college offering pathway courses": 2, "publicly funded college": 1, "private provider": 1 };
+  const byId = new Map();
+  for (const r of rows) {
+    if (r.route.toLowerCase() !== "student") continue;
+    const k = rank[r.type.toLowerCase()];
+    if (!k) continue; // schools and overseas universities
+    const name = clean(r.name);
+    const id = `uk-s-${norm(name).slice(0, 34)}`;
+    if (byId.has(id)) continue;
+    const city = clean(r.city);
+    byId.set(id, { i: id, n: name, c: "uk", r: "", t: /^various$/i.test(city) ? "" : titleCase(city), w: "", k: k * 1000 + (/universit/i.test(name) ? 500 : 0) });
+  }
+  if (byId.size < 100) throw new Error(`Student sponsor register: only ${byId.size} sponsors`);
+  universities.uk = [...byId.values()];
+  courses.uk = [];
+  return { universities: byId.size, courses: 0, file: att.url };
+}
+
+async function discoverUni() {
   const page = await getText("https://www.hesa.ac.uk/kisdata", { headers: { accept: "text/html" } });
   const zips = [...page.matchAll(/href="([^"]+\.zip)"/gi)].map((m) => new URL(m[1], "https://www.hesa.ac.uk/").toString());
   if (!zips.length) throw new Error("Discover Uni: no zip link on hesa.ac.uk/kisdata");
@@ -570,41 +616,23 @@ const decode = (s) =>
     .trim();
 
 async function canada() {
-  const html = await getText("https://www.canada.ca/en/immigration-refugees-citizenship/services/study-canada/study-permit/prepare/designated-learning-institutions-list.html", {
-    headers: { accept: "text/html" },
-  });
-  const tables = [...html.matchAll(/<table[\s\S]*?<\/table>/gi)].map((m) => m[0]);
+  const json = await getJson("https://www.canada.ca/content/dam/ircc/documents/json/dli/dli-full-list.json", { headers: { accept: "application/json" } });
+  const rows = json.data ?? json;
   const byKey = new Map();
-  let headerSeen = null;
-  for (const t of tables) {
-    const rows = [...t.matchAll(/<tr[\s\S]*?<\/tr>/gi)].map((m) => [...m[0].matchAll(/<t[hd][^>]*>([\s\S]*?)<\/t[hd]>/gi)].map((c) => decode(c[1])));
-    if (!rows.length) continue;
-    const header = rows[0].map(norm);
-    const col = (re) => header.findIndex((h) => re.test(h));
-    const iName = col(/nameofinstitution|institutionname|^name/);
-    const iDli = col(/dli/);
-    const iCity = col(/city/);
-    const iProv = col(/province|territory/);
-    const iPgwp = col(/pgwp|postgraduation/);
-    const iType = col(/type/);
-    if (iName < 0 || iDli < 0) continue;
-    headerSeen ??= rows[0];
-    for (const r of rows.slice(1)) {
-      const name = r[iName];
-      const dli = r[iDli];
-      if (!name || !/^O\d+/i.test(dli || "")) continue;
-      const key = dli.toUpperCase();
-      const u = byKey.get(key) || { i: `ca-${key}`, n: name, c: "canada", r: iProv >= 0 ? r[iProv] : "", t: iCity >= 0 ? r[iCity] : "", w: "", k: 0 };
-      u.k += 1; // campuses
-      if (iPgwp >= 0 && /^yes/i.test(r[iPgwp])) u.p = 1;
-      if (iType >= 0 && /public/i.test(r[iType])) u.pub = 1;
-      byKey.set(key, u);
-    }
+  for (const r of rows) {
+    const name = decode(r.Institution);
+    const dli = clean(r["DLI #"]).toUpperCase();
+    if (!name || !/^O\d+/.test(dli)) continue;
+    const u = byKey.get(dli) || { i: `ca-${dli}`, n: name, c: "canada", r: clean(r.Province), t: decode(r.City), w: "", k: 0 };
+    u.k += 1; // campuses
+    if (/^yes/i.test(r.PGWP || "")) u.p = 1;
+    if (/public/i.test(r["Public/Private"] || "")) u.pub = 1;
+    byKey.set(dli, u);
   }
-  if (!byKey.size) throw new Error(`IRCC DLI list: no rows parsed (${tables.length} tables)`);
+  if (byKey.size < 100) throw new Error(`IRCC DLI list: only ${byKey.size} institutions`);
   // Public institutions and those with work-permit-eligible programmes first
   universities.canada = [...byKey.values()].map((u) => ({ ...u, k: (u.pub ? 1000 : 0) + (u.p ? 500 : 0) + u.k }));
-  return { universities: byKey.size, header: headerSeen };
+  return { universities: byKey.size };
 }
 
 // ---------------------------------------------------------------------------

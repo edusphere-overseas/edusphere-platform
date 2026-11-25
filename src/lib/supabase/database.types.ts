@@ -59,14 +59,14 @@ isOneToOne: false
                   ]
                 },"applications": {
                   Row: {
-                    "country": string | null,"course": string,"created_at": string,"created_by": string | null,"deadline": string | null,"id": string,"intake": string | null,"note": string | null,"stage": string,"status": string,"student_id": string,"university": string,"updated_at": string
+                    "country": string | null,"course": string,"created_at": string,"created_by": string | null,"deadline": string | null,"id": string,"intake": string | null,"note": string | null,"stage": string,"status": string,"student_id": string,"university": string,"university_ref": string | null,"updated_at": string
                   }
                   ComputedFields: never
                   Insert: {
-                    "country"?: string | null,"course"?: string,"created_at"?: string,"created_by"?: string | null,"deadline"?: string | null,"id"?: string,"intake"?: string | null,"note"?: string | null,"stage"?: string,"status"?: string,"student_id": string,"university": string,"updated_at"?: string
+                    "country"?: string | null,"course"?: string,"created_at"?: string,"created_by"?: string | null,"deadline"?: string | null,"id"?: string,"intake"?: string | null,"note"?: string | null,"stage"?: string,"status"?: string,"student_id": string,"university": string,"university_ref"?: string | null,"updated_at"?: string
                   }
                   Update: {
-                    "country"?: string | null,"course"?: string,"created_at"?: string,"created_by"?: string | null,"deadline"?: string | null,"id"?: string,"intake"?: string | null,"note"?: string | null,"stage"?: string,"status"?: string,"student_id"?: string,"university"?: string,"updated_at"?: string
+                    "country"?: string | null,"course"?: string,"created_at"?: string,"created_by"?: string | null,"deadline"?: string | null,"id"?: string,"intake"?: string | null,"note"?: string | null,"stage"?: string,"status"?: string,"student_id"?: string,"university"?: string,"university_ref"?: string | null,"updated_at"?: string
                   }
                   Relationships: [
                     {

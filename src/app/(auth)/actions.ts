@@ -146,7 +146,7 @@ export async function setNewPassword(_: FormState, form: FormData): Promise<Form
   const supabase = await createClient();
   const { data } = await supabase.auth.getClaims();
   if (!data?.claims) return { error: "This link has expired. Please ask for a new one." };
-  const { error } = await supabase.auth.updateUser({ password });
+  const { error } = await supabase.auth.updateUser({ password, data: { needs_password: null } });
   if (error) {
     if (error.code === "same_password") return { error: "Please choose a password you haven't used here before." };
     return { error: friendly(error.message) };
@@ -183,4 +183,23 @@ export async function signOut() {
   const supabase = await createClient();
   await supabase.auth.signOut();
   redirect("/");
+}
+
+/**
+ * Google sign-in on our own page (Google's button), so Google shows the website's address
+ * instead of the database's. The browser gets a one-time ID token from Google and the
+ * server turns it into a session.
+ */
+export async function signInWithGoogleToken(input: { token: string; nonce: string; next?: string; role?: string }): Promise<{ to?: string; error?: string }> {
+  const token = typeof input?.token === "string" ? input.token : "";
+  const nonce = typeof input?.nonce === "string" ? input.nonce : "";
+  if (!token || token.length > 8192 || !nonce || nonce.length > 200) return { error: "Google sign-in didn't finish. Please try again." };
+  const supabase = await createClient();
+  const { error } = await supabase.auth.signInWithIdToken({ provider: "google", token, nonce });
+  if (error) {
+    console.error("[auth] Google ID token sign-in failed:", error.code, error.message);
+    return { error: "Google sign-in didn't finish. Please try again." };
+  }
+  const role = input.role;
+  return { to: role === "student" || role === "parent" ? `/welcome?role=${role}` : safeNext(input.next) };
 }

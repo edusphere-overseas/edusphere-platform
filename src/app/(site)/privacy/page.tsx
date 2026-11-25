@@ -10,7 +10,7 @@ export const metadata: Metadata = {
 };
 
 /** Change this date whenever the wording below changes. */
-const LAST_UPDATED = "22 November 2026";
+const LAST_UPDATED = "25 November 2026";
 
 const h2 = "scroll-mt-28 text-2xl font-extrabold tracking-[-0.02em] text-white sm:text-[1.7rem]";
 const h3 = "mt-6 text-base font-bold text-white";
@@ -91,8 +91,8 @@ export default async function PrivacyPage() {
               Protection Act 2023, and the &quot;controller&quot; under UK and EU data protection law where those apply to you.
             </p>
             <p className={p}>
-              This policy covers this website, our enquiry and contact forms, the student and parent portal, and the messages, calls and
-              WhatsApp chats you have with our team.
+              This policy covers this website, our enquiry and contact forms, the course finder and its application form, the student and
+              parent portal, and the messages, calls and WhatsApp chats you have with our team.
             </p>
 
             <h2 id="collect" className={`${h2} mt-14`}>
@@ -104,13 +104,23 @@ export default async function PrivacyPage() {
               <li>What you&apos;re interested in (destination, study level, intake, preferred office) and any message you write.</li>
               <li>The page you sent it from, and the date and time.</li>
             </ul>
+            <h3 className={h3}>When you apply through the course finder</h3>
+            <ul className={ul}>
+              <li>The country, university, course and intake you choose, including any university name you type in.</li>
+              <li>Your name, date of birth, email address and mobile number.</li>
+              <li>
+                Sending the form creates your Edusphere portal account with these details and adds the university to your application
+                tracker, so the account details below apply too. You choose your password after verifying your email.
+              </li>
+            </ul>
+            <p className={p}>Searches in the course finder aren&apos;t linked to you, and we don&apos;t keep them.</p>
             <h3 className={h3}>When you create a portal account</h3>
             <ul className={ul}>
               <li>Your name, email address, optional mobile number, and whether you are a student or a parent.</li>
               <li>For students, your date of birth, so we know whether a parent or guardian needs to be involved.</li>
               <li>
-                Your password, which our sign-in provider stores only in scrambled (hashed) form, or, if you use Google sign-in, the
-                name and email address Google shares with us. We never see your Google password.
+                Your password, which the Edusphere portal stores only in scrambled (hashed) form, or, if you choose &quot;Continue with
+                Google&quot;, the name and email address Google shares with us. We never see your Google password.
               </li>
               <li>A record of the consent you give, with its date and version, and any parent or guardian links you approve.</li>
             </ul>
@@ -135,10 +145,10 @@ export default async function PrivacyPage() {
             <h3 className={h3}>When you browse</h3>
             <ul className={ul}>
               <li>
-                Technical details our hosting and security providers process to deliver the site and keep it safe, such as your IP
+                Technical details our hosting and security systems process to deliver the site and keep it safe, such as your IP
                 address, browser type and the pages requested.
               </li>
-              <li>A security check on the sign-in and sign-up pages, which tells bots and people apart (see Cookies below).</li>
+              <li>A security check on the sign-in, sign-up and application forms, which tells bots and people apart (see Cookies below).</li>
             </ul>
             <p className={p}>
               Some documents, such as financial records, are sensitive. Please upload only what your counsellor asks for. We don&apos;t
@@ -150,7 +160,7 @@ export default async function PrivacyPage() {
               How we use it
             </h2>
             <ul className={ul}>
-              <li>To reply to your enquiry and to arrange counselling sessions.</li>
+              <li>To reply to your enquiry or application request, and to arrange counselling sessions.</li>
               <li>To advise you on courses, universities, scholarships and visas, and to prepare and track your applications.</li>
               <li>To provide the services you request, such as airport pickup, accommodation, scholarships or post-study work visas.</li>
               <li>To keep the parents or guardians you approve informed, and to let them help with documents and requests.</li>
@@ -158,7 +168,8 @@ export default async function PrivacyPage() {
               <li>To keep the portal secure, prevent misuse, and keep records we are required to keep by law.</li>
             </ul>
             <p className={p}>
-              We rely on your consent, which you give when you send an enquiry or create an account, and which you can withdraw at
+              We rely on your consent, which you give when you send an enquiry, apply through the course finder or create an account,
+              and which you can withdraw at
               any time. Under UK and EU law we also rely on what&apos;s needed to provide the services you ask for, our legal
               obligations, and our legitimate interest in running a secure, well-organised service. Withdrawing consent doesn&apos;t
               affect what we did before, but we may not be able to continue your applications without the information they need.
@@ -181,21 +192,26 @@ export default async function PrivacyPage() {
               </li>
               <li>Parents or guardians you have linked and approved in the portal.</li>
             </ul>
-            <h3 className={h3}>Companies that run our systems for us</h3>
-            <p className={p}>
-              These providers process data only on our instructions and under contracts that require them to protect it:
-            </p>
+            <h3 className={h3}>The systems that hold your data</h3>
+            <p className={p}>Your information is kept in Edusphere&apos;s own systems:</p>
             <ul className={ul}>
-              <li>Supabase: portal database and sign-in, hosted in Mumbai, India.</li>
-              <li>Cloudflare: private storage for uploaded documents (Asia-Pacific region) and the sign-in security check.</li>
-              <li>Vercel: hosting for this website and portal, served from data centres around the world.</li>
               <li>
-                Google: &quot;Continue with Google&quot; sign-in, the email account that sends portal emails, the map on our contact page,
-                and the Google reviews shown on the site.
+                The Edusphere portal database: your account, profile, applications, service requests, messages and the access log,
+                hosted in Mumbai, India.
               </li>
-              <li>Resend: delivery of notification emails to our team and to you.</li>
-              <li>Sanity: the system we use to edit website pages. It holds website content, not your portal records.</li>
+              <li>Edusphere secure document storage: private storage for the documents you upload, in the Asia-Pacific region.</li>
+              <li>The Edusphere website and portal, served from data centres around the world.</li>
+              <li>Edusphere email: account emails, and updates about your applications and requests, to you and to our team.</li>
+              <li>The Edusphere content system, used to edit website pages. It holds website content, not your portal records.</li>
             </ul>
+            <p className={p}>
+              These systems run on infrastructure from specialist cloud service providers. They process data only on our instructions,
+              under contracts that require them to keep it confidential and secure, and they may not use it for their own purposes.
+            </p>
+            <p className={p}>
+              If you choose &quot;Continue with Google&quot;, Google confirms your name and email address to us. The map on our contact page
+              and the Google reviews shown on the site are provided by Google.
+            </p>
             <p className={p}>
               We may also share information when the law requires it, to protect someone&apos;s safety, or with professional advisers
               such as lawyers and auditors who are bound to keep it confidential.
@@ -206,7 +222,7 @@ export default async function PrivacyPage() {
             </h2>
             <p className={p}>
               Studying abroad means your information goes abroad: to universities and authorities in the countries you apply to. Some
-              of our providers also process data outside India, the UK or the EU, for example in the United States. Where the law
+              of our service providers also process data outside India, the UK or the EU, for example in the United States. Where the law
               requires it, we use contracts with safeguards such as standard contractual clauses, and we only transfer what the
               purpose needs.
             </p>
@@ -235,13 +251,16 @@ export default async function PrivacyPage() {
               How we protect it
             </h2>
             <ul className={ul}>
-              <li>Data is encrypted in transit and at rest by our providers.</li>
+              <li>Data is encrypted in transit and at rest.</li>
               <li>
                 Access rules in the database mean students and parents see only their own records, and only authorised Edusphere
                 staff can see them.
               </li>
               <li>Documents are stored privately. Each download uses a link that expires after five minutes, and every view is logged.</li>
-              <li>Sign-up and sign-in are protected by email verification and a bot check, and passwords are never stored in readable form.</li>
+              <li>
+                Sign-up, sign-in and the application form are protected by email verification and a bot check, and passwords are never
+                stored in readable form.
+              </li>
             </ul>
             <p className={p}>
               No system is perfectly secure. If a breach affects your data, we will tell you and the relevant authorities as the law
@@ -276,14 +295,17 @@ export default async function PrivacyPage() {
                 Sign-in cookies: when you use the portal, small cookies keep you signed in. The portal can&apos;t work without them.
               </li>
               <li>
-                Security check: Cloudflare Turnstile runs on the sign-in and sign-up pages to block bots. It looks at technical signals
-                from your browser, not your identity.
+                Security check: a bot check runs on the sign-in, sign-up and application forms. It looks at technical signals from your
+                browser, not your identity.
               </li>
               <li>
                 Intro animation: your browser remembers when you last saw our logo animation, so it doesn&apos;t replay every visit. This
                 stays on your device.
               </li>
-              <li>The map on our contact page is provided by Google, which may set its own cookies when the map loads.</li>
+              <li>
+                Google: the map on our contact page, and the &quot;Continue with Google&quot; button on the sign-in pages, are provided by
+                Google, which may set its own cookies when they load.
+              </li>
             </ul>
             <p className={p}>We don&apos;t use advertising cookies or tracking pixels.</p>
 

@@ -33,6 +33,7 @@ export default async function StaffApplications({ params }: PageProps<"/staff/st
               <div className="min-w-0">
                 <h2 className="text-lg font-bold text-deep">{a.university}</h2>
                 <p className="text-sm text-slate">{[a.course, destinationName(a.country), a.intake].filter(Boolean).join(" · ") || "No course details yet"}</p>
+                {a.created_by === id && <p className="mt-1 text-xs font-semibold text-teal">Added by the student{a.university_ref ? " from the course finder list" : " (typed in)"}</p>}
               </div>
               <div className="flex flex-wrap gap-1.5">
                 {a.deadline && <Pill tone="amber">Deadline {formatDate(a.deadline)}</Pill>}

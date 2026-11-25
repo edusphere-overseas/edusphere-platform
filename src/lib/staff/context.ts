@@ -93,6 +93,7 @@ export const LEAD_SOURCES: Record<string, string> = {
   portal_signup: "Portal sign-up",
   booking: "Booking",
   programme: "Programme enquiry",
+  course_finder: "Course finder application",
 };
 
 export const APPLICATION_STATUSES = [

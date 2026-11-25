@@ -11,7 +11,7 @@ export default function ResetPasswordPage({ searchParams }: PageProps<"/reset-pa
   return (
     <Suspense fallback={<div className="h-[22rem] rounded-3xl bg-white/90" />}>
       {searchParams.then((p) => (
-        <NewPasswordForm welcome={p.welcome === "1"} />
+        <NewPasswordForm welcome={p.welcome === "apply" ? "apply" : p.welcome === "1" ? "invite" : undefined} />
       ))}
     </Suspense>
   );

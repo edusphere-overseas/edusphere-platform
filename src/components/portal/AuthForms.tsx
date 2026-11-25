@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useActionState, useState } from "react";
-import { Eye, EyeOff, GraduationCap, MailCheck, Users } from "lucide-react";
+import { useActionState, useEffect, useRef, useState } from "react";
+import { Eye, EyeOff, GraduationCap, Loader2, MailCheck, Users } from "lucide-react";
 import {
   completeOnboarding,
   requestPasswordReset,
@@ -10,6 +10,7 @@ import {
   setNewPassword,
   signIn,
   signInWithGoogle,
+  signInWithGoogleToken,
   signUp,
   type FormState,
 } from "@/app/(auth)/actions";
@@ -29,22 +30,146 @@ export function AuthCard({ title, intro, children }: { title: string; intro?: Re
   );
 }
 
+const GOOGLE_CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || "123123257014-g6ejcu7p03n93htg44u7k9a7h4bhhs2h.apps.googleusercontent.com";
+
+declare global {
+  interface Window {
+    google?: {
+      accounts: {
+        id: {
+          initialize: (opts: Record<string, unknown>) => void;
+          renderButton: (el: HTMLElement, opts: Record<string, unknown>) => void;
+        };
+      };
+    };
+  }
+}
+
+let gisScript: Promise<void> | null = null;
+function loadGis() {
+  gisScript ??= new Promise<void>((resolve, reject) => {
+    if (window.google?.accounts?.id) return resolve();
+    const s = document.createElement("script");
+    s.src = "https://accounts.google.com/gsi/client";
+    s.async = true;
+    s.onload = () => resolve();
+    s.onerror = () => {
+      gisScript = null;
+      reject(new Error("Google script blocked"));
+    };
+    document.head.appendChild(s);
+  });
+  return gisScript;
+}
+
+async function makeNonce() {
+  const raw = btoa(String.fromCharCode(...crypto.getRandomValues(new Uint8Array(24)))).replace(/[+/=]/g, "");
+  const hash = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(raw));
+  return { raw, hashed: [...new Uint8Array(hash)].map((b) => b.toString(16).padStart(2, "0")).join("") };
+}
+
+/**
+ * "Continue with Google". Uses Google's own button on this page, so Google's window names
+ * the website (not the database address). Falls back to the redirect flow if Google's
+ * script can't load (for example, blocked by a browser extension).
+ */
 function GoogleButton({ next, role, text }: { next?: string; role?: string; text: string }) {
+  const box = useRef<HTMLDivElement>(null);
+  const roleRef = useRef(role);
+  const [mode, setMode] = useState<"loading" | "google" | "fallback">("loading");
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    roleRef.current = role;
+  }, [role]);
+
+  useEffect(() => {
+    if (!googleOn) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        await loadGis();
+        const nonce = await makeNonce();
+        if (cancelled || !box.current || !window.google) return;
+        window.google.accounts.id.initialize({
+          client_id: GOOGLE_CLIENT_ID,
+          nonce: nonce.hashed,
+          context: role ? "signup" : "signin",
+          ux_mode: "popup",
+          itp_support: true,
+          use_fedcm_for_button: true,
+          callback: async ({ credential }: { credential?: string }) => {
+            if (!credential) return;
+            setBusy(true);
+            setError("");
+            const res = await signInWithGoogleToken({ token: credential, nonce: nonce.raw, next, role: roleRef.current });
+            if (res.to) window.location.assign(res.to);
+            else {
+              setBusy(false);
+              setError(res.error ?? "Google sign-in didn't finish. Please try again.");
+            }
+          },
+        });
+        const width = Math.max(200, Math.min(400, Math.round(box.current.getBoundingClientRect().width || 320)));
+        window.google.accounts.id.renderButton(box.current, {
+          type: "standard",
+          theme: "outline",
+          size: "large",
+          shape: "pill",
+          text: role ? "signup_with" : "continue_with",
+          logo_alignment: "center",
+          width,
+        });
+        setMode("google");
+      } catch {
+        if (!cancelled) setMode("fallback");
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // the button is rendered once; the chosen role is read when Google answers
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [next]);
+
   if (!googleOn) return null;
+  if (mode === "fallback") {
+    return (
+      <form action={signInWithGoogle}>
+        <input type="hidden" name="next" value={next ?? ""} />
+        {role && <input type="hidden" name="role" value={role} />}
+        <button type="submit" className={`${btnGhost} w-full`}>
+          <GoogleLogo />
+          {text}
+        </button>
+      </form>
+    );
+  }
   return (
-    <form action={signInWithGoogle}>
-      <input type="hidden" name="next" value={next ?? ""} />
-      {role && <input type="hidden" name="role" value={role} />}
-      <button type="submit" className={`${btnGhost} w-full`}>
-        <svg viewBox="0 0 24 24" className="h-4.5 w-4.5" aria-hidden="true">
-          <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.27-4.74 3.27-8.1z" />
-          <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84A11 11 0 0 0 12 23z" />
-          <path fill="#FBBC05" d="M5.84 14.1A6.6 6.6 0 0 1 5.5 12c0-.73.13-1.44.34-2.1V7.06H2.18A11 11 0 0 0 1 12c0 1.77.42 3.45 1.18 4.94l3.66-2.84z" />
-          <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1A11 11 0 0 0 2.18 7.06l3.66 2.84C6.71 7.31 9.14 5.38 12 5.38z" />
-        </svg>
-        {text}
-      </button>
-    </form>
+    <div>
+      <div className="relative flex min-h-11 justify-center">
+        <div ref={box} className="flex w-full max-w-[400px] justify-center" aria-label={text} />
+        {(mode === "loading" || busy) && (
+          <div className={`${btnGhost} pointer-events-none absolute inset-0 w-full bg-white`} aria-hidden={mode === "loading" ? undefined : true}>
+            {busy ? <Loader2 className="h-4.5 w-4.5 animate-spin" aria-hidden="true" /> : <GoogleLogo />}
+            {busy ? "Signing you in…" : text}
+          </div>
+        )}
+      </div>
+      <FormError message={error} />
+    </div>
+  );
+}
+
+function GoogleLogo() {
+  return (
+    <svg viewBox="0 0 24 24" className="h-4.5 w-4.5" aria-hidden="true">
+      <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.27-4.74 3.27-8.1z" />
+      <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84A11 11 0 0 0 12 23z" />
+      <path fill="#FBBC05" d="M5.84 14.1A6.6 6.6 0 0 1 5.5 12c0-.73.13-1.44.34-2.1V7.06H2.18A11 11 0 0 0 1 12c0 1.77.42 3.45 1.18 4.94l3.66-2.84z" />
+      <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1A11 11 0 0 0 2.18 7.06l3.66 2.84C6.71 7.31 9.14 5.38 12 5.38z" />
+    </svg>
   );
 }
 
@@ -310,12 +435,18 @@ export function ForgotPasswordForm() {
   );
 }
 
-export function NewPasswordForm({ welcome }: { welcome?: boolean }) {
+export function NewPasswordForm({ welcome }: { welcome?: "invite" | "apply" }) {
   const [state, action] = useActionState<FormState, FormData>(setNewPassword, null);
   return (
     <AuthCard
-      title={welcome ? "Welcome to Edusphere" : "Choose a new password"}
-      intro={welcome ? "Your parent created your account. Choose a password to finish setting it up." : undefined}
+      title={welcome === "apply" ? "Your email is verified" : welcome ? "Welcome to Edusphere" : "Choose a new password"}
+      intro={
+        welcome === "apply"
+          ? "Choose a password for your student portal. Your application request is waiting there, and your counsellor will be in touch."
+          : welcome
+            ? "Your parent created your account. Choose a password to finish setting it up."
+            : undefined
+      }
     >
       <form action={action} className="grid gap-4">
         <div className={label}>

@@ -16,10 +16,20 @@ export async function GET(request: NextRequest) {
 
   if (portalConfigured && tokenHash && type && types.includes(type)) {
     const supabase = await createClient();
-    const { error } = await supabase.auth.verifyOtp({ type, token_hash: tokenHash });
+    const { data, error } = await supabase.auth.verifyOtp({ type, token_hash: tokenHash });
     if (!error) {
+      // Accounts made by the course finder's apply form have no password of the student's own yet
+      const needsPassword = data.user?.user_metadata?.needs_password === true;
       const to =
-        type === "recovery" ? "/reset-password" : type === "invite" ? "/reset-password?welcome=1" : type === "email_change" ? "/portal/profile" : "/portal?verified=1";
+        type === "recovery"
+          ? "/reset-password"
+          : type === "invite"
+            ? "/reset-password?welcome=1"
+            : type === "email_change"
+              ? "/portal/profile"
+              : needsPassword
+                ? "/reset-password?welcome=apply"
+                : "/portal?verified=1";
       return NextResponse.redirect(new URL(to, origin));
     }
   }

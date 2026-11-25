@@ -27,6 +27,13 @@ const nextConfig: NextConfig = {
   env: { SITE_ORIGIN: siteOrigin },
   cacheComponents: true,
   partialPrefetching: true,
+  // The course finder catalogue (data/catalogue/*.json) is read from disk by these pages
+  outputFileTracingIncludes: Object.fromEntries(
+    ["/course-finder", "/apply", "/api/catalogue", "/portal/applications", "/destinations/[slug]", "/destinations/[slug]/universities"].map((r) => [
+      r,
+      ["./data/catalogue/*.json"],
+    ]),
+  ),
   // Sent on every page, whichever host serves the site
   async headers() {
     return [{ source: "/:path*", headers: securityHeaders }];

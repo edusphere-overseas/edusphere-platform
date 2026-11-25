@@ -10,6 +10,8 @@ import { PageHero } from "@/components/pages/PageHero";
 import { JsonLd } from "@/components/seo/JsonLd";
 import { Reveal } from "@/components/ui/Reveal";
 import { SanityImage } from "@/components/ui/SanityImage";
+import { UniversityRow } from "@/components/finder/Rows";
+import { applyHref, catalogueSummary, countryInfo, topUniversities } from "@/lib/catalogue";
 import { getLibrary, getSiteContent, whatsappHref } from "@/lib/content";
 import { formatDate, shortName } from "@/lib/format";
 
@@ -35,8 +37,11 @@ export async function generateMetadata({ params }: PageProps<"/destinations/[slu
 
 export default async function DestinationPage({ params }: PageProps<"/destinations/[slug]">) {
   const { slug } = await params;
-  const [{ lib, d }, c] = await Promise.all([find(slug), getSiteContent()]);
+  const [{ lib, d }, c, summary] = await Promise.all([find(slug), getSiteContent(), catalogueSummary()]);
   if (!d) notFound();
+  const catalogue = countryInfo(d.id);
+  const top = catalogue ? await topUniversities(d.id, 6) : null;
+  const counts = catalogue ? summary.counts[catalogue.id] : null;
 
   const name = shortName(d.name);
   const flags = new Set([d.flag, ...(d.countries ?? []).map((x) => x.flag)]);
@@ -78,10 +83,10 @@ export default async function DestinationPage({ params }: PageProps<"/destinatio
       >
         <div className="flex flex-col gap-3 sm:flex-row">
           <Link
-            href={`/contact?destination=${d.id}#enquiry`}
+            href={catalogue ? applyHref({ country: d.id }) : `/contact?destination=${d.id}#enquiry`}
             className="group inline-flex items-center justify-center gap-2 rounded-full bg-teal px-6 py-3.5 font-semibold text-white transition hover:bg-teal-light"
           >
-            Book a free consultation
+            {catalogue ? "Apply to a university" : "Book a free consultation"}
             <ArrowRight className="h-4.5 w-4.5 transition-transform group-hover:translate-x-1" aria-hidden="true" />
           </Link>
           <a
@@ -268,6 +273,38 @@ export default async function DestinationPage({ params }: PageProps<"/destinatio
           </aside>
         </div>
       </section>
+
+      {catalogue && top && counts && top.items.length > 0 && (
+        <section className="border-t border-white/8 py-16 sm:py-20">
+          <div className="mx-auto max-w-7xl px-5 sm:px-8">
+            <div className="flex flex-wrap items-end justify-between gap-4">
+              <Reveal>
+                <h2 className="text-3xl font-extrabold tracking-[-0.02em] text-white sm:text-4xl">Universities in {name}</h2>
+                <p className="mt-3 max-w-2xl text-white/65">
+                  {counts.universities.toLocaleString("en-IN")} universities and colleges
+                  {counts.courses ? ` with ${counts.courses.toLocaleString("en-IN")} courses` : ""}. Pick one and apply: we&apos;re partnered with almost every university.
+                </p>
+              </Reveal>
+              <div className="flex flex-wrap gap-3">
+                {c.sections.courseFinder && counts.courses > 0 && (
+                  <Link href={`/course-finder?country=${d.id}`} className="inline-flex items-center gap-2 rounded-full px-5 py-3 text-sm font-semibold text-white ring-1 ring-white/25 hover:bg-white/5">
+                    Search courses
+                  </Link>
+                )}
+                <Link href={`/destinations/${d.id}/universities`} className="inline-flex items-center gap-2 rounded-full bg-white px-5 py-3 text-sm font-semibold text-deep hover:bg-mist">
+                  All universities in {name}
+                  <ArrowRight className="h-4 w-4" aria-hidden="true" />
+                </Link>
+              </div>
+            </div>
+            <ul className="mt-8 grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+              {top.items.map((u) => (
+                <UniversityRow key={u.id} u={u} coursesLink={c.sections.courseFinder && counts.courses > 0 && u.courses ? `/course-finder?country=${d.id}&u=${u.id}` : undefined} />
+              ))}
+            </ul>
+          </div>
+        </section>
+      )}
 
       {openNow.length > 0 && <OpenNow items={openNow} whatsapp={c.whatsappNumber} />}
 

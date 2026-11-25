@@ -1,7 +1,12 @@
 import type { Metadata } from "next";
-import { CalendarClock, ListChecks } from "lucide-react";
+import { connection } from "next/server";
+import { CalendarClock, ListChecks, Plus, Trash2 } from "lucide-react";
+import { removeUniversity } from "@/app/portal/_actions/applications";
+import { AddUniversityForm } from "@/components/apply/AddUniversityForm";
 import { StageBar, StageSteps } from "@/components/portal/Tracker";
-import { Card, Empty, formatDate, PageTitle, Pill } from "@/components/portal/ui";
+import { btnGhost, Card, Empty, formatDate, Notice, PageTitle, Pill } from "@/components/portal/ui";
+import { CATALOGUE_COUNTRIES } from "@/lib/catalogue";
+import { intakeOptions } from "@/lib/intakes";
 import { NoStudent } from "@/components/portal/NoStudent";
 import { getPortal } from "@/lib/portal/context";
 import { loadApplications } from "@/lib/portal/data";
@@ -9,9 +14,14 @@ import { DESTINATIONS, destinationName, stageLabel } from "@/lib/portal/journey"
 
 export const metadata: Metadata = { title: "Application tracker" };
 
-export default async function ApplicationsPage() {
+const countries = CATALOGUE_COUNTRIES.map(({ id, name, flag }) => ({ id, name, flag }));
+
+export default async function ApplicationsPage({ searchParams }: PageProps<"/portal/applications">) {
   const p = await getPortal();
   if (!p.student) return <NoStudent />;
+  const sp = await searchParams;
+  await connection(); // the intake list depends on today's date
+  const added = typeof sp.added === "string" ? sp.added : "";
   const apps = await loadApplications(p, p.student.id);
   const { data: events } = apps.length
     ? await p.supabase.from("application_events").select("application_id, stage, created_at").in("application_id", apps.map((a) => a.id)).order("created_at")
@@ -23,6 +33,31 @@ export default async function ApplicationsPage() {
         title="Application tracker"
         intro="Each university application moves through these stages. You'll get an email whenever a stage changes."
       />
+      {added && apps.some((a) => a.id === added) && (
+        <div className="mb-5">
+          <Notice tone="ok" title="University added">
+            It&apos;s on your list as a shortlist entry, and your counsellor has been told. They&apos;ll check the course and entry requirements with you before applying.
+          </Notice>
+        </div>
+      )}
+      {!p.staff && (
+        <Card className="mb-5">
+          <details className="group" open={apps.length === 0}>
+            <summary className="flex cursor-pointer list-none items-center justify-between gap-3">
+              <span>
+                <span className="block font-bold text-deep">Add a university</span>
+                <span className="block text-sm text-slate">Choose the country and university you&apos;d like to apply to. Not in our list? Type its name.</span>
+              </span>
+              <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-teal/12 text-teal transition group-open:rotate-45">
+                <Plus className="h-4.5 w-4.5" aria-hidden="true" />
+              </span>
+            </summary>
+            <div className="mt-5 border-t border-deep/8 pt-5">
+              <AddUniversityForm countries={countries} intakes={intakeOptions()} submitLabel="Add to my list" />
+            </div>
+          </details>
+        </Card>
+      )}
       {apps.length === 0 ? (
         <div className="grid items-start gap-5 lg:grid-cols-[1fr_1.2fr]">
           <Card>
@@ -30,7 +65,7 @@ export default async function ApplicationsPage() {
             <StageSteps stage="counselling" reached={{}} />
           </Card>
           <Empty icon={<ListChecks className="h-6 w-6" />} title="No applications yet">
-            After counselling, your counsellor adds each university you apply to. Their stages appear here, from shortlist to visa.
+            Add the universities you&apos;re interested in above, or your counsellor adds them after counselling. Their stages appear here, from shortlist to visa.
           </Empty>
         </div>
       ) : (
@@ -60,6 +95,15 @@ export default async function ApplicationsPage() {
                 <div className="mt-5">
                   <StageBar stage={a.stage} country={a.country} muted={a.status !== "active"} />
                 </div>
+                {a.stage === "shortlist" && a.created_by === p.userId && (
+                  <form action={removeUniversity} className="mt-4">
+                    <input type="hidden" name="id" value={a.id} />
+                    <button type="submit" className={`${btnGhost} min-h-9 px-3.5 py-1.5 text-xs`}>
+                      <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
+                      Remove from my list
+                    </button>
+                  </form>
+                )}
                 {(a.deadline || a.note) && (
                   <div className="mt-4 grid gap-2 text-sm">
                     {a.deadline && (
