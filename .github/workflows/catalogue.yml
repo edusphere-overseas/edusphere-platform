@@ -35,7 +35,15 @@ jobs:
           node-version: 22
 
       - name: Build catalogue from open data
-        run: node scripts/catalogue/build.mjs "${{ github.event.inputs.only || '' }}"
+        env:
+          # optional free key from https://api.data.gov/signup (GitHub → Settings → Secrets → Actions)
+          SCORECARD_API_KEY: ${{ secrets.SCORECARD_API_KEY }}
+          ONLY_INPUT: ${{ github.event.inputs.only }}
+        run: |
+          # "only: usa,uk" on the first line of data/catalogue/REFRESH rebuilds just those sources
+          ONLY="$ONLY_INPUT"
+          if [ -z "$ONLY" ] && [ -f data/catalogue/REFRESH ]; then ONLY="$(sed -n 's/^only: *//p' data/catalogue/REFRESH | head -n 1)"; fi
+          node scripts/catalogue/build.mjs "$ONLY"
 
       - name: Commit the new catalogue
         run: |
