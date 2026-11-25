@@ -189,7 +189,9 @@ export async function getUniversity(id: string) {
 
 const tokens = (q: string) => fold(q).split(" ").filter(Boolean).slice(0, 8);
 
-function score(hay: string, name: string, words: string[], phrase: string) {
+/** `startBonus`: rank titles that start with the search first (courses); for universities a name
+ * match is enough, and size decides, so "University of Toronto" isn't buried under "Toronto …" colleges. */
+function score(hay: string, name: string, words: string[], phrase: string, startBonus = true) {
   if (!words.length) return 1;
   // whole words count more than parts of words
   let s = 0;
@@ -199,7 +201,7 @@ function score(hay: string, name: string, words: string[], phrase: string) {
     s += at === 0 || hay[at - 1] === " " ? 2 : 1;
   }
   if (phrase.length > 2) {
-    if (name.startsWith(phrase)) s += 6;
+    if (startBonus && name.startsWith(phrase)) s += 6;
     else if (name.includes(phrase)) s += 3;
   }
   return s;
@@ -214,7 +216,7 @@ export async function searchUniversities({ q = "", country, limit = 20, offset =
   const hits: { u: University; s: number }[] = [];
   for (const { item, hay } of list) {
     if (country && item.country !== country) continue;
-    const s = score(hay, fold(item.name), words, phrase);
+    const s = score(hay, fold(item.name), words, phrase, false);
     if (s) hits.push({ u: item, s });
   }
   hits.sort((a, b) => b.s - a.s || b.u.size - a.u.size || a.u.name.localeCompare(b.u.name));

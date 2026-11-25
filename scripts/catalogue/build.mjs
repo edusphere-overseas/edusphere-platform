@@ -457,12 +457,22 @@ async function usaApi() {
   const uni = [];
   const list = [];
   const seen = new Set();
+  let partial = "";
   for (let page = 0; page < 40; page++) {
     const q = new URLSearchParams({
-      api_key: key, per_page: "100", page: String(page), fields,
+      api_key: key, per_page: "100", page: String(page), fields, sort: "latest.student.size:desc",
       "school.operating": "1", "school.ownership": "1,2", "school.degrees_awarded.highest": "3,4", "latest.student.size__range": "1000..",
     });
-    const res = await getJson(`https://api.data.gov/ed/collegescorecard/v1/schools?${q}`, { headers: { accept: "application/json" } });
+    // Largest first, so if the hourly limit is reached we still have the biggest universities
+    const resp = await fetch(`https://api.data.gov/ed/collegescorecard/v1/schools?${q}`, { headers: { "user-agent": UA, accept: "application/json" } });
+    if (!resp.ok) {
+      if (uni.length >= 300) {
+        partial = `stopped at page ${page}: ${resp.status}`;
+        break;
+      }
+      throw new Error(`College Scorecard API: ${resp.status} ${resp.statusText} on page ${page}`);
+    }
+    const res = await resp.json();
     for (const r of res.results ?? []) {
       const id = `us-${r.id}`;
       const name = clean(r["school.name"]);
@@ -485,7 +495,7 @@ async function usaApi() {
   if (uni.length < 300) throw new Error(`College Scorecard API: only ${uni.length} institutions`);
   universities.usa = uni;
   courses.usa = list;
-  return { universities: uni.length, courses: list.length, via: key === "DEMO_KEY" ? "api (DEMO_KEY)" : "api" };
+  return { universities: uni.length, courses: list.length, via: key === "DEMO_KEY" ? "api (DEMO_KEY)" : "api", ...(partial ? { partial } : {}) };
 }
 
 async function usaBulk() {
