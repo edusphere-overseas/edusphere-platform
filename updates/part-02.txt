@@ -1,0 +1,824 @@
+  const host = h.get("x-forwarded-host") ?? h.get("host");
+  const proto = h.get("x-forwarded-proto") ?? (host?.startsWith("localhost") || host?.startsWith("127.") ? "http" : "https");
+  // Supabase only returns to addresses on its allow list, so the request's own address is safe here.
+  const origin = host ? `${proto}://${host}` : siteOrigin();
+  const next = safeNext(str(form, "next"));
+  const role = str(form, "role");
+  const target = new URL("/auth/callback", origin);
+  target.searchParams.set("next", role === "student" || role === "parent" ? `/welcome?role=${role}` : next);
+
+  const { data, error } = await supabase.auth.signInWithOAuth({
+    provider: "google",
+    options: { redirectTo: target.toString(), queryParams: { prompt: "select_account" } },
+  });
+  if (error || !data.url) redirect("/sign-in?error=google");
+  redirect(data.url);
+}
+
+export async function requestPasswordReset(_: FormState, form: FormData): Promise<FormState> {
+  const email = str(form, "email").toLowerCase();
+  if (!emailOk(email)) return { error: "Please enter a valid email address.", values: { email } };
+  const supabase = await createClient();
+  const { error } = await supabase.auth.resetPasswordForEmail(email, {
+    redirectTo: `${siteOrigin()}/auth/confirm`,
+    captchaToken: captcha(form),
+  });
+  if (error && /captcha|rate|too many/i.test(error.message)) return { error: friendly(error.message), values: { email } };
+  return { done: email };
+}
+
+export async function setNewPassword(_: FormState, form: FormData): Promise<FormState> {
+  const password = String(form.get("password") ?? "");
+  if (password.length < 8 || !/[A-Za-z]/.test(password) || !/\d/.test(password)) {
+    return { error: "Use at least 8 characters, with letters and numbers." };
+  }
+  if (password !== String(form.get("confirm") ?? "")) return { error: "The two passwords don't match." };
+  const supabase = await createClient();
+  const { data } = await supabase.auth.getClaims();
+  if (!data?.claims) return { error: "This link has expired. Please ask for a new one." };
+  const { error } = await supabase.auth.updateUser({ password, data: { needs_password: null } });
+  if (error) {
+    if (error.code === "same_password") return { error: "Please choose a password you haven't used here before." };
+    return { error: friendly(error.message) };
+  }
+  redirect("/portal");
+}
+
+export async function completeOnboarding(_: FormState, form: FormData): Promise<FormState> {
+  const role = str(form, "role");
+  const values = {
+    role,
+    full_name: str(form, "full_name").slice(0, 120),
+    phone: str(form, "phone").slice(0, 30),
+    date_of_birth: str(form, "date_of_birth"),
+  };
+  if (role !== "student" && role !== "parent") return { error: "Please choose student or parent.", values };
+  if (!values.full_name) return { error: "Please enter your full name.", values };
+  if (role === "student" && !/^\d{4}-\d{2}-\d{2}$/.test(values.date_of_birth)) return { error: "Please enter your date of birth.", values };
+  if (form.get("consent") !== "on") return { error: "Please tick the consent box to continue.", values };
+
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("complete_onboarding", {
+    p_role: role,
+    p_full_name: values.full_name,
+    p_phone: values.phone,
+    p_date_of_birth: (role === "student" ? values.date_of_birth : null) as string,
+    p_consent_version: CONSENT_VERSION,
+  });
+  if (error) return { error: error.code === "23514" || error.code === "42501" ? error.message : "Something went wrong. Please try again.", values };
+  redirect("/portal");
+}
+
+export async function signOut() {
+  const supabase = await createClient();
+  await supabase.auth.signOut();
+  redirect("/");
+}
+
+/**
+ * Google sign-in on our own page (Google's button), so Google shows the website's address
+ * instead of the database's. The browser gets a one-time ID token from Google and the
+ * server turns it into a session.
+ */
+export async function signInWithGoogleToken(input: { token: string; nonce: string; next?: string; role?: string }): Promise<{ to?: string; error?: string }> {
+  const token = typeof input?.token === "string" ? input.token : "";
+  const nonce = typeof input?.nonce === "string" ? input.nonce : "";
+  if (!token || token.length > 8192 || !nonce || nonce.length > 200) return { error: "Google sign-in didn't finish. Please try again." };
+  const supabase = await createClient();
+  const { error } = await supabase.auth.signInWithIdToken({ provider: "google", token, nonce });
+  if (error) {
+    console.error("[auth] Google ID token sign-in failed:", error.code, error.message);
+    return { error: "Google sign-in didn't finish. Please try again." };
+  }
+  const role = input.role;
+  return { to: role === "student" || role === "parent" ? `/welcome?role=${role}` : safeNext(input.next) };
+}
+#==EDU:FILE src/app/(auth)/reset-password/page.tsx
+import type { Metadata } from "next";
+import { Suspense } from "react";
+import { NewPasswordForm } from "@/components/portal/AuthForms";
+import { PortalUnavailable } from "@/components/portal/PortalUnavailable";
+import { portalConfigured } from "@/lib/supabase/env";
+
+export const metadata: Metadata = { title: "Choose a new password" };
+
+export default function ResetPasswordPage({ searchParams }: PageProps<"/reset-password">) {
+  if (!portalConfigured) return <PortalUnavailable />;
+  return (
+    <Suspense fallback={<div className="h-[22rem] rounded-3xl bg-white/90" />}>
+      {searchParams.then((p) => (
+        <NewPasswordForm welcome={p.welcome === "apply" ? "apply" : p.welcome === "1" ? "invite" : undefined} />
+      ))}
+    </Suspense>
+  );
+}
+#==EDU:FILE src/app/(site)/apply/actions.ts
+"use server";
+
+import { randomBytes } from "node:crypto";
+import { describeChoice, readUniversityChoice } from "@/lib/apply";
+import { CONSENT_VERSION } from "@/lib/portal/consent";
+import { sendEmail, staffInbox } from "@/lib/portal/email";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { portalConfigured, siteOrigin } from "@/lib/supabase/env";
+import { createClient } from "@/lib/supabase/server";
+
+/**
+ * "Apply" from the course finder, for visitors without an account. One form:
+ *  1. creates their portal account (they verify their email, then choose a password),
+ *  2. adds the university to their application tracker (stage "shortlist"),
+ *  3. puts the request in the enquiry inbox (source "course_finder") and emails the team.
+ */
+
+export type ApplyState = {
+  error?: string;
+  field?: string;
+  values?: Record<string, string>;
+  done?: { email: string; university: string };
+} | null;
+
+const str = (f: FormData, k: string, max = 200) =>
+  String(f.get(k) ?? "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, max);
+
+function friendly(message: string) {
+  if (/captcha/i.test(message)) return "The spam check didn't finish. Please wait a moment and try again.";
+  if (/rate limit|too many/i.test(message)) return "Too many attempts. Please wait a few minutes and try again.";
+  return "Something went wrong. Please try again, or message us on WhatsApp.";
+}
+
+export async function applyForUniversity(_: ApplyState, form: FormData): Promise<ApplyState> {
+  const values = {
+    country: str(form, "country", 40),
+    university_ref: str(form, "university_ref", 40),
+    university: str(form, "university", 160),
+    course: str(form, "course"),
+    intake: str(form, "intake", 40),
+    full_name: str(form, "full_name", 120),
+    date_of_birth: str(form, "date_of_birth", 10),
+    email: str(form, "email", 254).toLowerCase(),
+    phone: str(form, "phone", 30),
+  };
+  if (str(form, "bot-field")) return { done: { email: values.email, university: values.university } };
+
+  const choice = await readUniversityChoice(form);
+  if (!choice.ok) return { error: choice.error, field: choice.field, values };
+  if (!values.full_name) return { error: "Please enter your full name.", field: "full_name", values };
+  const dob = new Date(values.date_of_birth + "T00:00:00Z");
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(values.date_of_birth) || isNaN(+dob) || dob > new Date() || dob < new Date("1940-01-02")) {
+    return { error: "Please enter your date of birth.", field: "date_of_birth", values };
+  }
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(values.email)) return { error: "Please enter a valid email address.", field: "email", values };
+  if (!/^[0-9+()\-\s]{7,30}$/.test(values.phone)) return { error: "Please enter your mobile number.", field: "phone", values };
+  if (form.get("consent") !== "on") return { error: "Please tick the consent box to send your application.", field: "consent", values };
+  if (!portalConfigured || !(process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY)) return { error: "Applications are switched off right now. Please message us on WhatsApp.", values };
+
+  const c = choice.value;
+  const admin = createAdminClient();
+
+  // Flood guard: at most 3 requests from the same email or phone in 10 minutes
+  const since = new Date(Date.now() - 10 * 60 * 1000).toISOString();
+  const recent = (column: "email" | "phone", value: string) =>
+    admin.from("leads").select("id", { count: "exact", head: true }).eq("source", "course_finder").eq(column, value).gte("created_at", since);
+  const [byEmail, byPhone] = await Promise.all([recent("email", values.email), recent("phone", values.phone)]);
+  if (Math.max(byEmail.count ?? 0, byPhone.count ?? 0) >= 3) return { error: "We've already received your request. Please check your inbox, or wait a few minutes.", values };
+
+  // The account gets a random password: the student chooses their own after verifying their email
+  const supabase = await createClient();
+  const { data, error } = await supabase.auth.signUp({
+    email: values.email,
+    password: `${randomBytes(24).toString("base64url")}a1`,
+    options: {
+      emailRedirectTo: `${siteOrigin()}/auth/confirm`,
+      captchaToken: str(form, "cf-turnstile-response", 4096) || undefined,
+      data: {
+        role: "student",
+        full_name: values.full_name,
+        phone: values.phone,
+        date_of_birth: values.date_of_birth,
+        consent_version: CONSENT_VERSION,
+        needs_password: true,
+      },
+    },
+  });
+  if (error && error.code !== "user_already_exists") {
+    console.error("[apply] sign-up failed:", error.code, error.message);
+    return { error: friendly(error.message), values };
+  }
+  // An existing, verified account comes back without identities (Supabase hides that it exists)
+  const user = data?.user;
+  const isNew = !!user && (user.identities?.length ?? 0) > 0;
+
+  const interest = `${c.university} (${c.countryName})`.slice(0, 200);
+  const details = [c.course && `Course: ${c.course}`, c.intake && `Intake: ${c.intake}`, `Date of birth: ${values.date_of_birth}`].filter(Boolean).join("\n");
+
+  try {
+    if (isNew && user) {
+      const [app] = await Promise.all([
+        admin.from("applications").insert({
+          student_id: user.id,
+          university: c.university,
+          university_ref: c.universityRef,
+          country: c.country,
+          course: c.course,
+          intake: c.intake || null,
+          stage: "shortlist",
+          created_by: user.id,
+        }),
+        admin
+          .from("student_profiles")
+          .update({ preferred_countries: [c.country], preferred_course: c.course || null, preferred_intake: c.intake || null })
+          .eq("user_id", user.id),
+      ]);
+      if (app.error) console.error("[apply] could not add the application:", app.error.message);
+      const lead = { source: "course_finder", name: values.full_name, email: values.email, phone: values.phone, interest };
+      const message = `${details}\n\nApplied through the course finder. A portal account was created (email not verified yet) and the university is on their application tracker.`;
+      const { error: leadError } = await admin.from("leads").insert({ ...lead, profile_id: user.id, message });
+      // Applied before without verifying: their account already has an enquiry
+      if (leadError?.code === "23505") await admin.from("leads").insert({ ...lead, message });
+      else if (leadError) console.error("[apply] could not save the enquiry:", leadError.message);
+    } else {
+      const { data: existing } = await admin.from("profiles").select("id, role").eq("email", values.email).maybeSingle();
+      await admin.from("leads").insert({
+        source: "course_finder",
+        name: values.full_name,
+        email: values.email,
+        phone: values.phone,
+        interest,
+        message: `${details}\n\nApplied through the course finder. This email already has a portal account${
+          existing ? ` (${existing.role ?? "no role yet"})` : ""
+        }: add the university to their application tracker if the request is theirs.`,
+      });
+    }
+
+    const staff = staffInbox();
+    if (staff) {
+      await sendEmail({
+        to: staff,
+        replyTo: values.email,
+        subject: `New application request: ${values.full_name} for ${c.university}`,
+        heading: "New application request from the course finder",
+        lines: [
+          `${values.full_name} · ${values.phone} · ${values.email}`,
+          describeChoice(c),
+          isNew ? "Their portal account has been created and the university is on their application tracker." : "This email already had a portal account.",
+          "It's in the enquiry inbox of the staff dashboard.",
+        ],
+        button: { label: "Open enquiries", path: "/staff/enquiries" },
+      });
+    }
+  } catch (e) {
+    console.error("[apply] failed:", e instanceof Error ? e.message : e);
+    return { error: friendly(""), values };
+  }
+
+  return { done: { email: values.email, university: c.university } };
+}
+#==EDU:FILE src/app/(site)/apply/page.tsx
+import type { Metadata } from "next";
+import Link from "next/link";
+import { connection } from "next/server";
+import { Suspense } from "react";
+import { CheckCircle2, MessageCircle, Search, UserRoundCheck } from "lucide-react";
+import { AddUniversityForm } from "@/components/apply/AddUniversityForm";
+import { ApplyForm } from "@/components/apply/ApplyForm";
+import { WhatsAppIcon } from "@/components/icons";
+import { PageHero } from "@/components/pages/PageHero";
+import { CATALOGUE_COUNTRIES, getUniversity, isCountry } from "@/lib/catalogue";
+import { getSiteContent, whatsappHref } from "@/lib/content";
+import { intakeOptions } from "@/lib/intakes";
+import { portalConfigured } from "@/lib/supabase/env";
+import { createClient } from "@/lib/supabase/server";
+
+export const metadata: Metadata = {
+  title: "Apply to a university",
+  description: "Apply to universities in the UK, Australia, the USA, Canada, New Zealand and Europe with free guidance from Edusphere Overseas.",
+};
+
+const countries = CATALOGUE_COUNTRIES.map(({ id, name, flag }) => ({ id, name, flag }));
+
+export default async function ApplyPage({ searchParams }: PageProps<"/apply">) {
+  const c = await getSiteContent();
+  const steps = [
+    { icon: Search, title: "Choose", text: "Pick the country and university. Not in our list? Type its name: we work with almost every university." },
+    { icon: UserRoundCheck, title: "Your portal account", text: "We create your student portal account, so you can upload documents and follow each stage." },
+    { icon: MessageCircle, title: "Your counsellor calls", text: "Usually within one working day, to check the course, entry requirements and deadlines with you." },
+  ];
+  return (
+    <>
+      <PageHero
+        eyebrow="Apply"
+        crumbs={[
+          ...(c.sections.courseFinder ? [{ href: "/course-finder", label: "Course finder" }] : []),
+          { href: "/apply", label: "Apply" },
+        ]}
+        title={
+          <>
+            Apply to your <span className="text-teal-light">university</span>
+          </>
+        }
+        intro="Tell us where you'd like to study. Our counsellors handle the application with you, free of charge."
+      />
+      <section className="py-12 sm:py-16">
+        <div className="mx-auto grid max-w-7xl items-start gap-10 px-5 sm:px-8 lg:grid-cols-[1.4fr_1fr]">
+          <div className="rounded-3xl bg-white p-6 text-ink shadow-[0_30px_80px_-30px_rgba(0,0,0,0.6)] sm:p-8">
+            <Suspense fallback={<div className="h-[40rem] animate-pulse rounded-2xl bg-mist" />}>
+              <Apply searchParams={searchParams} />
+            </Suspense>
+          </div>
+          <aside className="grid gap-5">
+            <h2 className="text-xl font-extrabold text-white">What happens next</h2>
+            <ol className="grid gap-4">
+              {steps.map((s, i) => (
+                <li key={s.title} className="flex gap-4 rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+                  <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-teal/20 text-teal-light">
+                    <s.icon className="h-5 w-5" aria-hidden="true" />
+                  </span>
+                  <span>
+                    <span className="block font-bold text-white">
+                      {i + 1}. {s.title}
+                    </span>
+                    <span className="mt-1 block text-sm leading-relaxed text-white/65">{s.text}</span>
+                  </span>
+                </li>
+              ))}
+            </ol>
+            <a
+              href={whatsappHref(c.whatsappNumber, "Hi Edusphere, I'd like help applying to a university.")}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center justify-center gap-2 rounded-full px-6 py-3.5 font-semibold text-white ring-1 ring-white/25 transition hover:bg-white/5"
+            >
+              <WhatsAppIcon className="h-5 w-5 text-[#25D366]" />
+              Prefer to chat? WhatsApp us
+            </a>
+          </aside>
+        </div>
+      </section>
+    </>
+  );
+}
+
+async function Apply({ searchParams }: { searchParams: PageProps<"/apply">["searchParams"] }) {
+  const sp = await searchParams;
+  await connection(); // the intake list depends on today's date
+  const one = (k: string) => (typeof sp[k] === "string" ? (sp[k] as string).slice(0, 200) : "");
+  const u = one("u") ? await getUniversity(one("u")) : null;
+  const country = u?.country ?? (isCountry(one("country")) ? one("country") : "");
+  const initial = {
+    country,
+    university: u ? { id: u.id, name: u.name, place: [u.city, u.region].filter(Boolean).join(", ") } : null,
+    typed: u ? "" : one("name").slice(0, 160),
+    course: one("course"),
+  };
+  const intakes = intakeOptions();
+
+  // Signed in: add straight to the portal's application tracker
+  if (portalConfigured) {
+    const supabase = await createClient();
+    const { data } = await supabase.auth.getClaims();
+    const uid = data?.claims?.sub;
+    if (uid) {
+      const { data: profile } = await supabase.from("profiles").select("role, full_name, onboarded_at").eq("id", uid).maybeSingle();
+      if (profile?.role === "admin" || profile?.role === "counsellor" || profile?.role === "editor") {
+        return (
+          <div>
+            <h2 className="text-xl font-extrabold text-deep">You&apos;re signed in as staff</h2>
+            <p className="mt-2 leading-relaxed text-slate">
+              Add universities for a student from their page in the{" "}
+              <Link href="/staff/students" className="font-semibold text-teal hover:text-navy">
+                staff dashboard
+              </Link>
+              . Sign out to try the student form.
+            </p>
+          </div>
+        );
+      }
+      if (profile?.onboarded_at) {
+        return (
+          <>
+            <h2 className="flex items-center gap-2 text-xl font-extrabold text-deep">
+              <CheckCircle2 className="h-5 w-5 text-teal" aria-hidden="true" />
+              Signed in as {profile.full_name || "you"}
+            </h2>
+            <p className="mt-2 mb-6 leading-relaxed text-slate">
+              {profile.role === "parent"
+                ? "The university is added to your student's application tracker, and their counsellor is told."
+                : "The university is added to your application tracker, and your counsellor is told."}
+            </p>
+            <AddUniversityForm countries={countries} intakes={intakes} initial={initial} />
+          </>
+        );
+      }
+    }
+  }
+
+  return (
+    <>
+      <ApplyForm countries={countries} intakes={intakes} initial={initial} />
+      <p className="mt-6 border-t border-deep/8 pt-5 text-center text-sm text-slate">
+        Already have an account?{" "}
+        <Link href={`/sign-in?next=${encodeURIComponent(`/apply${u ? `?u=${u.id}` : ""}`)}`} className="font-semibold text-teal hover:text-navy">
+          Sign in
+        </Link>{" "}
+        and add universities from your portal.
+      </p>
+    </>
+  );
+}
+#==EDU:FILE src/app/(site)/course-finder/page.tsx
+import type { Metadata } from "next";
+import Link from "next/link";
+import { notFound } from "next/navigation";
+import { Suspense } from "react";
+import { ArrowRight, ChevronLeft, ChevronRight, Info, PencilLine, SearchX, X } from "lucide-react";
+import { FinderForm } from "@/components/finder/FinderForm";
+import { CourseRow, UniversityRow } from "@/components/finder/Rows";
+import { PageHero } from "@/components/pages/PageHero";
+import {
+  applyHref,
+  CATALOGUE_COUNTRIES,
+  catalogueSummary,
+  countryInfo,
+  getUniversity,
+  isCountry,
+  LEVELS,
+  searchCourses,
+  searchUniversities,
+  SOURCES,
+  SUBJECTS,
+} from "@/lib/catalogue";
+import { getSiteContent } from "@/lib/content";
+import { formatDate } from "@/lib/format";
+
+export const metadata: Metadata = {
+  title: "Course finder",
+  description:
+    "Search courses and universities in the UK, Australia, the USA, Canada, New Zealand and Europe, and apply with free guidance from Edusphere Overseas.",
+};
+
+const PER_PAGE = 20;
+const fmt = (n: number) => n.toLocaleString("en-IN");
+
+export default async function CourseFinderPage({ searchParams }: PageProps<"/course-finder">) {
+  const c = await getSiteContent();
+  if (!c.sections.courseFinder) notFound();
+  const { total, updated, counts } = await catalogueSummary();
+  const sources = SOURCES.filter((s) => !s.ifCoursesIn || (counts[s.ifCoursesIn]?.courses ?? 0) > 0);
+
+  return (
+    <>
+      <PageHero
+        eyebrow="Course finder"
+        crumbs={[{ href: "/course-finder", label: "Course finder" }]}
+        title={
+          <>
+            Find your <span className="text-teal-light">course</span>
+          </>
+        }
+        intro={`Search ${fmt(total.courses)} courses and ${fmt(total.universities)} universities and colleges, from official open data. Found the one? Apply in two minutes, and your counsellor takes it from there.`}
+      />
+      <section className="py-10 sm:py-14">
+        <div className="mx-auto max-w-7xl px-5 sm:px-8">
+          <Suspense fallback={<FinderSkeleton />}>
+            <Finder searchParams={searchParams} />
+          </Suspense>
+        </div>
+      </section>
+      <section className="border-t border-white/8 bg-deeper py-10">
+        <div className="mx-auto max-w-7xl px-5 text-sm leading-relaxed text-white/55 sm:px-8">
+          <h2 className="font-bold text-white/80">Where this data comes from</h2>
+          <p className="mt-2 max-w-3xl">
+            Course and university details come from official open data, refreshed every month{updated ? ` (last update ${formatDate(updated)})` : ""}. Courses, fees and
+            entry requirements change, so your counsellor confirms the details with the university before you apply.
+          </p>
+          <ul className="mt-3 grid gap-1.5 sm:grid-cols-2">
+            {sources.map((s) => (
+              <li key={s.name}>
+                {s.country}:{" "}
+                <a href={s.url} target="_blank" rel="noopener noreferrer" className="font-semibold text-white/75 underline-offset-2 hover:underline">
+                  {s.name}
+                </a>
+                , {s.publisher} ({s.licence})
+              </li>
+            ))}
+          </ul>
+        </div>
+      </section>
+    </>
+  );
+}
+
+function FinderSkeleton() {
+  return (
+    <div className="grid gap-4" aria-hidden="true">
+      <div className="h-20 animate-pulse rounded-3xl bg-white/[0.05]" />
+      {[0, 1, 2, 3].map((i) => (
+        <div key={i} className="h-28 animate-pulse rounded-2xl bg-white/[0.04]" />
+      ))}
+    </div>
+  );
+}
+
+async function Finder({ searchParams }: { searchParams: PageProps<"/course-finder">["searchParams"] }) {
+  const sp = await searchParams;
+  const one = (k: string, max = 80) => (typeof sp[k] === "string" ? (sp[k] as string).trim().slice(0, max) : "");
+  const q = one("q");
+  const country = isCountry(one("country")) ? one("country") : "";
+  const level = LEVELS.some((l) => l.id === one("level")) ? one("level") : "";
+  const subject = SUBJECTS.some((s) => s.id === one("subject")) ? one("subject") : "";
+  const uni = one("u", 40) ? await getUniversity(one("u", 40)) : null;
+  const info = country ? countryInfo(country) : null;
+  const { counts } = await catalogueSummary();
+  const hasCourses = (id: string) => (counts[id]?.courses ?? 0) > 0;
+  const coursesHere = country ? hasCourses(country) : Object.keys(counts).some(hasCourses);
+  const view = !coursesHere || one("view") === "universities" ? "universities" : "courses";
+  const page = Math.min(Math.max(1, Number.parseInt(one("page", 4)) || 1), 500);
+  const offset = (page - 1) * PER_PAGE;
+
+  const [courses, universities] = await Promise.all([
+    coursesHere ? searchCourses({ q, country: country || undefined, level, subject, university: uni?.id, limit: view === "courses" ? PER_PAGE : 0, offset }) : { total: 0, items: [] },
+    searchUniversities({ q, country: country || undefined, limit: view === "universities" ? PER_PAGE : 0, offset }),
+  ]);
+  const result = view === "courses" ? courses : universities;
+  const pages = Math.ceil(result.total / PER_PAGE);
+
+  const link = (over: Record<string, string | number | undefined>) => {
+    const p = new URLSearchParams();
+    const all = { q, country, level, subject, u: uni?.id, view, page: undefined, ...over } as Record<string, string | number | undefined>;
+    for (const [k, v] of Object.entries(all)) if (v !== undefined && v !== "" && !(k === "view" && v === "courses") && !(k === "page" && v === 1)) p.set(k, String(v));
+    const s = p.toString();
+    return `/course-finder${s ? `?${s}` : ""}`;
+  };
+
+  return (
+    <div>
+      <FinderForm
+        key={JSON.stringify([q, country, level, subject, view, uni?.id])}
+        view={view}
+        q={q}
+        country={country}
+        level={level}
+        subject={subject}
+        university={uni?.id}
+        countries={CATALOGUE_COUNTRIES.map((c) => ({ id: c.id, label: c.name, courses: hasCourses(c.id) }))}
+        levels={LEVELS.map((l) => ({ id: l.id, label: l.label }))}
+        subjects={SUBJECTS.map((s) => ({ id: s.id, label: s.label }))}
+      />
+
+      <div className="mt-6 flex flex-wrap items-center justify-between gap-3">
+        <nav aria-label="Show courses or universities" className="flex gap-1.5 rounded-full bg-white/[0.05] p-1 ring-1 ring-white/10">
+          {coursesHere && (
+            <Link
+              href={link({ view: "courses", u: uni?.id })}
+              aria-current={view === "courses" ? "page" : undefined}
+              className={`rounded-full px-4 py-2 text-sm font-semibold transition ${view === "courses" ? "bg-white text-deep" : "text-white/75 hover:text-white"}`}
+            >
+              Courses <span className="opacity-60">{fmt(courses.total)}</span>
+            </Link>
+          )}
+          <Link
+            href={link({ view: "universities", u: undefined, level: undefined, subject: undefined })}
+            aria-current={view === "universities" ? "page" : undefined}
+            className={`rounded-full px-4 py-2 text-sm font-semibold transition ${view === "universities" ? "bg-white text-deep" : "text-white/75 hover:text-white"}`}
+          >
+            Universities <span className="opacity-60">{fmt(universities.total)}</span>
+          </Link>
+        </nav>
+        {uni && view === "courses" && (
+          <Link href={link({ u: undefined })} className="inline-flex items-center gap-1.5 rounded-full bg-teal/20 px-3.5 py-1.5 text-sm font-semibold text-teal-light hover:bg-teal/30">
+            Courses at {uni.name}
+            <X className="h-4 w-4" aria-label="Show all universities" />
+          </Link>
+        )}
+      </div>
+
+      {info && !coursesHere && (
+        <p className="mt-5 flex items-start gap-3 rounded-2xl border border-white/10 bg-white/[0.03] p-4 text-sm leading-relaxed text-white/70">
+          <Info className="mt-0.5 h-4.5 w-4.5 shrink-0 text-teal-light" aria-hidden="true" />
+          We don&apos;t have an open course list for {info.name} yet, so we show its universities and colleges. Choose one and tell us your course when you apply.
+        </p>
+      )}
+
+      <p className="mt-6 text-sm text-white/50" aria-live="polite">
+        {result.total === 0
+          ? "No matches"
+          : `${fmt(result.total)} ${view === "courses" ? (result.total === 1 ? "course" : "courses") : result.total === 1 ? "university" : "universities"}${pages > 1 ? ` · page ${page} of ${fmt(pages)}` : ""}`}
+      </p>
+
+      {result.total === 0 ? (
+        <div className="mt-4 flex flex-col items-start gap-4 rounded-3xl border border-dashed border-white/15 p-8">
+          <SearchX className="h-8 w-8 text-teal-light/70" aria-hidden="true" />
+          <h2 className="text-2xl font-extrabold text-white">Nothing matches that search</h2>
+          <p className="max-w-2xl leading-relaxed text-white/65">
+            Try fewer or different words, or another country. We&apos;re partnered with almost every university, including many that aren&apos;t in these lists, so you can
+            also apply and type the university&apos;s name.
+          </p>
+          <Link href={applyHref({ country, course: view === "courses" ? q : undefined })} className="inline-flex items-center gap-2 rounded-full bg-teal px-5 py-3 font-semibold text-white hover:bg-teal-light">
+            Apply anyway
+            <ArrowRight className="h-4.5 w-4.5" aria-hidden="true" />
+          </Link>
+        </div>
+      ) : view === "courses" ? (
+        <ul className="mt-4 grid gap-3">
+          {courses.items.map((c, i) => (
+            <CourseRow key={`${c.university.id}-${c.title}-${i}`} c={c} />
+          ))}
+        </ul>
+      ) : (
+        <ul className="mt-4 grid gap-3 md:grid-cols-2">
+          {universities.items.map((u) => (
+            <UniversityRow key={u.id} u={u} coursesLink={coursesHere && u.courses ? link({ view: "courses", u: u.id, q: "", country: u.country }) : undefined} />
+          ))}
+        </ul>
+      )}
+
+      {pages > 1 && (
+        <nav aria-label="Pages" className="mt-8 flex items-center justify-center gap-3">
+          {page > 1 ? (
+            <Link href={link({ page: page - 1 })} className="inline-flex items-center gap-1 rounded-full px-4 py-2 text-sm font-semibold text-white ring-1 ring-white/20 hover:bg-white/5">
+              <ChevronLeft className="h-4 w-4" aria-hidden="true" />
+              Previous
+            </Link>
+          ) : (
+            <span />
+          )}
+          <span className="text-sm text-white/55">
+            Page {page} of {fmt(pages)}
+          </span>
+          {page < pages && (
+            <Link href={link({ page: page + 1 })} className="inline-flex items-center gap-1 rounded-full px-4 py-2 text-sm font-semibold text-white ring-1 ring-white/20 hover:bg-white/5">
+              Next
+              <ChevronRight className="h-4 w-4" aria-hidden="true" />
+            </Link>
+          )}
+        </nav>
+      )}
+
+      <div className="mt-10 flex flex-col items-start justify-between gap-4 rounded-3xl bg-gradient-to-br from-teal/25 to-navy/30 p-6 ring-1 ring-white/10 sm:flex-row sm:items-center sm:p-8">
+        <div>
+          <h2 className="text-xl font-extrabold text-white">University not in the list?</h2>
+          <p className="mt-1.5 max-w-2xl leading-relaxed text-white/70">We&apos;re partnered with almost every university. Apply and type its name: your counsellor does the rest.</p>
+        </div>
+        <Link href={applyHref({ country })} className="inline-flex shrink-0 items-center gap-2 rounded-full bg-white px-5 py-3 font-semibold text-deep hover:bg-mist">
+          <PencilLine className="h-4.5 w-4.5" aria-hidden="true" />
+          Apply for another university
+        </Link>
+      </div>
+    </div>
+  );
+}
+#==EDU:FILE src/app/(site)/destinations/[slug]/page.tsx
+import type { Metadata } from "next";
+import Link from "next/link";
+import { notFound } from "next/navigation";
+import { ArrowRight, ArrowUpRight, CalendarDays, Check, ExternalLink, GraduationCap, Landmark, ShieldCheck, Wallet } from "lucide-react";
+import { OpenNow } from "@/components/home/OpenNow";
+import { WhatsAppIcon } from "@/components/icons";
+import { CtaBand } from "@/components/pages/CtaBand";
+import { FaqList, faqJsonLd } from "@/components/pages/FaqList";
+import { PageHero } from "@/components/pages/PageHero";
+import { JsonLd } from "@/components/seo/JsonLd";
+import { Reveal } from "@/components/ui/Reveal";
+import { SanityImage } from "@/components/ui/SanityImage";
+import { UniversityRow } from "@/components/finder/Rows";
+import { applyHref, catalogueSummary, countryInfo, topUniversities } from "@/lib/catalogue";
+import { getLibrary, getSiteContent, whatsappHref } from "@/lib/content";
+import { formatDate, shortName } from "@/lib/format";
+
+export async function generateStaticParams() {
+  const lib = await getLibrary();
+  return lib.destinations.map((d) => ({ slug: d.id }));
+}
+
+async function find(slug: string) {
+  const lib = await getLibrary();
+  return { lib, d: lib.destinations.find((x) => x.id === slug) };
+}
+
+export async function generateMetadata({ params }: PageProps<"/destinations/[slug]">): Promise<Metadata> {
+  const { slug } = await params;
+  const { d } = await find(slug);
+  if (!d) return {};
+  return {
+    title: `Study in ${shortName(d.name)}`,
+    description: `${d.summary} Intakes, popular courses, visa steps and post-study work in ${shortName(d.name)}, with free guidance from Edusphere Overseas.`,
+  };
+}
+
+export default async function DestinationPage({ params }: PageProps<"/destinations/[slug]">) {
+  const { slug } = await params;
+  const [{ lib, d }, c, summary] = await Promise.all([find(slug), getSiteContent(), catalogueSummary()]);
+  if (!d) notFound();
+  const catalogue = countryInfo(d.id);
+  const top = catalogue ? await topUniversities(d.id, 6) : null;
+  const counts = catalogue ? summary.counts[catalogue.id] : null;
+
+  const name = shortName(d.name);
+  const flags = new Set([d.flag, ...(d.countries ?? []).map((x) => x.flag)]);
+  const openNow = c.sections.openNow ? c.openNow.filter((p) => p.flag && flags.has(p.flag)) : [];
+  const universities = lib.universities.filter((u) => flags.has(u.flag));
+  const scholarships = lib.scholarships.filter((s) => s.flag && flags.has(s.flag));
+  const others = lib.destinations.filter((x) => x.id !== d.id);
+  const ask = whatsappHref(c.whatsappNumber, `Hi Edusphere, I'm interested in studying in ${name}.`);
+
+  const facts = [
+    { icon: CalendarDays, label: "Intakes", value: d.intakes },
+    { icon: GraduationCap, label: "Typical tuition", value: d.tuition },
+    { icon: Wallet, label: "Typical living costs", value: d.livingCosts },
+  ].filter((f) => f.value);
+
+  return (
+    <>
+      <JsonLd data={faqJsonLd(d.faqs)} />
+      <PageHero
+        eyebrow="Study destination"
+        flag={d.flag}
+        crumbs={[
+          { href: "/destinations", label: "Destinations" },
+          { href: `/destinations/${d.id}`, label: d.name },
+        ]}
+        title={
+          <>
+            Study in <span className="text-teal-light">{name}</span>
+          </>
+        }
+        intro={d.summary}
+        aside={
+          d.heroImage ? (
+            <div className="relative aspect-[4/3] overflow-hidden rounded-[2rem] border border-white/10">
+              <SanityImage photo={d.heroImage} fill priority sizes="(min-width: 1024px) 40vw, 100vw" className="object-cover" />
+            </div>
+          ) : undefined
+        }
+      >
+        <div className="flex flex-col gap-3 sm:flex-row">
+          <Link
+            href={catalogue ? applyHref({ country: d.id }) : `/contact?destination=${d.id}#enquiry`}
+            className="group inline-flex items-center justify-center gap-2 rounded-full bg-teal px-6 py-3.5 font-semibold text-white transition hover:bg-teal-light"
+          >
+            {catalogue ? "Apply to a university" : "Book a free consultation"}
+            <ArrowRight className="h-4.5 w-4.5 transition-transform group-hover:translate-x-1" aria-hidden="true" />
+          </Link>
+          <a
+            href={ask}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center justify-center gap-2 rounded-full px-6 py-3.5 font-semibold text-white ring-1 ring-white/25 transition hover:bg-white/5"
+          >
+            <WhatsAppIcon className="h-5 w-5 text-[#25D366]" />
+            Ask about {name}
+          </a>
+        </div>
+      </PageHero>
+
+      {facts.length > 0 && (
+        <section className="border-b border-white/8 bg-deeper">
+          <dl className={`mx-auto grid max-w-7xl gap-px px-5 sm:px-8 ${facts.length > 1 ? "sm:grid-cols-2 lg:grid-cols-3" : ""}`}>
+            {facts.map((f) => (
+              <div key={f.label} className="flex items-start gap-3.5 py-6">
+                <f.icon className="mt-0.5 h-5 w-5 shrink-0 text-teal-light" aria-hidden="true" />
+                <div>
+                  <dt className="text-xs font-bold uppercase tracking-[0.16em] text-white/50">{f.label}</dt>
+                  <dd className="mt-1.5 font-semibold text-white">{f.value}</dd>
+                </div>
+              </div>
+            ))}
+          </dl>
+        </section>
+      )}
+
+      <section className="py-16 sm:py-24">
+        <div className="mx-auto grid max-w-7xl gap-14 px-5 sm:px-8 lg:grid-cols-[1.35fr_1fr]">
+          <div>
+            <Reveal>
+              <h2 className="text-3xl font-extrabold tracking-[-0.02em] text-white sm:text-4xl">Why study in {name}?</h2>
+              <p className="mt-5 text-lg leading-relaxed text-white/75">{d.intro}</p>
+            </Reveal>
+            {d.highlights.length > 0 && (
+              <Reveal delay={0.05}>
+                <ul className="mt-8 grid gap-3 sm:grid-cols-2">
+                  {d.highlights.map((h) => (
+                    <li key={h} className="flex items-start gap-3 rounded-2xl border border-white/10 bg-white/[0.03] p-4 text-[0.95rem] leading-relaxed text-white/80">
+                      <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-teal/25 text-teal-light">
+                        <Check className="h-3.5 w-3.5" aria-hidden="true" />
+                      </span>
+                      {h}
+                    </li>
+                  ))}
+                </ul>
+              </Reveal>
+            )}
+
+            {d.countries && d.countries.length > 0 && (
+              <Reveal className="mt-14">
+                <h2 className="text-2xl font-extrabold tracking-[-0.02em] text-white">Countries we guide students to</h2>
+                <ul className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3">
+                  {d.countries.map((ct) => (
+                    <li key={ct.flag} className="group flex items-center gap-3 rounded-2xl border border-white/10 bg-panel/60 p-3.5">
+                      <span className="block aspect-[4/3] w-11 shrink-0 overflow-hidden rounded-lg ring-1 ring-white/20">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={`/flags/${ct.flag}.svg`} alt="" className="flag-wave h-full w-full object-cover" />
+                      </span>
