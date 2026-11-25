@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-25T21:37:54.825Z",
+  "generatedAt": "2026-11-25T22:34:32.521Z",
   "sources": {
     "australia": {
       "ok": true,
@@ -35,30 +35,34 @@
     },
     "usa": {
       "ok": false,
-      "error": "403 Forbidden for https://data.ed.gov/api/3/action/package_show?id=9dc70e6b-8426-4d71-b9d5-70ce6094a3f4",
+      "error": "403 Forbidden for https://ed-public-download.scorecard.network/downloads/Most-Recent-Cohorts-Institution_11022026.zip",
       "keptPrevious": true
     },
     "uk": {
-      "ok": false,
-      "error": "403 Forbidden for https://www.hesa.ac.uk/kisdata",
-      "keptPrevious": true
+      "ok": true,
+      "universities": 368,
+      "courses": 0,
+      "file": "https://assets.publishing.service.gov.uk/media/6b06c0aa1467fac8f01bd64e/SP_-_Student_and_Child_Student_Web_Register_-_2026-11-25.csv",
+      "coursesFrom": "none",
+      "discoverUniError": "403 Forbidden for https://www.hesa.ac.uk/kisdata",
+      "seconds": 21
     },
     "canada": {
-      "ok": false,
-      "error": "IRCC DLI list: no rows parsed (4 tables)",
-      "keptPrevious": true
+      "ok": true,
+      "universities": 1099,
+      "seconds": 2
     },
     "new-zealand": {
       "ok": true,
       "universities": 23,
-      "seconds": 2
+      "seconds": 1
     },
     "europe": {
       "ok": true,
-      "universities": 1757,
+      "universities": 1930,
       "byCountry": {
         "Germany": 471,
-        "France": "failed: 504 Gateway Timeout for https://query.wikidata.org/sparql?format=json&query=SELECT%20%3Fu%20%3FuLabel%20%3FcityLabel%20%3Fwebsite%20%3Fstudents%20WHERE%20%7B%0A%20%20VALUES%20%3Fclass%20%7B%20wd%3AQ3918%20wd%3AQ1371037%20%7D%0A%20%20%3Fu%20wdt%3AP31%20%3Ftype%20.%20%3Ftype%20wdt%3AP279*%20%3Fclass%20.%0A%20%20%3Fu%20wdt%3AP17%20wd%3AQ142%20.%0A%20%20%3Fu%20wdt%3AP856%20%3Fwebsite%20.%0A%20%20FILTER%20NOT%20EXISTS%20%7B%20%3Fu%20wdt%3AP576%20%3Fended%20%7D%0A%20%20OPTIONAL%20%7B%20%3Fu%20wdt%3AP131%20%3Fcity%20%7D%0A%20%20OPTIONAL%20%7B%20%3Fu%20wdt%3AP2196%20%3Fstudents%20%7D%0A%20%20SERVICE%20wikibase%3Alabel%20%7B%20bd%3AserviceParam%20wikibase%3Alanguage%20%22en%22.%20%7D%0A%7D",
+        "France": 174,
         "Ireland": 51,
         "Netherlands": 25,
         "Spain": 177,
@@ -88,7 +92,7 @@
         "Luxembourg": 2,
         "Iceland": 9
       },
-      "seconds": 632
+      "seconds": 508
     }
   },
   "counts": {
@@ -101,11 +105,11 @@
       "courses": 0
     },
     "uk": {
-      "universities": 0,
+      "universities": 368,
       "courses": 0
     },
     "canada": {
-      "universities": 0,
+      "universities": 1099,
       "courses": 0
     },
     "new-zealand": {
@@ -113,7 +117,7 @@
       "courses": 0
     },
     "europe": {
-      "universities": 1757,
+      "universities": 1930,
       "courses": 0
     }
   }
