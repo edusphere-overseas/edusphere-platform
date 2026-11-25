@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-25T22:34:32.521Z",
+  "generatedAt": "2026-11-25T22:49:17.551Z",
   "sources": {
     "australia": {
       "ok": true,
@@ -35,7 +35,7 @@
     },
     "usa": {
       "ok": false,
-      "error": "403 Forbidden for https://ed-public-download.scorecard.network/downloads/Most-Recent-Cohorts-Institution_11022026.zip",
+      "error": "429 Too Many Requests for https://api.data.gov/ed/collegescorecard/v1/schools?api_key=DEMO_KEY&per_page=100&page=10&fields=id%2Cschool.name%2Cschool.city%2Cschool.state%2Cschool.school_url%2Clatest.student.size%2Clatest.cost.tuition.out_of_state%2Clatest.programs.cip_4_digit.code%2Clatest.programs.cip_4_digit.title%2Clatest.programs.cip_4_digit.credential.level%2Clatest.programs.cip_4_digit.counts.ipeds_awards1%2Clatest.programs.cip_4_digit.counts.ipeds_awards2&school.operating=1&school.ownership=1%2C2&school.degrees_awarded.highest=3%2C4&latest.student.size__range=1000..",
       "keptPrevious": true
     },
     "uk": {
