@@ -136,16 +136,5 @@ async function Apply({ searchParams }: { searchParams: PageProps<"/apply">["sear
     }
   }
 
-  return (
-    <>
-      <ApplyForm countries={countries} intakes={intakes} initial={initial} />
-      <p className="mt-6 border-t border-deep/8 pt-5 text-center text-sm text-slate">
-        Already have an account?{" "}
-        <Link href={`/sign-in?next=${encodeURIComponent(`/apply${u ? `?u=${u.id}` : ""}`)}`} className="font-semibold text-teal hover:text-navy">
-          Sign in
-        </Link>{" "}
-        and add universities from your portal.
-      </p>
-    </>
-  );
+  return <ApplyForm countries={countries} intakes={intakes} initial={initial} signInHref={`/sign-in?next=${encodeURIComponent(`/apply${u ? `?u=${u.id}` : ""}`)}`} />;
 }

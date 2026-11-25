@@ -14,10 +14,12 @@ export function ApplyForm({
   countries,
   intakes,
   initial,
+  signInHref = "/sign-in",
 }: {
   countries: CountryOption[];
   intakes: string[];
   initial: { country?: string; university?: PickedUniversity; typed?: string; course?: string };
+  signInHref?: string;
 }) {
   const [state, action, pending] = useActionState<ApplyState, FormData>(applyForUniversity, null);
   const v = state?.values;
@@ -141,6 +143,13 @@ export function ApplyForm({
           Free of charge. Sending this creates your Edusphere student portal account, so you can upload documents and follow each stage.
         </p>
       </div>
+      <p className="border-t border-deep/8 pt-5 text-center text-sm text-slate">
+        Already have an account?{" "}
+        <Link href={signInHref} className="font-semibold text-teal hover:text-navy">
+          Sign in
+        </Link>{" "}
+        and add universities from your portal.
+      </p>
     </form>
   );
 }
