@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-25T22:49:17.551Z",
+  "generatedAt": "2026-11-25T22:55:03.525Z",
   "sources": {
     "australia": {
       "ok": true,
@@ -34,9 +34,13 @@
       "seconds": 2
     },
     "usa": {
-      "ok": false,
-      "error": "429 Too Many Requests for https://api.data.gov/ed/collegescorecard/v1/schools?api_key=DEMO_KEY&per_page=100&page=10&fields=id%2Cschool.name%2Cschool.city%2Cschool.state%2Cschool.school_url%2Clatest.student.size%2Clatest.cost.tuition.out_of_state%2Clatest.programs.cip_4_digit.code%2Clatest.programs.cip_4_digit.title%2Clatest.programs.cip_4_digit.credential.level%2Clatest.programs.cip_4_digit.counts.ipeds_awards1%2Clatest.programs.cip_4_digit.counts.ipeds_awards2&school.operating=1&school.ownership=1%2C2&school.degrees_awarded.highest=3%2C4&latest.student.size__range=1000..",
-      "keptPrevious": true
+      "ok": true,
+      "universities": 1000,
+      "courses": 76308,
+      "via": "api (DEMO_KEY)",
+      "partial": "stopped at page 10: 429",
+      "bulkError": "403 Forbidden for https://ed-public-download.scorecard.network/downloads/Most-Recent-Cohorts-Institution_11022026.zip",
+      "seconds": 116
     },
     "uk": {
       "ok": true,
@@ -101,8 +105,8 @@
       "courses": 16819
     },
     "usa": {
-      "universities": 0,
-      "courses": 0
+      "universities": 1000,
+      "courses": 76308
     },
     "uk": {
       "universities": 368,
