@@ -45,7 +45,9 @@ export default async function PortalHome({ searchParams }: PageProps<"/portal">)
     );
   }
 
-  const s = p.student!;
+  // Staff are sent to the staff dashboard by the layout; nothing to show here
+  if (!p.student) return null;
+  const s = p.student;
   const [docs, apps, requests] = await Promise.all([loadDocuments(p, s.id), loadApplications(p, s.id), loadRequests(p, s.id)]);
   const list = studentChecklist(p, apps, docs);
   const activeApps = apps.filter((a) => a.status === "active");

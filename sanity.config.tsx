@@ -3,8 +3,9 @@
 /**
  * Content area of the Edusphere admin portal (Sanity Studio), embedded at /admin/content.
  */
-import { defineConfig } from "sanity";
+import { defineConfig, type DocumentActionComponent } from "sanity";
 import { structureTool } from "sanity/structure";
+import { useToast } from "@sanity/ui/toast";
 import { PackagePlus } from "lucide-react";
 import { apiVersion, dataset, projectId, studioBasePath } from "./src/sanity/env";
 import { schemaTypes, singletonTypes } from "./src/sanity/schemaTypes";
@@ -13,6 +14,47 @@ import { StarterContent } from "./src/sanity/tools/StarterContent";
 import { LogoMark } from "./src/components/brand/LogoMark";
 
 const singletonActions = new Set(["publish", "discardChanges", "restore"]);
+
+/**
+ * After Publish, ask the website to show the change straight away (it otherwise refreshes
+ * on its own within a minute or two). The publish takes a moment to land, so try a few times.
+ */
+async function refreshWebsite() {
+  for (const wait of [1500, 2500, 4000, 8000]) {
+    await new Promise((resolve) => setTimeout(resolve, wait));
+    try {
+      const res = await fetch("/api/revalidate", { method: "POST" });
+      if (res.ok && (await res.json())?.revalidated) return true;
+    } catch {
+      // try again
+    }
+  }
+  return false;
+}
+
+/** The normal Publish button, plus a website refresh and a note saying when it's live. */
+function withWebsiteRefresh(Publish: DocumentActionComponent): DocumentActionComponent {
+  const PublishAndRefresh: DocumentActionComponent = (props) => {
+    const toast = useToast();
+    const action = Publish(props);
+    if (!action) return action;
+    return {
+      ...action,
+      onHandle: () => {
+        action.onHandle?.();
+        void refreshWebsite().then((ok) =>
+          toast.push({
+            status: ok ? "success" : "info",
+            title: ok ? "Live on the website" : "Published",
+            description: ok ? "Reload the website page to see your change." : "The website will show it within a few minutes.",
+          }),
+        );
+      },
+    };
+  };
+  PublishAndRefresh.action = Publish.action;
+  return PublishAndRefresh;
+}
 
 function StudioIcon() {
   return <LogoMark className="h-full w-full" />;
@@ -33,9 +75,9 @@ export default defineConfig({
   },
   document: {
     actions: (input, context) =>
-      singletonTypes.has(context.schemaType)
-        ? input.filter(({ action }) => action && singletonActions.has(action))
-        : input,
+      (singletonTypes.has(context.schemaType) ? input.filter(({ action }) => action && singletonActions.has(action)) : input).map(
+        (action) => (action.action === "publish" ? withWebsiteRefresh(action) : action),
+      ),
   },
   plugins: [structureTool({ structure, title: "Content" })],
   tools: (prev) => [
