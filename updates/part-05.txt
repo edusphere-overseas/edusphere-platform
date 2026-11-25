@@ -1,0 +1,959 @@
+        onChange={(e) => setValue(e.target.value)}
+        list={shown.length ? listId : undefined}
+        autoComplete="off"
+        placeholder="For example, MSc Data Science"
+        className={input}
+      />
+      {shown.length > 0 && (
+        <datalist id={listId}>
+          {shown.map((o) => (
+            <option key={o} value={o} />
+          ))}
+        </datalist>
+      )}
+      <span className={hint}>Not decided? Leave it blank and your counsellor will help you choose.</span>
+    </label>
+  );
+}
+#==EDU:FILE src/components/finder/FinderForm.tsx
+"use client";
+
+import { Search } from "lucide-react";
+
+type Opt = { id: string; label: string };
+
+const field =
+  "block w-full rounded-xl border-0 bg-white/[0.06] px-4 py-3 text-[0.95rem] text-white ring-1 ring-white/12 outline-none transition placeholder:text-white/40 focus:ring-2 focus:ring-teal-light [&>option]:bg-white [&>option]:text-deep";
+
+/** Search box and filters for the course finder. A plain GET form: changing a filter searches straight away. */
+export function FinderForm({
+  view,
+  q,
+  country,
+  level,
+  subject,
+  university,
+  countries,
+  levels,
+  subjects,
+}: {
+  view: "courses" | "universities";
+  q: string;
+  country: string;
+  level: string;
+  subject: string;
+  university?: string;
+  countries: (Opt & { courses: boolean })[];
+  levels: Opt[];
+  subjects: Opt[];
+}) {
+  const submit = (e: React.ChangeEvent<HTMLSelectElement>) => e.currentTarget.form?.requestSubmit();
+  const courseCountry = !country || countries.find((c) => c.id === country)?.courses;
+  return (
+    <form action="/course-finder" method="get" role="search" className="grid gap-3 rounded-3xl border border-white/10 bg-panel/70 p-4 sm:p-5 lg:grid-cols-[minmax(0,2fr)_repeat(3,minmax(0,1fr))_auto]">
+      <input type="hidden" name="view" value={view} />
+      {university && <input type="hidden" name="u" value={university} />}
+      <label className="relative">
+        <span className="sr-only">{view === "courses" ? "Course or subject" : "University name or city"}</span>
+        <Search className="pointer-events-none absolute top-1/2 left-4 h-4.5 w-4.5 -translate-y-1/2 text-white/45" aria-hidden="true" />
+        <input
+          name="q"
+          type="search"
+          defaultValue={q}
+          maxLength={80}
+          placeholder={view === "courses" ? "Course or subject, e.g. data science" : "University name or city"}
+          className={`${field} pl-11`}
+        />
+      </label>
+      <label>
+        <span className="sr-only">Country</span>
+        <select name="country" defaultValue={country} onChange={submit} className={field}>
+          <option value="">All countries</option>
+          {countries.map((c) => (
+            <option key={c.id} value={c.id}>
+              {c.label}
+            </option>
+          ))}
+        </select>
+      </label>
+      <label>
+        <span className="sr-only">Level</span>
+        <select name="level" defaultValue={level} onChange={submit} disabled={view !== "courses" || !courseCountry} className={`${field} disabled:opacity-40`}>
+          <option value="">All levels</option>
+          {levels.map((l) => (
+            <option key={l.id} value={l.id}>
+              {l.label}
+            </option>
+          ))}
+        </select>
+      </label>
+      <label>
+        <span className="sr-only">Subject</span>
+        <select name="subject" defaultValue={subject} onChange={submit} disabled={view !== "courses" || !courseCountry} className={`${field} disabled:opacity-40`}>
+          <option value="">All subjects</option>
+          {subjects.map((s) => (
+            <option key={s.id} value={s.id}>
+              {s.label}
+            </option>
+          ))}
+        </select>
+      </label>
+      <button type="submit" className="inline-flex items-center justify-center gap-2 rounded-xl bg-teal px-6 py-3 font-semibold text-white transition hover:bg-teal-light">
+        <Search className="h-4.5 w-4.5" aria-hidden="true" />
+        Search
+      </button>
+    </form>
+  );
+}
+#==EDU:FILE src/components/finder/Rows.tsx
+import Link from "next/link";
+import { ArrowRight, ArrowUpRight } from "lucide-react";
+import { applyHref, countryInfo, durationText, feeText, levelLabel, universityFee, type Course, type University } from "@/lib/catalogue";
+
+/** Result rows for the course finder and the country pages (dark site style). */
+
+const fmt = (n: number) => n.toLocaleString("en-IN");
+
+export function Flag({ country }: { country: string }) {
+  const f = countryInfo(country)?.flag;
+  if (!f) return null;
+  // eslint-disable-next-line @next/next/no-img-element
+  return <img src={`/flags/${f}.svg`} alt="" className="h-3.5 w-5 shrink-0 rounded-[2px] object-cover ring-1 ring-white/15" />;
+}
+
+const place = (u: University) => [u.city, u.region, u.country === "europe" ? "" : countryInfo(u.country)?.name].filter(Boolean).join(", ");
+
+export function CourseRow({ c }: { c: Course }) {
+  const facts = [levelLabel(c.level), durationText(c.months), feeText(c)].filter(Boolean);
+  return (
+    <li className="flex flex-col gap-4 rounded-2xl border border-white/10 bg-panel/60 p-5 sm:flex-row sm:items-center">
+      <div className="min-w-0 flex-1">
+        <p className="text-xs font-semibold tracking-wide text-teal-light">{facts.join(" · ")}</p>
+        <h3 className="mt-1 text-lg leading-snug font-bold text-white">{c.title}</h3>
+        <p className="mt-1.5 flex items-center gap-2 text-sm text-white/60">
+          <Flag country={c.university.country} />
+          <span className="min-w-0">
+            <span className="font-medium text-white/80">{c.university.name}</span>
+            {place(c.university) && <span> · {place(c.university)}</span>}
+          </span>
+        </p>
+      </div>
+      <div className="flex shrink-0 flex-wrap items-center gap-2">
+        {(c.url || c.university.website) && (
+          <a
+            href={c.url || c.university.website}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1 rounded-full px-4 py-2.5 text-sm font-semibold text-white/80 ring-1 ring-white/15 hover:bg-white/5"
+          >
+            {c.url ? "Course page" : "Website"}
+            <ArrowUpRight className="h-4 w-4" aria-hidden="true" />
+            <span className="sr-only">(opens a new tab)</span>
+          </a>
+        )}
+        <Link
+          href={applyHref({ university: c.university.id, course: c.title, country: c.university.country })}
+          className="inline-flex items-center gap-1.5 rounded-full bg-teal px-5 py-2.5 text-sm font-semibold text-white hover:bg-teal-light"
+        >
+          Apply
+          <span className="sr-only">
+            for {c.title} at {c.university.name}
+          </span>
+          <ArrowRight className="h-4 w-4" aria-hidden="true" />
+        </Link>
+      </div>
+    </li>
+  );
+}
+
+export function UniversityRow({ u, coursesLink }: { u: University; coursesLink?: string }) {
+  const extra = [universityFee(u), u.country === "canada" && u.pgwp ? "Has work-permit-eligible programmes" : "", u.country === "canada" && u.public ? "Public" : ""].filter(Boolean);
+  return (
+    <li className="flex flex-col rounded-2xl border border-white/10 bg-panel/60 p-5">
+      <div className="flex items-start gap-3">
+        <span className="mt-1.5">
+          <Flag country={u.country} />
+        </span>
+        <div className="min-w-0 flex-1">
+          <h3 className="text-lg leading-snug font-bold text-white">{u.name}</h3>
+          {place(u) && <p className="mt-0.5 text-sm text-white/60">{place(u)}</p>}
+          {extra.length > 0 && <p className="mt-1.5 text-xs text-white/50">{extra.join(" · ")}</p>}
+        </div>
+      </div>
+      <div className="mt-4 flex flex-wrap items-center gap-2 pt-1">
+        <Link href={applyHref({ university: u.id, country: u.country })} className="inline-flex items-center gap-1.5 rounded-full bg-teal px-4 py-2 text-sm font-semibold text-white hover:bg-teal-light">
+          Apply
+          <span className="sr-only">to {u.name}</span>
+          <ArrowRight className="h-4 w-4" aria-hidden="true" />
+        </Link>
+        {coursesLink && (
+          <Link href={coursesLink} className="rounded-full px-4 py-2 text-sm font-semibold text-white/80 ring-1 ring-white/15 hover:bg-white/5">
+            {fmt(u.courses)} {u.courses === 1 ? "course" : "courses"}
+          </Link>
+        )}
+        {u.website && (
+          <a href={u.website} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 px-2 py-2 text-sm font-semibold text-teal-light hover:underline">
+            Website
+            <ArrowUpRight className="h-4 w-4" aria-hidden="true" />
+            <span className="sr-only">(opens a new tab)</span>
+          </a>
+        )}
+      </div>
+    </li>
+  );
+}
+#==EDU:FILE src/components/portal/AuthForms.tsx
+"use client";
+
+import Link from "next/link";
+import { useActionState, useEffect, useRef, useState } from "react";
+import { Eye, EyeOff, GraduationCap, Loader2, MailCheck, Users } from "lucide-react";
+import {
+  completeOnboarding,
+  requestPasswordReset,
+  resendVerification,
+  setNewPassword,
+  signIn,
+  signInWithGoogle,
+  signInWithGoogleToken,
+  signUp,
+  type FormState,
+} from "@/app/(auth)/actions";
+import { consentText } from "@/lib/portal/consent";
+import { FormError, SubmitButton, Turnstile } from "./FormBits";
+import { btnGhost, btnPrimary, hint, input, label } from "./ui";
+
+const googleOn = process.env.NEXT_PUBLIC_GOOGLE_SIGN_IN === "on";
+
+export function AuthCard({ title, intro, children }: { title: string; intro?: React.ReactNode; children: React.ReactNode }) {
+  return (
+    <div className="rounded-3xl bg-white p-6 text-ink shadow-[0_30px_80px_-30px_rgba(0,0,0,0.6)] sm:p-8">
+      <h1 className="text-2xl font-extrabold tracking-[-0.02em] text-deep">{title}</h1>
+      {intro && <p className="mt-2 text-[0.95rem] leading-relaxed text-slate">{intro}</p>}
+      <div className="mt-6">{children}</div>
+    </div>
+  );
+}
+
+const GOOGLE_CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || "123123257014-g6ejcu7p03n93htg44u7k9a7h4bhhs2h.apps.googleusercontent.com";
+
+declare global {
+  interface Window {
+    google?: {
+      accounts: {
+        id: {
+          initialize: (opts: Record<string, unknown>) => void;
+          renderButton: (el: HTMLElement, opts: Record<string, unknown>) => void;
+        };
+      };
+    };
+  }
+}
+
+let gisScript: Promise<void> | null = null;
+function loadGis() {
+  gisScript ??= new Promise<void>((resolve, reject) => {
+    if (window.google?.accounts?.id) return resolve();
+    const s = document.createElement("script");
+    s.src = "https://accounts.google.com/gsi/client";
+    s.async = true;
+    s.onload = () => resolve();
+    s.onerror = () => {
+      gisScript = null;
+      reject(new Error("Google script blocked"));
+    };
+    document.head.appendChild(s);
+  });
+  return gisScript;
+}
+
+async function makeNonce() {
+  const raw = btoa(String.fromCharCode(...crypto.getRandomValues(new Uint8Array(24)))).replace(/[+/=]/g, "");
+  const hash = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(raw));
+  return { raw, hashed: [...new Uint8Array(hash)].map((b) => b.toString(16).padStart(2, "0")).join("") };
+}
+
+/**
+ * "Continue with Google". Uses Google's own button on this page, so Google's window names
+ * the website (not the database address). Falls back to the redirect flow if Google's
+ * script can't load (for example, blocked by a browser extension).
+ */
+function GoogleButton({ next, role, text }: { next?: string; role?: string; text: string }) {
+  const box = useRef<HTMLDivElement>(null);
+  const roleRef = useRef(role);
+  const [mode, setMode] = useState<"loading" | "google" | "fallback">("loading");
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    roleRef.current = role;
+  }, [role]);
+
+  useEffect(() => {
+    if (!googleOn) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        await loadGis();
+        const nonce = await makeNonce();
+        if (cancelled || !box.current || !window.google) return;
+        window.google.accounts.id.initialize({
+          client_id: GOOGLE_CLIENT_ID,
+          nonce: nonce.hashed,
+          context: role ? "signup" : "signin",
+          ux_mode: "popup",
+          itp_support: true,
+          use_fedcm_for_button: true,
+          callback: async ({ credential }: { credential?: string }) => {
+            if (!credential) return;
+            setBusy(true);
+            setError("");
+            const res = await signInWithGoogleToken({ token: credential, nonce: nonce.raw, next, role: roleRef.current });
+            if (res.to) window.location.assign(res.to);
+            else {
+              setBusy(false);
+              setError(res.error ?? "Google sign-in didn't finish. Please try again.");
+            }
+          },
+        });
+        const width = Math.max(200, Math.min(400, Math.round(box.current.getBoundingClientRect().width || 320)));
+        window.google.accounts.id.renderButton(box.current, {
+          type: "standard",
+          theme: "outline",
+          size: "large",
+          shape: "pill",
+          text: role ? "signup_with" : "continue_with",
+          logo_alignment: "center",
+          width,
+        });
+        setMode("google");
+      } catch {
+        if (!cancelled) setMode("fallback");
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // the button is rendered once; the chosen role is read when Google answers
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [next]);
+
+  if (!googleOn) return null;
+  if (mode === "fallback") {
+    return (
+      <form action={signInWithGoogle}>
+        <input type="hidden" name="next" value={next ?? ""} />
+        {role && <input type="hidden" name="role" value={role} />}
+        <button type="submit" className={`${btnGhost} w-full`}>
+          <GoogleLogo />
+          {text}
+        </button>
+      </form>
+    );
+  }
+  return (
+    <div>
+      <div className="relative flex min-h-11 justify-center">
+        <div ref={box} className="flex w-full max-w-[400px] justify-center" aria-label={text} />
+        {(mode === "loading" || busy) && (
+          <div className={`${btnGhost} pointer-events-none absolute inset-0 w-full bg-white`} aria-hidden={mode === "loading" ? undefined : true}>
+            {busy ? <Loader2 className="h-4.5 w-4.5 animate-spin" aria-hidden="true" /> : <GoogleLogo />}
+            {busy ? "Signing you in…" : text}
+          </div>
+        )}
+      </div>
+      <FormError message={error} />
+    </div>
+  );
+}
+
+function GoogleLogo() {
+  return (
+    <svg viewBox="0 0 24 24" className="h-4.5 w-4.5" aria-hidden="true">
+      <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.27-4.74 3.27-8.1z" />
+      <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84A11 11 0 0 0 12 23z" />
+      <path fill="#FBBC05" d="M5.84 14.1A6.6 6.6 0 0 1 5.5 12c0-.73.13-1.44.34-2.1V7.06H2.18A11 11 0 0 0 1 12c0 1.77.42 3.45 1.18 4.94l3.66-2.84z" />
+      <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1A11 11 0 0 0 2.18 7.06l3.66 2.84C6.71 7.31 9.14 5.38 12 5.38z" />
+    </svg>
+  );
+}
+
+function Divider() {
+  if (!googleOn) return null;
+  return (
+    <div className="my-5 flex items-center gap-3 text-xs font-semibold uppercase tracking-[0.14em] text-slate/70">
+      <span className="h-px flex-1 bg-slate/20" />
+      or
+      <span className="h-px flex-1 bg-slate/20" />
+    </div>
+  );
+}
+
+function PasswordInput({ name, autoComplete, id }: { name: string; autoComplete: string; id: string }) {
+  const [show, setShow] = useState(false);
+  return (
+    <div className="relative">
+      <input id={id} name={name} type={show ? "text" : "password"} required minLength={8} autoComplete={autoComplete} className={`${input} pr-12`} />
+      <button
+        type="button"
+        onClick={() => setShow((s) => !s)}
+        className="absolute inset-y-0 right-0 grid w-12 place-items-center text-slate hover:text-deep"
+        aria-label={show ? "Hide password" : "Show password"}
+        aria-pressed={show}
+      >
+        {show ? <EyeOff className="h-4.5 w-4.5" /> : <Eye className="h-4.5 w-4.5" />}
+      </button>
+    </div>
+  );
+}
+
+function CheckInbox({ email, kind }: { email: string; kind: "verify" | "reset" }) {
+  const [state, resend] = useActionState(resendVerification, null);
+  return (
+    <div className="text-center" role="status">
+      <div className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-teal/12 text-teal">
+        <MailCheck className="h-7 w-7" aria-hidden="true" />
+      </div>
+      <p className="mt-4 text-lg font-bold text-deep">Check your inbox</p>
+      <p className="mt-2 leading-relaxed text-slate">
+        {kind === "verify" ? (
+          <>
+            We&apos;ve sent a link to <strong className="text-deep">{email}</strong>. Open it to verify your email and finish creating your account.
+          </>
+        ) : (
+          <>
+            If <strong className="text-deep">{email}</strong> has an account, we&apos;ve sent a link to choose a new password. It works for one hour.
+          </>
+        )}
+      </p>
+      <p className="mt-3 text-sm text-slate">Nothing after a few minutes? Check your spam folder.</p>
+      {kind === "verify" && (
+        <form action={resend} className="mt-5">
+          <input type="hidden" name="email" value={email} />
+          <Turnstile resetKey={state} />
+          <SubmitButton className={btnGhost} pending="Sending…">
+            Send the link again
+          </SubmitButton>
+          {state?.done && <p className="mt-3 text-sm font-medium text-[#17663a]">Sent again.</p>}
+          <FormError message={state?.error} />
+        </form>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------
+
+export function SignInForm({ next, error }: { next?: string; error?: string }) {
+  const [state, action] = useActionState<FormState, FormData>(signIn, null);
+  const linkError =
+    error === "link"
+      ? "That link has expired or was already used. Sign in, or ask for a new link."
+      : error === "google"
+        ? "Google sign-in didn't finish. Please try again."
+        : undefined;
+
+  return (
+    <AuthCard title="Sign in" intro="Welcome back. Students and parents sign in here.">
+      <GoogleButton next={next} text="Continue with Google" />
+      <Divider />
+      <form action={action} className="grid gap-4">
+        <input type="hidden" name="next" value={next ?? ""} />
+        <label className={label}>
+          Email
+          <input name="email" type="email" required autoComplete="email" defaultValue={state?.values?.email} className={input} />
+        </label>
+        <div className={label}>
+          <span className="flex items-center justify-between">
+            <label htmlFor="signin-password">Password</label>
+            <Link href="/forgot-password" className="text-xs font-semibold text-teal hover:text-navy">
+              Forgot password?
+            </Link>
+          </span>
+          <PasswordInput id="signin-password" name="password" autoComplete="current-password" />
+        </div>
+        <Turnstile resetKey={state} />
+        <FormError message={state?.error ?? linkError} />
+        <SubmitButton className={`${btnPrimary} w-full`} pending="Signing in…">
+          Sign in
+        </SubmitButton>
+      </form>
+      {state?.unverifiedEmail && <ResendBox email={state.unverifiedEmail} />}
+      <p className="mt-6 text-center text-sm text-slate">
+        New here?{" "}
+        <Link href={next ? `/sign-up?next=${encodeURIComponent(next)}` : "/sign-up"} className="font-semibold text-teal hover:text-navy">
+          Create an account
+        </Link>
+      </p>
+    </AuthCard>
+  );
+}
+
+function ResendBox({ email }: { email: string }) {
+  const [state, resend] = useActionState(resendVerification, null);
+  return (
+    <form action={resend} className="mt-4 rounded-2xl bg-mist p-4 text-sm">
+      <input type="hidden" name="email" value={email} />
+      <p className="text-slate">Didn&apos;t get the verification email?</p>
+      <Turnstile resetKey={state} />
+      <div className="mt-2">
+        <SubmitButton className={btnGhost} pending="Sending…">
+          Send it again
+        </SubmitButton>
+      </div>
+      {state?.done && <p className="mt-2 font-medium text-[#17663a]">Sent. Check your inbox.</p>}
+      <FormError message={state?.error} />
+    </form>
+  );
+}
+
+function RoleChoice({ role, setRole }: { role: string; setRole: (r: "student" | "parent") => void }) {
+  const opts = [
+    { value: "student" as const, title: "I'm a student", text: "Planning to study abroad", Icon: GraduationCap },
+    { value: "parent" as const, title: "I'm a parent", text: "Or a legal guardian", Icon: Users },
+  ];
+  return (
+    <fieldset>
+      <legend className="sr-only">Account type</legend>
+      <div className="grid grid-cols-2 gap-3">
+        {opts.map(({ value, title, text, Icon }) => (
+          <label
+            key={value}
+            className={`flex cursor-pointer flex-col gap-2 rounded-2xl p-4 ring-1 transition has-[:focus-visible]:ring-3 has-[:focus-visible]:ring-teal/40 ${
+              role === value ? "bg-teal/8 ring-2 ring-teal" : "ring-slate/25 hover:bg-mist"
+            }`}
+          >
+            <input type="radio" name="role-choice" value={value} checked={role === value} onChange={() => setRole(value)} className="sr-only" />
+            <Icon className={`h-6 w-6 ${role === value ? "text-teal" : "text-slate"}`} aria-hidden="true" />
+            <span className="text-sm font-bold text-deep">{title}</span>
+            <span className="text-xs leading-snug text-slate">{text}</span>
+          </label>
+        ))}
+      </div>
+    </fieldset>
+  );
+}
+
+export function SignUpForm({ next, initialRole }: { next?: string; initialRole?: string }) {
+  const [state, action] = useActionState<FormState, FormData>(signUp, null);
+  const [role, setRole] = useState<"student" | "parent">(
+    (state?.values?.role as "student" | "parent") ?? (initialRole === "parent" ? "parent" : "student"),
+  );
+
+  if (state?.done) {
+    return (
+      <AuthCard title="Almost there">
+        <CheckInbox email={state.done} kind="verify" />
+      </AuthCard>
+    );
+  }
+
+  return (
+    <AuthCard title="Create your account" intro="Upload documents, follow every stage and request services, in one private place.">
+      <div className="mb-4 grid gap-4">
+        <RoleChoice role={role} setRole={setRole} />
+        <GoogleButton role={role} next={next} text={`Sign up with Google as a ${role}`} />
+      </div>
+      <Divider />
+      <form action={action} className="grid gap-4">
+        <input type="hidden" name="role" value={role} />
+        <label className={label}>
+          Full name
+          <input name="full_name" required autoComplete="name" maxLength={120} defaultValue={state?.values?.full_name} className={input} />
+        </label>
+        <label className={label}>
+          Email
+          <input name="email" type="email" required autoComplete="email" defaultValue={state?.values?.email} className={input} />
+        </label>
+        <label className={label}>
+          <span>
+            Mobile number <span className="font-normal text-slate">(optional)</span>
+          </span>
+          <input name="phone" type="tel" autoComplete="tel" inputMode="tel" maxLength={30} placeholder="+91 …" defaultValue={state?.values?.phone} className={input} />
+        </label>
+        {role === "student" && (
+          <label className={label}>
+            Date of birth
+            <input name="date_of_birth" type="date" required max={new Date().toISOString().slice(0, 10)} defaultValue={state?.values?.date_of_birth} className={input} />
+            <span className={hint}>If you&apos;re under 18, a parent or guardian links to your account before you upload documents.</span>
+          </label>
+        )}
+        <div className={label}>
+          <label htmlFor="signup-password">Password</label>
+          <PasswordInput id="signup-password" name="password" autoComplete="new-password" />
+          <span className={hint}>At least 8 characters, with letters and numbers.</span>
+        </div>
+        <label className="flex items-start gap-3 text-sm leading-relaxed text-slate">
+          <input name="consent" type="checkbox" required className="mt-0.5 h-5 w-5 shrink-0 accent-teal" />
+          <span>{role === "student" ? consentText.student : consentText.parent}</span>
+        </label>
+        <p className="-mt-2 pl-8 text-xs text-slate">
+          How we use your data:{" "}
+          <Link href="/privacy" target="_blank" className="font-semibold text-teal hover:text-navy">
+            Privacy policy
+          </Link>
+        </p>
+        <Turnstile resetKey={state} />
+        <FormError message={state?.error} />
+        <SubmitButton className={`${btnPrimary} w-full`} pending="Creating your account…">
+          Create account
+        </SubmitButton>
+      </form>
+      <p className="mt-6 text-center text-sm text-slate">
+        Already have an account?{" "}
+        <Link href="/sign-in" className="font-semibold text-teal hover:text-navy">
+          Sign in
+        </Link>
+      </p>
+    </AuthCard>
+  );
+}
+
+export function ForgotPasswordForm() {
+  const [state, action] = useActionState<FormState, FormData>(requestPasswordReset, null);
+  if (state?.done) {
+    return (
+      <AuthCard title="Reset your password">
+        <CheckInbox email={state.done} kind="reset" />
+      </AuthCard>
+    );
+  }
+  return (
+    <AuthCard title="Reset your password" intro="Enter your email and we'll send you a link to choose a new password.">
+      <form action={action} className="grid gap-4">
+        <label className={label}>
+          Email
+          <input name="email" type="email" required autoComplete="email" defaultValue={state?.values?.email} className={input} />
+        </label>
+        <Turnstile resetKey={state} />
+        <FormError message={state?.error} />
+        <SubmitButton className={`${btnPrimary} w-full`} pending="Sending…">
+          Send the link
+        </SubmitButton>
+      </form>
+      <p className="mt-6 text-center text-sm text-slate">
+        <Link href="/sign-in" className="font-semibold text-teal hover:text-navy">
+          Back to sign in
+        </Link>
+      </p>
+    </AuthCard>
+  );
+}
+
+export function NewPasswordForm({ welcome }: { welcome?: "invite" | "apply" }) {
+  const [state, action] = useActionState<FormState, FormData>(setNewPassword, null);
+  return (
+    <AuthCard
+      title={welcome === "apply" ? "Your email is verified" : welcome ? "Welcome to Edusphere" : "Choose a new password"}
+      intro={
+        welcome === "apply"
+          ? "Choose a password for your student portal. Your application request is waiting there, and your counsellor will be in touch."
+          : welcome
+            ? "Your parent created your account. Choose a password to finish setting it up."
+            : undefined
+      }
+    >
+      <form action={action} className="grid gap-4">
+        <div className={label}>
+          <label htmlFor="new-password">New password</label>
+          <PasswordInput id="new-password" name="password" autoComplete="new-password" />
+          <span className={hint}>At least 8 characters, with letters and numbers.</span>
+        </div>
+        <div className={label}>
+          <label htmlFor="confirm-password">Type it again</label>
+          <PasswordInput id="confirm-password" name="confirm" autoComplete="new-password" />
+        </div>
+        <FormError message={state?.error} />
+        <SubmitButton className={`${btnPrimary} w-full`} pending="Saving…">
+          Save password
+        </SubmitButton>
+      </form>
+    </AuthCard>
+  );
+}
+
+export function WelcomeForm({
+  role: fixedRole,
+  suggestedRole,
+  name,
+  phone,
+  dob,
+  invited,
+}: {
+  role: string | null;
+  suggestedRole?: string;
+  name: string;
+  phone: string;
+  dob: string;
+  invited: boolean;
+}) {
+  const [state, action] = useActionState<FormState, FormData>(completeOnboarding, null);
+  const [role, setRole] = useState<"student" | "parent">(
+    (fixedRole as "student" | "parent") ?? (state?.values?.role as "student" | "parent") ?? (suggestedRole === "parent" ? "parent" : "student"),
+  );
+  return (
+    <AuthCard
+      title="One more step"
+      intro={invited ? "Check your details and give your consent to start using the portal." : "Tell us who you are, so we show you the right things."}
+    >
+      <form action={action} className="grid gap-4">
+        <input type="hidden" name="role" value={fixedRole ?? role} />
+        {!fixedRole && <RoleChoice role={role} setRole={setRole} />}
+        <label className={label}>
+          Full name
+          <input name="full_name" required autoComplete="name" maxLength={120} defaultValue={state?.values?.full_name ?? name} className={input} />
+        </label>
+        <label className={label}>
+          <span>
+            Mobile number <span className="font-normal text-slate">(optional)</span>
+          </span>
+          <input name="phone" type="tel" autoComplete="tel" inputMode="tel" maxLength={30} placeholder="+91 …" defaultValue={state?.values?.phone ?? phone} className={input} />
+        </label>
+        {role === "student" && (
+          <label className={label}>
+            Date of birth
+            <input
+              name="date_of_birth"
+              type="date"
+              required
+              max={new Date().toISOString().slice(0, 10)}
+              defaultValue={state?.values?.date_of_birth ?? dob}
+              readOnly={!!dob}
+              className={input}
+            />
+            <span className={hint}>If you&apos;re under 18, a parent or guardian links to your account before you upload documents.</span>
+          </label>
+        )}
+        <label className="flex items-start gap-3 text-sm leading-relaxed text-slate">
+          <input name="consent" type="checkbox" required className="mt-0.5 h-5 w-5 shrink-0 accent-teal" />
+          <span>{role === "student" ? consentText.student : consentText.parent}</span>
+        </label>
+        <p className="-mt-2 pl-8 text-xs text-slate">
+          How we use your data:{" "}
+          <Link href="/privacy" target="_blank" className="font-semibold text-teal hover:text-navy">
+            Privacy policy
+          </Link>
+        </p>
+        <FormError message={state?.error} />
+        <SubmitButton className={`${btnPrimary} w-full`} pending="Saving…">
+          Continue to the portal
+        </SubmitButton>
+      </form>
+    </AuthCard>
+  );
+}
+#==EDU:FILE src/lib/apply.ts
+import "server-only";
+import { countryInfo, getUniversity, isCountry } from "@/lib/catalogue";
+import { isIntake } from "@/lib/intakes";
+
+/** The university a student picked (from the catalogue, or typed in), read from a form. */
+export type UniversityChoice = {
+  country: string;
+  countryName: string;
+  university: string;
+  universityRef: string | null;
+  course: string;
+  intake: string;
+};
+
+const one = (form: FormData, key: string, max: number) =>
+  String(form.get(key) ?? "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, max);
+
+export async function readUniversityChoice(form: FormData): Promise<{ ok: true; value: UniversityChoice } | { ok: false; error: string; field: string }> {
+  const country = one(form, "country", 40);
+  if (!isCountry(country)) return { ok: false, error: "Please choose a country.", field: "country" };
+  const ref = one(form, "university_ref", 40);
+  const typed = one(form, "university", 160);
+  const course = one(form, "course", 200);
+  const intake = one(form, "intake", 40);
+
+  let university = "";
+  let universityRef: string | null = null;
+  if (ref) {
+    // The name always comes from the catalogue, never from the form
+    const u = await getUniversity(ref);
+    if (!u || u.country !== country) return { ok: false, error: "Please choose the university again.", field: "university" };
+    university = u.name;
+    universityRef = u.id;
+  } else {
+    if (typed.length < 2) return { ok: false, error: "Choose a university from the list, or type its name.", field: "university" };
+    university = typed;
+  }
+  if (!isIntake(intake)) return { ok: false, error: "Please choose an intake.", field: "intake" };
+  return { ok: true, value: { country, countryName: countryInfo(country)!.name, university, universityRef, course, intake } };
+}
+
+export const describeChoice = (c: UniversityChoice) =>
+  [c.university, c.course, c.countryName, c.intake && `${c.intake} intake`].filter(Boolean).join(" · ");
+#==EDU:FILE src/lib/catalogue.ts
+import "server-only";
+import { readFile } from "node:fs/promises";
+import path from "node:path";
+import { cacheLife } from "next/cache";
+
+/**
+ * The course finder catalogue: universities and courses from official open data, built
+ * monthly by scripts/catalogue/build.mjs into data/catalogue/. Read from disk on the server
+ * and kept in memory, so searches don't touch the database.
+ */
+
+/** `courses`: the country's source can include courses (whether it does this month is in catalogueSummary()). */
+export const CATALOGUE_COUNTRIES = [
+  { id: "uk", name: "United Kingdom", flag: "gb", courses: true, regionLabel: "Nation" },
+  { id: "australia", name: "Australia", flag: "au", courses: true, regionLabel: "State" },
+  { id: "usa", name: "United States", flag: "us", courses: true, regionLabel: "State" },
+  { id: "canada", name: "Canada", flag: "ca", courses: false, regionLabel: "Province" },
+  { id: "new-zealand", name: "New Zealand", flag: "nz", courses: false, regionLabel: "Region" },
+  { id: "europe", name: "Europe", flag: "eu", courses: false, regionLabel: "Country" },
+] as const;
+export type CountryId = (typeof CATALOGUE_COUNTRIES)[number]["id"];
+export const isCountry = (v: unknown): v is CountryId => CATALOGUE_COUNTRIES.some((c) => c.id === v);
+export const countryInfo = (id: string) => CATALOGUE_COUNTRIES.find((c) => c.id === id);
+
+export const LEVELS = [
+  { id: "foundation", label: "Foundation and pathway" },
+  { id: "diploma", label: "Diploma and associate degree" },
+  { id: "bachelor", label: "Bachelor's degree" },
+  { id: "pgcert", label: "Graduate certificate or diploma" },
+  { id: "master", label: "Master's degree" },
+  { id: "doctorate", label: "Doctorate (PhD)" },
+] as const;
+
+export const SUBJECTS = [
+  { id: "business", label: "Business, management and finance" },
+  { id: "computing", label: "Computing and IT" },
+  { id: "engineering", label: "Engineering and technology" },
+  { id: "health", label: "Medicine, nursing and health" },
+  { id: "science", label: "Sciences and mathematics" },
+  { id: "arts", label: "Art, design and performing arts" },
+  { id: "humanities", label: "Humanities and languages" },
+  { id: "social", label: "Social sciences and psychology" },
+  { id: "law", label: "Law" },
+  { id: "education", label: "Education and teaching" },
+  { id: "architecture", label: "Architecture, building and planning" },
+  { id: "agriculture", label: "Agriculture and environment" },
+  { id: "hospitality", label: "Hospitality, tourism and sport" },
+  { id: "media", label: "Media and communication" },
+  { id: "other", label: "Other and combined" },
+] as const;
+export const levelLabel = (id: string) => LEVELS.find((l) => l.id === id)?.label ?? id;
+export const subjectLabel = (id: string) => SUBJECTS.find((s) => s.id === id)?.label ?? id;
+
+/** Where each country's data comes from, credited on the course finder (licences allow reuse with credit). */
+export const SOURCES: { country: string; name: string; publisher: string; licence: string; url: string; ifCoursesIn?: string }[] = [
+  {
+    country: "United Kingdom",
+    name: "Register of licensed student sponsors",
+    publisher: "UK Home Office",
+    licence: "Open Government Licence v3.0",
+    url: "https://www.gov.uk/government/publications/register-of-licensed-sponsors-students",
+  },
+  { country: "United Kingdom", name: "Discover Uni dataset", publisher: "HESA and the Office for Students", licence: "CC BY 4.0", url: "https://www.hesa.ac.uk/support/tools-and-downloads/unistats", ifCoursesIn: "uk" },
+  { country: "Australia", name: "CRICOS", publisher: "Australian Government Department of Education", licence: "CC BY 4.0", url: "https://data.gov.au/data/dataset/cricos" },
+  { country: "United States", name: "College Scorecard", publisher: "US Department of Education", licence: "Public domain", url: "https://collegescorecard.ed.gov/data/" },
+  { country: "Canada", name: "Designated learning institutions list", publisher: "Immigration, Refugees and Citizenship Canada", licence: "Open Government Licence – Canada", url: "https://www.canada.ca/en/immigration-refugees-citizenship/services/study-canada/study-permit/prepare/designated-learning-institutions-list.html" },
+  { country: "New Zealand and Europe", name: "Wikidata", publisher: "Wikimedia community", licence: "CC0", url: "https://www.wikidata.org" },
+];
+
+export type University = {
+  id: string;
+  name: string;
+  country: CountryId;
+  region: string;
+  city: string;
+  website: string;
+  /** relative size, used for ordering (enrolment, or number of courses) */
+  size: number;
+  fee: number;
+  currency: string;
+  /** Canada: offers programmes eligible for a post-graduation work permit */
+  pgwp: boolean;
+  public: boolean;
+  courses: number;
+};
+
+export type Course = {
+  university: University;
+  title: string;
+  level: string;
+  subject: string;
+  months: number;
+  fee: number;
+  url: string;
+};
+
+type RawUni = { i: string; n: string; c: string; r?: string; t?: string; w?: string; k?: number; f?: number; cur?: string; p?: number; pub?: number };
+type RawCourse = [string, string, string, string, number, number, string];
+type Indexed<T> = { item: T; hay: string };
+
+/** Lower case, no accents or punctuation: "Université Côte d'Azur" → "universite cote d azur" */
+export const fold = (s: string) =>
+  s
+    .normalize("NFD")
+    .replace(/\p{M}/gu, "")
+    .toLowerCase()
+    .replace(/&/g, " and ")
+    .replace(/[^\p{L}\p{N}]+/gu, " ")
+    .trim();
+
+const dir = () => path.join(process.cwd(), "data", "catalogue");
+
+async function readJson<T>(file: string): Promise<T | null> {
+  try {
+    return JSON.parse(await readFile(path.join(dir(), file), "utf8")) as T;
+  } catch {
+    return null;
+  }
+}
+
+type Store = {
+  generatedAt: string | null;
+  list: Indexed<University>[];
+  byId: Map<string, University>;
+};
+let store: Promise<Store> | null = null;
+const courseStores = new Map<string, Promise<Indexed<Course>[]>>();
+
+function loadStore() {
+  store ??= (async () => {
+    const raw = await readJson<{ generatedAt: string; items: RawUni[] }>("universities.json");
+    const list: Indexed<University>[] = [];
+    const byId = new Map<string, University>();
+    for (const u of raw?.items ?? []) {
+      if (!isCountry(u.c) || !u.n) continue;
+      const item: University = {
+        id: u.i,
+        name: u.n,
+        country: u.c,
+        region: u.r ?? "",
+        city: u.t ?? "",
+        website: u.w ?? "",
+        size: u.k ?? 0,
+        fee: u.f ?? 0,
+        currency: u.cur ?? "",
+        pgwp: !!u.p,
+        public: !!u.pub,
+        courses: 0,
+      };
+      list.push({ item, hay: fold(`${item.name} ${item.city} ${item.region}`) });
+      byId.set(item.id, item);
+    }
+    // Number of courses per university, for the countries that have course data
+    await Promise.all(
+      CATALOGUE_COUNTRIES.filter((c) => c.courses).map(async (c) => {
+        for (const row of await loadCourses(c.id, byId)) row.item.university.courses += 1;
+      }),
+    );
+    return { generatedAt: raw?.generatedAt ?? null, list, byId };
+  })();
+  return store;
+}
+
+function loadCourses(country: string, byId: Map<string, University>) {
+  let p = courseStores.get(country);
+  if (!p) {
+    p = (async () => {
