@@ -433,6 +433,62 @@ async function scorecardUrls() {
 }
 
 async function usa() {
+  try {
+    return await usaBulk();
+  } catch (error) {
+    log("College Scorecard download unavailable, using its API:", error.message);
+    return { ...(await usaApi()), bulkError: String(error.message).slice(0, 300) };
+  }
+}
+
+/**
+ * The same College Scorecard data through its official API (api.data.gov). Uses the free
+ * SCORECARD_API_KEY secret when set (get one at https://api.data.gov/signup), else the public
+ * DEMO_KEY, which allows about 30 requests an hour: this needs about 15.
+ */
+async function usaApi() {
+  const key = process.env.SCORECARD_API_KEY || "DEMO_KEY";
+  const p = "latest.programs.cip_4_digit";
+  const fields = [
+    "id", "school.name", "school.city", "school.state", "school.school_url", "latest.student.size", "latest.cost.tuition.out_of_state",
+    `${p}.code`, `${p}.title`, `${p}.credential.level`, `${p}.counts.ipeds_awards1`, `${p}.counts.ipeds_awards2`,
+  ].join(",");
+  const levels = { 3: "bachelor", 5: "master", 6: "doctorate" };
+  const uni = [];
+  const list = [];
+  const seen = new Set();
+  for (let page = 0; page < 40; page++) {
+    const q = new URLSearchParams({
+      api_key: key, per_page: "100", page: String(page), fields,
+      "school.operating": "1", "school.ownership": "1,2", "school.degrees_awarded.highest": "3,4", "latest.student.size__range": "1000..",
+    });
+    const res = await getJson(`https://api.data.gov/ed/collegescorecard/v1/schools?${q}`, { headers: { accept: "application/json" } });
+    for (const r of res.results ?? []) {
+      const id = `us-${r.id}`;
+      const name = clean(r["school.name"]);
+      if (!name) continue;
+      uni.push({ i: id, n: name, c: "usa", r: clean(r["school.state"]), t: titleCase(r["school.city"]), w: website(r["school.school_url"]), k: Math.round(num(r["latest.student.size"])), f: Math.round(num(r["latest.cost.tuition.out_of_state"])) || undefined, cur: "USD" });
+      for (const pr of r[p] ?? []) {
+        const level = levels[pr.credential?.level];
+        if (!level) continue;
+        if (pr.counts?.ipeds_awards1 === 0 && pr.counts?.ipeds_awards2 === 0) continue; // nobody graduated in two years: likely closed
+        const title = clean(pr.title).replace(/\.$/, "");
+        const key2 = `${id}|${title}|${level}`;
+        if (!title || seen.has(key2)) continue;
+        seen.add(key2);
+        list.push([id, title, level, subjectFromCip(pr.code, title), 0, 0, ""]);
+      }
+    }
+    if ((page + 1) * 100 >= (res.metadata?.total ?? 0)) break;
+    await new Promise((r) => setTimeout(r, 1500));
+  }
+  if (uni.length < 300) throw new Error(`College Scorecard API: only ${uni.length} institutions`);
+  universities.usa = uni;
+  courses.usa = list;
+  return { universities: uni.length, courses: list.length, via: key === "DEMO_KEY" ? "api (DEMO_KEY)" : "api" };
+}
+
+async function usaBulk() {
   const urls = await scorecardUrls();
   const instFiles = unzip(await download(urls.inst, "scorecard-inst.zip"), path.join(TMP, "scorecard-inst"));
   const fosFiles = unzip(await download(urls.fos, "scorecard-fos.zip"), path.join(TMP, "scorecard-fos"));
