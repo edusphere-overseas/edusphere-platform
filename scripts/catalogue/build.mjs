@@ -1,4 +1,3 @@
-#==EDU:FILE scripts/catalogue/build.mjs
 #!/usr/bin/env node
 /**
  * Builds the course finder catalogue from official open data and writes it to data/catalogue/.
@@ -709,4 +708,3 @@ report.counts = Object.fromEntries(
 writeFileSync(path.join(OUT, "sources.json"), JSON.stringify(report, null, 2) + "\n");
 writeFileSync(path.join(OUT, "last-run.json"), JSON.stringify(report, null, 2) + "\n");
 log("done", JSON.stringify(report.counts));
-#==EDU:END -
