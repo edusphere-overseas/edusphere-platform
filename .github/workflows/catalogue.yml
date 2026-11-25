@@ -1,0 +1,51 @@
+# Builds the course finder catalogue (universities and courses) from official open data
+# and commits it to data/catalogue/. Runs monthly, when data/catalogue/REFRESH is committed,
+# or from the Actions tab ("Run workflow"). See scripts/catalogue/build.mjs for the sources.
+name: Build course catalogue
+
+on:
+  schedule:
+    - cron: "17 3 3 * *" # 03:17 UTC on the 3rd of each month
+  push:
+    branches: [main]
+    paths: ["data/catalogue/REFRESH"]
+  workflow_dispatch:
+    inputs:
+      only:
+        description: "Only these sources (comma separated: uk,australia,usa,canada,new-zealand,europe). Empty = all."
+        required: false
+        default: ""
+
+permissions:
+  contents: write
+
+concurrency:
+  group: catalogue
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Build catalogue from open data
+        run: node scripts/catalogue/build.mjs "${{ github.event.inputs.only || '' }}"
+
+      - name: Commit the new catalogue
+        run: |
+          rm -f data/catalogue/REFRESH
+          git config user.name "Edusphere catalogue bot"
+          git config user.email "edusphereoverseastech@gmail.com"
+          git add -A data/catalogue
+          if git diff --cached --quiet; then
+            echo "No changes"
+          else
+            git commit -m "Update course catalogue from open data"
+            git push
+          fi
