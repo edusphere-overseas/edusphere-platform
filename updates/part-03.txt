@@ -1,0 +1,800 @@
+                      {s.amount && <span className="block text-white/55">{s.amount}</span>}
+                    </li>
+                  ))}
+                </ul>
+                <Link href="/scholarships" className="mt-5 inline-flex items-center gap-1.5 text-sm font-semibold text-teal-light hover:underline">
+                  All scholarships
+                  <ArrowRight className="h-4 w-4" aria-hidden="true" />
+                </Link>
+              </Reveal>
+            )}
+
+            {(d.officialLinks.length > 0 || d.lastChecked) && (
+              <Reveal className="rounded-3xl border border-white/10 p-6">
+                <h2 className="flex items-center gap-2 text-sm font-bold uppercase tracking-[0.16em] text-white/60">
+                  <ShieldCheck className="h-4 w-4" aria-hidden="true" />
+                  Official sources
+                </h2>
+                {d.officialLinks.length > 0 && (
+                  <ul className="mt-4 grid gap-2 text-sm">
+                    {d.officialLinks.map((l) => (
+                      <li key={l.url}>
+                        <a href={l.url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 text-white/80 hover:text-white hover:underline">
+                          {l.label}
+                          <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
+                        </a>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                {d.lastChecked && <p className="mt-4 text-xs text-white/45">Facts last checked on {formatDate(d.lastChecked)}</p>}
+              </Reveal>
+            )}
+          </aside>
+        </div>
+      </section>
+
+      {catalogue && top && counts && top.length > 0 && (
+        <section className="border-t border-white/8 py-16 sm:py-20">
+          <div className="mx-auto max-w-7xl px-5 sm:px-8">
+            <div className="flex flex-wrap items-end justify-between gap-4">
+              <Reveal>
+                <h2 className="text-3xl font-extrabold tracking-[-0.02em] text-white sm:text-4xl">Universities in {name}</h2>
+                <p className="mt-3 max-w-2xl text-white/65">
+                  {counts.universities.toLocaleString("en-IN")} universities and colleges
+                  {counts.courses ? ` with ${counts.courses.toLocaleString("en-IN")} courses` : ""}. Pick one and apply: we&apos;re partnered with almost every university.
+                </p>
+              </Reveal>
+              <div className="flex flex-wrap gap-3">
+                {c.sections.courseFinder && counts.courses > 0 && (
+                  <Link href={`/course-finder?country=${d.id}`} className="inline-flex items-center gap-2 rounded-full px-5 py-3 text-sm font-semibold text-white ring-1 ring-white/25 hover:bg-white/5">
+                    Search courses
+                  </Link>
+                )}
+                <Link href={`/destinations/${d.id}/universities`} className="inline-flex items-center gap-2 rounded-full bg-white px-5 py-3 text-sm font-semibold text-deep hover:bg-mist">
+                  All universities in {name}
+                  <ArrowRight className="h-4 w-4" aria-hidden="true" />
+                </Link>
+              </div>
+            </div>
+            <ul className="mt-8 grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+              {top.map((h) => (
+                <UniversityCard key={h.u.id} hit={h} />
+              ))}
+            </ul>
+          </div>
+        </section>
+      )}
+
+      {openNow.length > 0 && <OpenNow items={openNow} whatsapp={c.whatsappNumber} />}
+
+      <section className="border-t border-white/8 bg-deeper py-16 sm:py-24">
+        <div className="mx-auto grid max-w-7xl gap-10 px-5 sm:px-8 lg:grid-cols-[1fr_1.5fr]">
+          <Reveal>
+            <h2 className="text-3xl font-extrabold tracking-[-0.02em] text-white sm:text-4xl">Questions about {name}</h2>
+            <p className="mt-4 text-white/65">Can&apos;t see yours? Ask us on WhatsApp and a counsellor will reply.</p>
+          </Reveal>
+          <Reveal delay={0.05}>
+            <FaqList items={d.faqs} tone="panel" />
+          </Reveal>
+        </div>
+      </section>
+
+      {others.length > 0 && (
+        <section className="py-16 sm:py-20">
+          <div className="mx-auto max-w-7xl px-5 sm:px-8">
+            <h2 className="text-xl font-bold text-white">Other destinations</h2>
+            <ul className="mt-6 flex flex-wrap gap-3">
+              {others.map((o) => (
+                <li key={o.id}>
+                  <Link
+                    href={`/destinations/${o.id}`}
+                    className="group inline-flex items-center gap-2.5 rounded-full border border-white/12 py-2 pr-4 pl-2 text-sm font-semibold text-white/85 transition hover:border-white/30 hover:text-white"
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={`/flags/${o.flag}.svg`} alt="" className="h-6 w-8 rounded-[4px] object-cover ring-1 ring-white/15" />
+                    {o.name}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </section>
+      )}
+
+      <CtaBand whatsapp={c.whatsappNumber} title={`Thinking about ${name}?`} message={`Hi Edusphere, I'm interested in studying in ${name}.`} consultHref={`/contact?destination=${d.id}#enquiry`} />
+    </>
+  );
+}
+#==EDU:FILE src/app/(site)/destinations/[slug]/universities/page.tsx
+import type { Metadata } from "next";
+import Link from "next/link";
+import { notFound } from "next/navigation";
+import { Suspense } from "react";
+import { ArrowRight, ClipboardCheck } from "lucide-react";
+import { Listing, ListingSkeleton } from "@/components/finder/Listing";
+import { PageHero } from "@/components/pages/PageHero";
+import { applyHref, catalogueSummary, countryInfo, eligibilityHref } from "@/lib/catalogue";
+import { getLibrary } from "@/lib/content";
+import { shortName } from "@/lib/format";
+
+const fmt = (n: number) => n.toLocaleString("en-IN");
+
+export async function generateStaticParams() {
+  const lib = await getLibrary();
+  return lib.destinations.filter((d) => countryInfo(d.id)).map((d) => ({ slug: d.id }));
+}
+
+export async function generateMetadata({ params }: PageProps<"/destinations/[slug]/universities">): Promise<Metadata> {
+  const { slug } = await params;
+  const info = countryInfo(slug);
+  if (!info) return {};
+  return {
+    title: `Universities in ${shortName(info.name)}`,
+    description: `Universities and colleges in ${shortName(info.name)}: compare tuition in rupees, check your eligibility and apply with free guidance from Edusphere Overseas.`,
+  };
+}
+
+export default async function CountryUniversitiesPage({ params, searchParams }: PageProps<"/destinations/[slug]/universities">) {
+  const { slug } = await params;
+  const [lib, summary] = await Promise.all([getLibrary(), catalogueSummary()]);
+  const d = lib.destinations.find((x) => x.id === slug);
+  const info = countryInfo(slug);
+  if (!d || !info) notFound();
+  const name = shortName(d.name);
+  const counts = summary.counts[info.id];
+
+  return (
+    <>
+      <PageHero
+        eyebrow="Universities"
+        flag={d.flag}
+        crumbs={[
+          { href: "/destinations", label: "Destinations" },
+          { href: `/destinations/${d.id}`, label: d.name },
+          { href: `/destinations/${d.id}/universities`, label: "Universities" },
+        ]}
+        title={
+          <>
+            Universities in <span className="text-teal-light">{name}</span>
+          </>
+        }
+        intro={`${fmt(counts.universities)} universities and colleges${counts.courses ? ` with ${fmt(counts.courses)} courses` : ""}. Check your eligibility, then apply: your counsellor handles the rest, free of charge.`}
+      >
+        <div className="flex flex-col gap-3 sm:flex-row">
+          <Link href={eligibilityHref({ country: info.id })} className="inline-flex items-center justify-center gap-2 rounded-full bg-teal px-6 py-3.5 font-semibold text-white transition hover:bg-teal-light">
+            <ClipboardCheck className="h-4.5 w-4.5" aria-hidden="true" />
+            Check my eligibility
+          </Link>
+          <Link href={applyHref({ country: info.id })} className="inline-flex items-center justify-center gap-2 rounded-full px-6 py-3.5 font-semibold text-white ring-1 ring-white/25 transition hover:bg-white/5">
+            Apply to a university
+            <ArrowRight className="h-4.5 w-4.5" aria-hidden="true" />
+          </Link>
+        </div>
+      </PageHero>
+      <section className="bg-mist py-10 text-ink scheme-light sm:py-14">
+        <div className="mx-auto max-w-7xl px-5 sm:px-8">
+          <Suspense fallback={<ListingSkeleton />}>
+            <List country={info.id} searchParams={searchParams} />
+          </Suspense>
+        </div>
+      </section>
+    </>
+  );
+}
+
+async function List({ country, searchParams }: { country: string; searchParams: PageProps<"/destinations/[slug]/universities">["searchParams"] }) {
+  return <Listing sp={await searchParams} basePath={`/destinations/${country}/universities`} fixedCountry={country} />;
+}
+#==EDU:FILE src/app/(site)/layout.tsx
+import type { Metadata } from "next";
+import { Intro } from "@/components/brand/Intro";
+import { Footer } from "@/components/layout/Footer";
+import { Header } from "@/components/layout/Header";
+import { Ticker } from "@/components/layout/Ticker";
+import { WhatsAppButton } from "@/components/layout/WhatsAppButton";
+import { JsonLd } from "@/components/seo/JsonLd";
+import { site } from "@/config/site";
+import { studyMenu } from "@/lib/catalogue";
+import { getSiteContent, whatsappHref } from "@/lib/content";
+
+export async function generateMetadata(): Promise<Metadata> {
+  const c = await getSiteContent();
+  return {
+    title: { default: `${c.companyName} | ${c.tagline}`, template: `%s | ${c.companyName}` },
+    description: c.description,
+  };
+}
+
+export default async function SiteLayout({ children }: LayoutProps<"/">) {
+  const c = await getSiteContent();
+  const nav = [
+    { href: "/services", label: "Services", show: c.sections.services && c.services.length > 0 },
+    { href: "/course-finder", label: "Course finder", show: c.sections.courseFinder },
+    { href: "/success-stories", label: "Success stories", show: c.sections.stories || c.sections.reviews },
+    { href: "/news", label: "News", show: c.sections.news },
+    { href: "/about", label: "About", show: true },
+    { href: "/contact", label: "Contact", show: true },
+  ]
+    .filter((n) => n.show)
+    .map(({ href, label }) => ({ href, label }));
+  // The "Study abroad" menu: each catalogue country, with its destination page's summary
+  const menu = c.sections.destinations || c.sections.courseFinder ? await studyMenu() : [];
+  const study = {
+    countries: menu.map((m) => ({ ...m, summary: c.destinations.find((d) => d.id === m.id)?.summary ?? "" })),
+    destinationPages: c.sections.destinations,
+    courseFinder: c.sections.courseFinder,
+  };
+
+  const sameAs = c.socialLinks.map((l) => l.url).filter((u) => u.startsWith("https://"));
+  const organization = {
+    "@context": "https://schema.org",
+    "@type": "EducationalOrganization",
+    "@id": `${site.url}/#organization`,
+    name: c.companyName,
+    legalName: c.legalName,
+    url: site.url,
+    logo: `${site.url}/icon.svg`,
+    description: c.description,
+    sameAs,
+    contactPoint: c.contacts
+      .filter((x) => x.kind !== "email")
+      .map((x) => ({ "@type": "ContactPoint", telephone: x.value, contactType: x.label || "customer service" })),
+    department: c.offices.map((o) => ({
+      "@type": "LocalBusiness",
+      name: `${c.companyName}, ${o.name}`,
+      address: { "@type": "PostalAddress", streetAddress: o.addressLines.join(", "), addressCountry: o.countryCode.toUpperCase() },
+      telephone: o.contacts.find((x) => x.kind === "phone")?.value,
+      hasMap: o.googleBusinessUrl ?? undefined,
+    })),
+  };
+
+  return (
+    <>
+      <JsonLd data={organization} />
+      <a
+        href="#main"
+        className="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-[200] focus:rounded-full focus:bg-white focus:px-4 focus:py-2 focus:text-sm focus:font-semibold focus:text-deep"
+      >
+        Skip to content
+      </a>
+      <Intro />
+      {c.sections.ticker && <Ticker items={c.ticker} />}
+      <Header nav={nav} study={study} />
+      <main id="main">{children}</main>
+      <Footer content={c} />
+      <WhatsAppButton href={whatsappHref(c.whatsappNumber, c.whatsappMessage)} />
+    </>
+  );
+}
+#==EDU:FILE src/app/(site)/universities/[id]/page.tsx
+import type { Metadata } from "next";
+import Link from "next/link";
+import { notFound } from "next/navigation";
+import { Suspense } from "react";
+import { ArrowRight, ArrowUpRight, BadgeCheck, CalendarDays, ChevronRight, ClipboardCheck, FileText, Globe, GraduationCap, Landmark, MapPin, Users, Wallet } from "lucide-react";
+import { CourseTable } from "@/components/finder/CourseTable";
+import { Flag, Monogram, placeOf, UniversityCard } from "@/components/finder/Cards";
+import { WhatsAppIcon } from "@/components/icons";
+import {
+  applyHref,
+  countryInfo,
+  eligibilityHref,
+  lakh,
+  LEVELS,
+  levelShort,
+  locationLabel,
+  MAIN_INTAKES,
+  money,
+  prebuiltUniversityIds,
+  universityDetails,
+} from "@/lib/catalogue";
+import { getSiteContent, whatsappHref } from "@/lib/content";
+import { countryShort, requirementText } from "@/lib/eligibility";
+
+export async function generateStaticParams() {
+  return (await prebuiltUniversityIds()).map((id) => ({ id }));
+}
+
+async function load(params: Promise<{ id: string }>) {
+  const { id } = await params;
+  return universityDetails(decodeURIComponent(id).slice(0, 40));
+}
+
+export async function generateMetadata({ params }: PageProps<"/universities/[id]">): Promise<Metadata> {
+  const d = await load(params);
+  if (!d) return {};
+  const u = d.university;
+  const where = placeOf(u) || countryInfo(u.country)?.name;
+  return {
+    title: `${u.name}: courses, fees and admissions`,
+    description: `${u.name}, ${where}: ${u.courses ? `${u.courses} courses, ` : ""}${d.feeInr ? `tuition about ${lakh(d.feeInr)} a year, ` : ""}entry requirements for Indian students. Check your eligibility and apply free with Edusphere Overseas.`,
+  };
+}
+
+const DOCUMENTS = {
+  ug: ["10th and 12th mark sheets", "Passport", "English test score (IELTS, PTE, TOEFL or Duolingo)", "Statement of purpose", "One or two letters of recommendation", "Proof of funds, for the visa"],
+  pg: [
+    "Degree certificate and transcripts (and 10th and 12th mark sheets)",
+    "Passport",
+    "English test score (IELTS, PTE, TOEFL or Duolingo)",
+    "Statement of purpose and CV",
+    "Two letters of recommendation",
+    "Work experience letters, if any",
+    "Proof of funds, for the visa",
+  ],
+};
+
+export default function UniversityPage({ params }: PageProps<"/universities/[id]">) {
+  // Most universities aren't built ahead, so the page streams in behind a placeholder
+  return (
+    <Suspense fallback={<UniversitySkeleton />}>
+      <University params={params} />
+    </Suspense>
+  );
+}
+
+function UniversitySkeleton() {
+  return (
+    <div aria-hidden="true">
+      <div className="mx-auto max-w-7xl px-5 pt-20 pb-16 sm:px-8">
+        <div className="flex items-center gap-6">
+          <div className="h-24 w-24 animate-pulse rounded-xl bg-white/10" />
+          <div className="grid flex-1 gap-3">
+            <div className="h-10 w-2/3 animate-pulse rounded-xl bg-white/10" />
+            <div className="h-5 w-1/3 animate-pulse rounded-lg bg-white/10" />
+          </div>
+        </div>
+      </div>
+      <div className="h-[40rem] bg-mist" />
+    </div>
+  );
+}
+
+async function University({ params }: { params: PageProps<"/universities/[id]">["params"] }) {
+  const [d, c] = await Promise.all([load(params), getSiteContent()]);
+  if (!d) notFound();
+  const u = d.university;
+  const info = countryInfo(u.country)!;
+  const where = placeOf(u, false);
+  const type = u.type === "public" ? "Public" : u.type === "private" ? "Private" : "";
+  const kind = /college/i.test(u.name) ? "college" : /institute|school/i.test(u.name) ? "institution" : "university";
+  const levelNames = d.levels.map((l) => levelShort(l));
+  const levelWords = d.levels.map((l) => (l === "pgcert" ? "PG diplomas" : l === "doctorate" ? "PhDs" : `${levelShort(l).toLowerCase()}s`.replace("'ss", "'s")));
+  const admissionLevels = (d.levels.length ? d.levels : ["bachelor", "master"]).filter((l) => l === "bachelor" || l === "master" || l === "diploma" || l === "pgcert").slice(0, 3);
+  const intakes = MAIN_INTAKES[u.country] ?? [];
+  const short = u.name.replace(/\s+\([^)]*\)$/, "");
+
+  const highlights = [
+    { icon: MapPin, label: "Location", value: [where, info.short].filter(Boolean).join(", ") },
+    type && { icon: Landmark, label: "Type", value: type },
+    { icon: Wallet, label: "Typical tuition", value: d.feeInr ? `≈ ${lakh(d.feeInr)} a year` : "Ask your counsellor", note: d.feeInr ? money(u.feeYear, u.currency) + (u.country === "usa" ? " (out-of-state, undergraduate)" : " (first year)") : "" },
+    u.courses > 0 && { icon: GraduationCap, label: "Courses listed", value: u.courses.toLocaleString("en-IN"), note: levelNames.join(", ") },
+    u.students > 0 && { icon: Users, label: u.country === "usa" ? "Undergraduates" : "Students", value: u.students.toLocaleString("en-IN") },
+    intakes.length > 0 && { icon: CalendarDays, label: "Main intakes", value: intakes.join(" and ") },
+    u.country === "canada" && { icon: BadgeCheck, label: "Post-graduation work permit", value: u.pgwp ? "Has eligible programmes" : "Check with your counsellor" },
+  ].filter(Boolean) as { icon: typeof MapPin; label: string; value: string; note?: string }[];
+
+  const about = [
+    `${u.name} is ${type ? `a ${type.toLowerCase()}` : `a`} ${kind} in ${[where, countryShort(u.country)].filter(Boolean).join(", ")}.`,
+    u.courses ? `The official data lists ${u.courses.toLocaleString("en-IN")} courses for international students here${levelNames.length ? `: ${levelWords.slice(0, -1).join(", ")}${levelWords.length > 1 ? " and " : ""}${levelWords[levelWords.length - 1]}` : ""}.` : "",
+    d.feeInr ? `Typical first-year tuition is about ${lakh(d.feeInr)} (${money(u.feeYear, u.currency)}).` : "",
+    "Edusphere's counsellors help you choose the course, prepare your application and visa, and stay with you until you fly, free of charge.",
+  ].filter(Boolean);
+
+  const tabs = [
+    { id: "overview", label: "Overview" },
+    ...(d.courses.length ? [{ id: "courses", label: "Courses and fees" }] : []),
+    { id: "admissions", label: "Admissions" },
+    ...(d.similar.length ? [{ id: "similar", label: "Similar universities" }] : []),
+  ];
+
+  return (
+    <>
+      <section className="relative isolate overflow-hidden border-b border-white/8">
+        <div aria-hidden="true" className="pointer-events-none absolute -top-48 -right-40 -z-10 h-[34rem] w-[34rem] rounded-full bg-teal/20 blur-[120px]" />
+        <div className="mx-auto max-w-7xl px-5 pt-8 pb-12 sm:px-8 sm:pt-12 sm:pb-16">
+          <nav aria-label="Breadcrumb">
+            <ol className="flex flex-wrap items-center gap-1 text-sm text-white/50">
+              <li>
+                <Link href="/" className="hover:text-white">
+                  Home
+                </Link>
+              </li>
+              {[
+                ...(c.sections.courseFinder ? [{ href: "/course-finder", label: "Course finder" }] : []),
+                { href: `/destinations/${u.country}/universities`, label: `Universities in ${info.short}` },
+              ].map((x) => (
+                <li key={x.href} className="flex items-center gap-1">
+                  <ChevronRight className="h-3.5 w-3.5" aria-hidden="true" />
+                  <Link href={x.href} className="hover:text-white">
+                    {x.label}
+                  </Link>
+                </li>
+              ))}
+            </ol>
+          </nav>
+          <div className="mt-10 flex flex-col gap-6 sm:flex-row sm:items-center">
+            <Monogram name={u.name} className="h-20 w-20 text-2xl sm:h-24 sm:w-24 sm:text-3xl" />
+            <div className="min-w-0">
+              <h1 className="text-3xl leading-tight font-extrabold tracking-[-0.02em] text-balance text-white sm:text-5xl">{u.name}</h1>
+              <p className="mt-3 flex flex-wrap items-center gap-2 text-white/70">
+                <MapPin className="h-4 w-4" aria-hidden="true" />
+                {[where, info.name].filter(Boolean).join(", ")}
+                <Flag country={u.country} className="h-4 w-6" />
+              </p>
+              <p className="mt-3 flex flex-wrap gap-2 text-xs font-semibold">
+                {type && <span className="rounded-full bg-white/10 px-3 py-1 text-white/85">{type}</span>}
+                {u.courses > 0 && <span className="rounded-full bg-white/10 px-3 py-1 text-white/85">{u.courses.toLocaleString("en-IN")} courses</span>}
+                {d.feeInr > 0 && <span className="rounded-full bg-white/10 px-3 py-1 text-white/85">Tuition ≈ {lakh(d.feeInr)}/yr</span>}
+                {u.country === "canada" && u.pgwp && <span className="rounded-full bg-teal/25 px-3 py-1 text-teal-light">PGWP-eligible programmes</span>}
+              </p>
+            </div>
+          </div>
+          <div className="mt-8 flex flex-col gap-3 sm:flex-row">
+            <Link href={eligibilityHref({ university: u.id, country: u.country })} className="inline-flex items-center justify-center gap-2 rounded-full bg-teal px-6 py-3.5 font-semibold text-white transition hover:bg-teal-light">
+              <ClipboardCheck className="h-4.5 w-4.5" aria-hidden="true" />
+              Check eligibility
+            </Link>
+            <Link href={applyHref({ university: u.id, country: u.country })} className="inline-flex items-center justify-center gap-2 rounded-full bg-white px-6 py-3.5 font-semibold text-deep transition hover:bg-mist">
+              Apply now
+              <ArrowRight className="h-4.5 w-4.5" aria-hidden="true" />
+            </Link>
+            {u.website && (
+              <a href={u.website} target="_blank" rel="noopener noreferrer" className="inline-flex items-center justify-center gap-2 rounded-full px-6 py-3.5 font-semibold text-white ring-1 ring-white/25 transition hover:bg-white/5">
+                <Globe className="h-4.5 w-4.5" aria-hidden="true" />
+                Official website
+                <ArrowUpRight className="h-4 w-4" aria-hidden="true" />
+                <span className="sr-only">(opens a new tab)</span>
+              </a>
+            )}
+          </div>
+        </div>
+      </section>
+
+      <nav aria-label="On this page" className="sticky top-16 z-30 border-b border-deep/8 bg-white/95 backdrop-blur">
+        <ul className="mx-auto flex max-w-7xl gap-1 overflow-x-auto px-5 sm:px-8">
+          {tabs.map((t) => (
+            <li key={t.id}>
+              <a href={`#${t.id}`} className="block border-b-2 border-transparent px-3 py-3.5 text-sm font-semibold whitespace-nowrap text-slate hover:border-teal hover:text-deep">
+                {t.label}
+              </a>
+            </li>
+          ))}
+        </ul>
+      </nav>
+
+      <div className="bg-mist text-ink scheme-light">
+        <div className="mx-auto grid max-w-7xl items-start gap-8 px-5 py-10 sm:px-8 sm:py-14 grid-cols-1 lg:grid-cols-[minmax(0,1fr)_20rem]">
+          <div className="grid min-w-0 gap-12">
+            <section id="overview" className="scroll-mt-32">
+              <h2 className="text-2xl font-extrabold text-deep">Highlights</h2>
+              <dl className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                {highlights.map((h) => (
+                  <div key={h.label} className="flex gap-3 rounded-2xl bg-white p-4 ring-1 ring-deep/8">
+                    <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-teal/10 text-teal">
+                      <h.icon className="h-5 w-5" aria-hidden="true" />
+                    </span>
+                    <div className="min-w-0">
+                      <dt className="text-xs font-semibold tracking-wide text-slate uppercase">{h.label}</dt>
+                      <dd className="mt-0.5 font-bold text-deep">{h.value}</dd>
+                      {h.note && <dd className="mt-0.5 text-xs text-slate">{h.note}</dd>}
+                    </div>
+                  </div>
+                ))}
+              </dl>
+              <div className="mt-6 max-w-3xl space-y-3 leading-relaxed text-slate">
+                {about.map((p) => (
+                  <p key={p}>{p}</p>
+                ))}
+              </div>
+            </section>
+
+            {d.courses.length > 0 && (
+              <section id="courses" className="scroll-mt-32">
+                <h2 className="text-2xl font-extrabold text-deep">Courses and fees</h2>
+                <p className="mt-2 max-w-3xl text-sm leading-relaxed text-slate">
+                  Courses open to international students, from official data. Fees are indicative and shown in rupees at this month&apos;s exchange rate; your counsellor confirms
+                  them with the university.
+                </p>
+                <div className="mt-5">
+                  <CourseTable
+                    courses={d.courses.map(({ title, level, months, feeYearInr, url }) => ({ title, level, months, feeYearInr, url }))}
+                    levels={d.levels}
+                    university={u.id}
+                    country={u.country}
+                  />
+                </div>
+              </section>
+            )}
+
+            <section id="admissions" className="scroll-mt-32">
+              <h2 className="text-2xl font-extrabold text-deep">Admissions</h2>
+              <p className="mt-2 max-w-3xl text-sm leading-relaxed text-slate">
+                Typical entry requirements for Indian students in {countryShort(u.country)}. Each course sets its own, so treat these as a guide and check your eligibility for
+                a quick answer.
+              </p>
+              <div className="mt-5 grid gap-3 lg:grid-cols-2">
+                {admissionLevels.map((l) => {
+                  const r = requirementText(u.country, l);
+                  if (!r) return null;
+                  return (
+                    <div key={l} className="rounded-2xl bg-white p-5 ring-1 ring-deep/8">
+                      <h3 className="font-extrabold text-deep">{LEVELS.find((x) => x.id === l)?.label}</h3>
+                      <p className="mt-2 text-sm leading-relaxed text-slate">
+                        <span className="font-semibold text-deep">Academic: </span>
+                        {r.academic}.
+                      </p>
+                      <p className="mt-1.5 text-sm leading-relaxed text-slate">
+                        <span className="font-semibold text-deep">English: </span>
+                        {r.english}.
+                      </p>
+                      {r.notes.map((n) => (
+                        <p key={n} className="mt-1.5 text-sm leading-relaxed text-slate">
+                          {n}
+                        </p>
+                      ))}
+                      <Link href={eligibilityHref({ university: u.id, country: u.country, level: l })} className="mt-3 inline-flex items-center gap-1 text-sm font-semibold text-teal hover:text-navy">
+                        Check your eligibility for {levelShort(l)}
+                        <ArrowRight className="h-4 w-4" aria-hidden="true" />
+                      </Link>
+                    </div>
+                  );
+                })}
+              </div>
+              <div className="mt-3 grid gap-3 lg:grid-cols-2">
+                {(["ug", "pg"] as const).map((k) => (
+                  <div key={k} className="rounded-2xl bg-white p-5 ring-1 ring-deep/8">
+                    <h3 className="flex items-center gap-2 font-extrabold text-deep">
+                      <FileText className="h-4.5 w-4.5 text-teal" aria-hidden="true" />
+                      Documents you&apos;ll usually need ({k === "ug" ? "undergraduate" : "postgraduate"})
+                    </h3>
+                    <ul className="mt-3 grid gap-1.5 text-sm text-slate">
+                      {DOCUMENTS[k].map((x) => (
+                        <li key={x} className="flex gap-2">
+                          <span aria-hidden="true" className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-teal" />
+                          {x}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ))}
+              </div>
+            </section>
+
+            {d.similar.length > 0 && (
+              <section id="similar" className="scroll-mt-32">
+                <h2 className="text-2xl font-extrabold text-deep">
+                  Similar universities{u.location ? ` in ${locationLabel(u.country, u.location)}` : ""}
+                </h2>
+                <ul className="mt-5 grid grid-cols-1 gap-4 xl:grid-cols-2">
+                  {d.similar.map((h) => (
+                    <UniversityCard key={h.u.id} hit={h} />
+                  ))}
+                </ul>
+              </section>
+            )}
+          </div>
+
+          <aside className="lg:sticky lg:top-32">
+            <div className="rounded-3xl bg-deep p-6 text-white shadow-[0_30px_60px_-30px_rgba(13,34,54,0.6)]">
+              <p className="text-xs font-bold tracking-wide text-teal-light uppercase">Free counselling</p>
+              <h2 className="mt-2 text-xl font-extrabold">Interested in {short}?</h2>
+              <p className="mt-2 text-sm leading-relaxed text-white/70">See if you&apos;re eligible in two minutes, or apply now and your counsellor takes it from there.</p>
+              <div className="mt-5 grid gap-2.5">
+                <Link href={eligibilityHref({ university: u.id, country: u.country })} className="inline-flex items-center justify-center gap-2 rounded-full bg-teal px-5 py-3 font-semibold text-white hover:bg-teal-light">
+                  <ClipboardCheck className="h-4.5 w-4.5" aria-hidden="true" />
+                  Check eligibility
+                </Link>
+                <Link href={applyHref({ university: u.id, country: u.country })} className="inline-flex items-center justify-center gap-2 rounded-full bg-white px-5 py-3 font-semibold text-deep hover:bg-mist">
+                  Apply now
+                  <ArrowRight className="h-4.5 w-4.5" aria-hidden="true" />
+                </Link>
+                <a
+                  href={whatsappHref(c.whatsappNumber, `Hi Edusphere, I'd like to know more about ${u.name}.`)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center justify-center gap-2 rounded-full px-5 py-3 text-sm font-semibold text-white ring-1 ring-white/25 hover:bg-white/5"
+                >
+                  <WhatsAppIcon className="h-4.5 w-4.5 text-[#25D366]" />
+                  Ask on WhatsApp
+                </a>
+              </div>
+            </div>
+            <p className="mt-4 px-2 text-xs leading-relaxed text-slate">
+              Details from official open data. Edusphere is an independent consultancy: this page isn&apos;t run by the university.
+            </p>
+          </aside>
+        </div>
+      </div>
+    </>
+  );
+}
+#==EDU:FILE src/app/sitemap.ts
+import type { MetadataRoute } from "next";
+import { site } from "@/config/site";
+import { countryInfo, prebuiltUniversityIds, universityHref } from "@/lib/catalogue";
+import { getLibrary, getSiteContent } from "@/lib/content";
+
+export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
+  const [c, lib, unis] = await Promise.all([getSiteContent(), getLibrary(), prebuiltUniversityIds()]);
+  const pages = [
+    "",
+    "/destinations",
+    "/services",
+    "/universities",
+    "/scholarships",
+    "/success-stories",
+    "/news",
+    "/faqs",
+    "/about",
+    "/contact",
+    "/privacy",
+    "/apply",
+    "/check-eligibility",
+    ...(c.sections.courseFinder ? ["/course-finder"] : []),
+  ];
+  return [
+    ...pages.map((p) => ({ url: `${site.url}${p}`, changeFrequency: "weekly" as const, priority: p === "" ? 1 : 0.7 })),
+    ...lib.destinations.map((d) => ({ url: `${site.url}/destinations/${d.id}`, changeFrequency: "monthly" as const, priority: 0.8 })),
+    ...lib.destinations
+      .filter((d) => countryInfo(d.id))
+      .map((d) => ({ url: `${site.url}/destinations/${d.id}/universities`, changeFrequency: "monthly" as const, priority: 0.6 })),
+    ...unis.map((id) => ({ url: `${site.url}${universityHref(id)}`, changeFrequency: "monthly" as const, priority: 0.5 })),
+    ...lib.posts.map((p) => ({ url: `${site.url}/news/${p.slug}`, lastModified: p.date, changeFrequency: "yearly" as const, priority: 0.5 })),
+  ];
+}
+#==EDU:DELETE src/components/apply/ApplyForm.tsx
+#==EDU:FILE src/components/apply/StudyWizard.tsx
+"use client";
+
+import Link from "next/link";
+import { startTransition, useActionState, useRef, useState } from "react";
+import { AlertTriangle, ArrowLeft, ArrowRight, Check, CheckCircle2, Info, Loader2, MailCheck, PencilLine, Sparkles, XCircle } from "lucide-react";
+import { applyForUniversity, type ApplyState } from "@/app/(site)/apply/actions";
+import { checkEligibility, type EligibilityState } from "@/app/(site)/check-eligibility/actions";
+import { FormError, Turnstile } from "@/components/portal/FormBits";
+import { btnGhost, btnPrimary, hint, input, label } from "@/components/portal/ui";
+import { applyHref, lakh, LEVELS, levelShort, universityHref } from "@/lib/catalogue-shared";
+import { ENGLISH_TESTS, QUALIFICATIONS, SCORE_SCALES, countryShort } from "@/lib/eligibility";
+import { consentText } from "@/lib/portal/consent";
+import { UniversityFields, type CountryOption, type PickedUniversity } from "./UniversityFields";
+
+type Mode = "eligibility" | "apply";
+type Initial = { country?: string; level?: string; university?: PickedUniversity; typed?: string; course?: string };
+
+const STEPS = ["Your plans", "Your education", "Your details"];
+const STEP_OF: Record<string, number> = {
+  country: 0,
+  level: 0,
+  university: 0,
+  intake: 0,
+  qualification: 1,
+  score: 1,
+  scale: 1,
+  test_score: 1,
+  passing_year: 1,
+};
+
+const LEVEL_HINTS: Record<string, string> = {
+  foundation: "A year before a degree",
+  diploma: "1 to 2 years, practical",
+  bachelor: "Undergraduate degree",
+  pgcert: "Shorter, after a degree",
+  master: "MS, MSc, MBA, MA",
+  doctorate: "Research degree",
+};
+
+/**
+ * The step-by-step eligibility check and apply form (three steps, one form).
+ * "eligibility": shows an indicative result, then lets the student apply in one click.
+ * "apply": creates the student's portal account and the application straight away.
+ * `portalUser`: already signed in as a student or parent, so "Apply" goes to the portal's form.
+ */
+export function StudyWizard({
+  mode,
+  countries,
+  intakes,
+  mainIntakes,
+  initial,
+  signInHref,
+  today,
+  portalUser = false,
+}: {
+  mode: Mode;
+  countries: CountryOption[];
+  intakes: string[];
+  mainIntakes: Record<string, string[]>;
+  initial: Initial;
+  signInHref: string;
+  today: string;
+  portalUser?: boolean;
+}) {
+  const form = useRef<HTMLFormElement>(null);
+  const [step, setStep] = useState(0);
+  const [country, setCountry] = useState(initial.country ?? "");
+  const [level, setLevel] = useState(initial.level ?? "");
+  const [qualification, setQualification] = useState("");
+  const [scale, setScale] = useState("percent");
+  const [test, setTest] = useState("");
+  const [intake, setIntake] = useState("");
+  const [local, setLocal] = useState<{ field: string; message: string } | null>(null);
+  const [editing, setEditing] = useState(false);
+  const [snap, setSnap] = useState({ dob: false, course: "" });
+
+  const [elig, checkAction, checking] = useActionState<EligibilityState, FormData>(async (prev, data) => {
+    const next = await checkEligibility(prev, data);
+    if (next?.field && STEP_OF[next.field] !== undefined) setStep(STEP_OF[next.field]);
+    if (next?.result) setEditing(false);
+    return next;
+  }, null);
+  const [applied, applyAction, applying] = useActionState<ApplyState, FormData>(async (prev, data) => {
+    const next = await applyForUniversity(prev, data);
+    if (next?.field && STEP_OF[next.field] !== undefined && mode === "apply") setStep(STEP_OF[next.field]);
+    return next;
+  }, null);
+
+  if (applied?.done) return <ApplyDone email={applied.done.email} university={applied.done.university} />;
+
+  const showResult = mode === "eligibility" && elig?.result && !editing;
+  const serverError = mode === "eligibility" ? elig?.error : applied?.error;
+  const errorField = local?.field ?? (mode === "eligibility" ? elig?.field : applied?.field);
+  const scaleInfo = SCORE_SCALES.find((s) => s.id === scale)!;
+  const testInfo = ENGLISH_TESTS.find((t) => t.id === test);
+  const pg = ["pgcert", "master", "doctorate"].includes(level);
+
+  const value = (name: string) => {
+    const el = form.current?.elements.namedItem(name);
+    return el && "value" in el ? String(el.value).trim() : "";
+  };
+  const fail = (field: string, message: string) => {
+    setLocal({ field, message });
+    const el = form.current?.querySelector<HTMLElement>(`[name="${field}"]`);
+    el?.focus();
+    return false;
+  };
+  const validate = (s: number) => {
+    setLocal(null);
+    if (s === 0) {
+      if (!country) return fail("country", "Please choose a country.");
+      if (!level) return fail("level", "Please choose what you'd like to study.");
+      if (mode === "apply" && !value("university_ref") && value("university").length < 2) return fail("university", "Choose a university from the list, or type its name.");
+    }
+    if (s === 1) {
+      if (!qualification) return fail("qualification", "Please choose your highest qualification.");
+      const score = Number.parseFloat(value("score"));
+      if (!(score > 0) || score > scaleInfo.max) return fail("score", `Please enter your marks (up to ${scaleInfo.max}).`);
+      if (!test) return fail("test", "Please tell us about your English test.");
+      if (testInfo && test !== "none") {
+        const t = Number.parseFloat(value("test_score"));
+        if (!(t > 0) || t > testInfo.max) return fail("test_score", `Please enter your ${testInfo.label} score (up to ${testInfo.max}).`);
+      }
+    }
+    if (s === 2) {
+      if (!value("full_name")) return fail("full_name", "Please enter your full name.");
+      if (!/^[0-9+()\-\s]{7,30}$/.test(value("phone"))) return fail("phone", "Please enter your mobile number.");
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(value("email"))) return fail("email", "Please enter a valid email address.");
+      if (mode === "apply" && !value("date_of_birth")) return fail("date_of_birth", "Please enter your date of birth.");
+      const consent = form.current?.elements.namedItem("consent") as HTMLInputElement | null;
+      if (!consent?.checked) return fail("consent", mode === "apply" ? "Please tick the consent box to send your application." : "Please tick the consent box to see your result.");
+    }
+    return true;
+  };
+
+  const onSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (!validate(step)) return;
+    if (step < 2) {
+      setStep(step + 1);
+      requestAnimationFrame(() => form.current?.scrollIntoView({ block: "start", behavior: "smooth" }));
+      return;
+    }
+    const data = new FormData(e.currentTarget);
+    setSnap({ dob: !!data.get("date_of_birth"), course: String(data.get("course") ?? "") });
+    startTransition(() => (mode === "eligibility" ? checkAction(data) : applyAction(data)));
+  };
+
+  /** Apply from the result screen: everything from the check, plus the chosen university */
+  const applyFrom = (panel: HTMLFormElement, pick: { id?: string; name?: string } | null, headline: string) => {
+    if (!form.current) return;
+    const data = new FormData(form.current);
