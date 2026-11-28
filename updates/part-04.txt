@@ -1,0 +1,931 @@
+    for (const [k, v] of new FormData(panel)) if (k !== "university_ref" && k !== "university" && k !== "course") data.set(k, v);
+    if (pick) {
+      data.set("university_ref", pick.id ?? "");
+      data.set("university", pick.id ? "" : (pick.name ?? ""));
+    } else {
+      const panelData = new FormData(panel);
+      data.set("university_ref", String(panelData.get("university_ref") ?? ""));
+      data.set("university", String(panelData.get("university") ?? ""));
+      if (panelData.get("course")) data.set("course", String(panelData.get("course")));
+    }
+    data.set("eligibility", headline);
+    startTransition(() => applyAction(data));
+  };
+
+  const pending = checking || applying;
+  const err = (f: string) => (errorField === f ? { "aria-invalid": true as const } : {});
+
+  return (
+    <div>
+      {showResult && elig?.result && (
+        <EligibilityResultView
+          result={elig.result}
+          country={country}
+          level={level}
+          countries={countries}
+          intakes={intakes}
+          needsDob={!snap.dob}
+          today={today}
+          course={snap.course}
+          portalUser={portalUser}
+          applying={applying}
+          applyError={applied?.error}
+          applyState={applied}
+          onApply={applyFrom}
+          onEdit={(toLevel) => {
+            if (toLevel) setLevel(toLevel);
+            setEditing(true);
+            setStep(0);
+          }}
+        />
+      )}
+
+      <form ref={form} noValidate onSubmit={onSubmit} hidden={!!showResult} className="scroll-mt-28">
+        <ol className="mb-7 grid grid-cols-3 gap-2" aria-label="Steps">
+          {STEPS.map((s, i) => (
+            <li key={s} aria-current={i === step ? "step" : undefined}>
+              <span className={`block h-1.5 rounded-full transition-colors ${i <= step ? "bg-teal" : "bg-deep/10"}`} />
+              <span className={`mt-2 block text-xs font-semibold ${i === step ? "text-deep" : "text-slate"}`}>
+                <span className="sr-only">Step </span>
+                {i + 1}. {s}
+              </span>
+            </li>
+          ))}
+        </ol>
+
+        {/* Step 1: plans */}
+        <fieldset hidden={step !== 0} className="grid gap-6">
+          <legend className="mb-5 text-xl font-extrabold text-deep">
+            {mode === "eligibility" ? "Where would you like to study?" : "Where are you applying?"}
+          </legend>
+          <div role="radiogroup" aria-label="Country" className="grid grid-cols-2 gap-2.5 sm:grid-cols-3">
+            {countries.map((c) => (
+              <Tile key={c.id} name="country" value={c.id} checked={country === c.id} onChange={() => setCountry(c.id)} invalid={errorField === "country"}>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={`/flags/${c.flag}.svg`} alt="" className="h-5 w-7 shrink-0 rounded-[3px] object-cover ring-1 ring-deep/10" />
+                <span className="font-semibold text-deep">{countryShort(c.id).replace(/^the /, "")}</span>
+              </Tile>
+            ))}
+          </div>
+
+          <div>
+            <p className="mb-2.5 text-sm font-semibold text-deep">What would you like to study?</p>
+            <div role="radiogroup" aria-label="Study level" className="grid grid-cols-2 gap-2.5 sm:grid-cols-3">
+              {LEVELS.map((l) => (
+                <Tile key={l.id} name="level" value={l.id} checked={level === l.id} onChange={() => setLevel(l.id)} invalid={errorField === "level"} stacked>
+                  <span className="font-semibold text-deep">{l.short}</span>
+                  <span className="text-xs text-slate">{LEVEL_HINTS[l.id]}</span>
+                </Tile>
+              ))}
+            </div>
+          </div>
+
+          <UniversityFields
+            key={country}
+            countries={countries}
+            intakes={intakes}
+            fixedCountry={country}
+            optional={mode === "eligibility"}
+            showIntake={false}
+            initialUniversity={country === initial.country ? (initial.university ?? null) : null}
+            initialTyped={country === initial.country ? (initial.typed ?? "") : ""}
+            initialCourse={initial.course ?? ""}
+            errorField={errorField}
+          />
+
+          <div>
+            <p className="mb-2.5 text-sm font-semibold text-deep">When would you like to start?</p>
+            <input type="hidden" name="intake" value={intake} />
+            <div className="flex flex-wrap gap-2">
+              {["", ...intakes.slice(0, 6)].map((i) => {
+                const main = i && (mainIntakes[country] ?? []).includes(i.split(" ")[0]);
+                return (
+                  <button
+                    key={i || "none"}
+                    type="button"
+                    aria-pressed={intake === i}
+                    onClick={() => setIntake(i)}
+                    className={`inline-flex items-center gap-1.5 rounded-full px-4 py-2 text-sm font-semibold ring-1 transition ${
+                      intake === i ? "bg-teal text-white ring-teal" : "bg-white text-deep ring-slate/25 hover:ring-teal/60"
+                    }`}
+                  >
+                    {i || "Not sure yet"}
+                    {main && <span className={`rounded-full px-1.5 py-0.5 text-[0.65rem] ${intake === i ? "bg-white/20" : "bg-teal/10 text-teal"}`}>Main intake</span>}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </fieldset>
+
+        {/* Step 2: education */}
+        <fieldset hidden={step !== 1} className="grid gap-6">
+          <legend className="mb-5 text-xl font-extrabold text-deep">Your education</legend>
+          <div>
+            <p className="mb-2.5 text-sm font-semibold text-deep">Your highest qualification</p>
+            <div role="radiogroup" aria-label="Highest qualification" className="grid gap-2.5 sm:grid-cols-2">
+              {QUALIFICATIONS.map((q) => (
+                <Tile key={q.id} name="qualification" value={q.id} checked={qualification === q.id} onChange={() => setQualification(q.id)} invalid={errorField === "qualification"}>
+                  <span className="font-semibold text-deep">{q.label}</span>
+                </Tile>
+              ))}
+            </div>
+          </div>
+
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className={label}>
+              <span>Your marks</span>
+              <div role="radiogroup" aria-label="Marks as" className="flex gap-1 rounded-xl bg-mist p-1">
+                {SCORE_SCALES.map((s) => (
+                  <label key={s.id} className={`flex-1 cursor-pointer rounded-lg px-2 py-1.5 text-center text-xs font-semibold ${scale === s.id ? "bg-white text-deep shadow-sm" : "text-slate"}`}>
+                    <input type="radio" name="scale" value={s.id} checked={scale === s.id} onChange={() => setScale(s.id)} className="sr-only" />
+                    {s.id === "percent" ? "%" : s.id === "cgpa10" ? "CGPA /10" : "GPA /4"}
+                  </label>
+                ))}
+              </div>
+              <input
+                name="score"
+                type="number"
+                inputMode="decimal"
+                min={0}
+                max={scaleInfo.max}
+                step={scaleInfo.step}
+                placeholder={scale === "percent" ? "e.g. 72" : scale === "cgpa10" ? "e.g. 7.8" : "e.g. 3.2"}
+                {...err("score")}
+                className={input}
+              />
+              <span className={hint}>{qualification === "12th" ? "Your 12th (PUC) result." : "Your overall result for your highest qualification."}</span>
+            </div>
+            <label className={label}>
+              <span>
+                Year you finished <span className="font-normal text-slate">(or will finish)</span>
+              </span>
+              <input name="passing_year" type="number" inputMode="numeric" min={1970} max={2035} placeholder="e.g. 2025" {...err("passing_year")} className={input} />
+            </label>
+          </div>
+
+          <div>
+            <p className="mb-2.5 text-sm font-semibold text-deep">English test</p>
+            <div role="radiogroup" aria-label="English test" className="flex flex-wrap gap-2">
+              {ENGLISH_TESTS.map((t) => (
+                <label
+                  key={t.id}
+                  className={`cursor-pointer rounded-full px-4 py-2 text-sm font-semibold ring-1 transition has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-teal ${
+                    test === t.id ? "bg-teal text-white ring-teal" : `bg-white text-deep hover:ring-teal/60 ${errorField === "test" ? "ring-[#b42318]/60" : "ring-slate/25"}`
+                  }`}
+                >
+                  <input type="radio" name="test" value={t.id} checked={test === t.id} onChange={() => setTest(t.id)} className="sr-only" />
+                  {t.id === "none" ? "Not taken yet" : t.label.replace(" Academic", "").replace(" English Test", "")}
+                </label>
+              ))}
+            </div>
+            {testInfo && test !== "none" && (
+              <label className={`${label} mt-4 max-w-xs`}>
+                Overall {testInfo.label} score
+                <input
+                  name="test_score"
+                  type="number"
+                  inputMode="decimal"
+                  min={0}
+                  max={testInfo.max}
+                  step={testInfo.step}
+                  placeholder={test === "ielts" ? "e.g. 6.5" : test === "pte" ? "e.g. 58" : test === "toefl" ? "e.g. 90" : "e.g. 110"}
+                  {...err("test_score")}
+                  className={input}
+                />
+              </label>
+            )}
+          </div>
+
+          <div className="grid gap-4 sm:grid-cols-2">
+            {qualification && qualification !== "12th" && (
+              <label className={label}>
+                <span>
+                  Backlogs <span className="font-normal text-slate">(subjects not cleared first time)</span>
+                </span>
+                <input name="backlogs" type="number" inputMode="numeric" min={0} max={99} defaultValue={0} className={input} />
+              </label>
+            )}
+            <label className={label}>
+              <span>
+                Your city <span className="font-normal text-slate">(optional)</span>
+              </span>
+              <input name="city" maxLength={80} autoComplete="address-level2" placeholder="e.g. Mangaluru" className={input} />
+            </label>
+          </div>
+          {pg && qualification === "12th" && (
+            <p className="flex items-start gap-2 rounded-xl bg-mist p-3 text-sm text-slate">
+              <Info className="mt-0.5 h-4 w-4 shrink-0 text-teal" aria-hidden="true" />
+              {levelShort(level)} programmes usually need a bachelor&apos;s degree first. You can still continue: we&apos;ll show you the options.
+            </p>
+          )}
+        </fieldset>
+
+        {/* Step 3: contact */}
+        <fieldset hidden={step !== 2} className="grid gap-4">
+          <legend className="mb-5 text-xl font-extrabold text-deep">{mode === "eligibility" ? "Where should we send your result?" : "Your details"}</legend>
+          <label className={label}>
+            Full name
+            <input name="full_name" maxLength={120} autoComplete="name" {...err("full_name")} className={input} />
+          </label>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <label className={label}>
+              Mobile number
+              <input name="phone" type="tel" autoComplete="tel" inputMode="tel" maxLength={30} placeholder="+91 …" {...err("phone")} className={input} />
+            </label>
+            <label className={label}>
+              <span>
+                Date of birth {mode === "eligibility" && <span className="font-normal text-slate">(needed when you apply)</span>}
+              </span>
+              <input name="date_of_birth" type="date" max={today} {...err("date_of_birth")} className={input} />
+            </label>
+          </div>
+          <label className={label}>
+            Email
+            <input name="email" type="email" autoComplete="email" maxLength={254} {...err("email")} className={input} />
+            {mode === "apply" && <span className={hint}>We create your student portal account with this email, so you can follow your application.</span>}
+          </label>
+          <input type="text" name="bot-field" tabIndex={-1} autoComplete="off" aria-hidden="true" className="hidden" />
+          <label className="flex items-start gap-3 text-sm leading-relaxed text-slate">
+            <input name="consent" type="checkbox" className="mt-0.5 h-5 w-5 shrink-0 accent-teal" {...err("consent")} />
+            <span>{consentText.student}</span>
+          </label>
+          <p className="-mt-2 pl-8 text-xs text-slate">
+            How we use your data:{" "}
+            <Link href="/privacy" target="_blank" className="font-semibold text-teal hover:text-navy">
+              Privacy policy
+            </Link>
+          </p>
+          {mode === "apply" && step === 2 && <Turnstile resetKey={applied} />}
+        </fieldset>
+
+        <div className="mt-7 grid gap-4">
+          <FormError message={local?.message ?? serverError} />
+          <div className="flex items-center gap-3">
+            {step > 0 && (
+              <button type="button" onClick={() => setStep(step - 1)} className={btnGhost}>
+                <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+                Back
+              </button>
+            )}
+            <button type="submit" disabled={pending} aria-busy={pending} className={`${btnPrimary} flex-1 py-3.5 text-base`}>
+              {pending && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />}
+              {step < 2 ? "Next" : pending ? (mode === "apply" ? "Sending…" : "Checking…") : mode === "apply" ? "Send my application" : "Check my eligibility"}
+              {step < 2 && <ArrowRight className="h-4 w-4" aria-hidden="true" />}
+            </button>
+          </div>
+          <p className="text-center text-xs leading-relaxed text-slate">
+            {mode === "apply"
+              ? "Free of charge. Sending this creates your Edusphere student portal account, so you can upload documents and follow each stage."
+              : "Free, and takes two minutes. A counsellor may call to talk through your options."}
+          </p>
+        </div>
+        <p className="mt-5 border-t border-deep/8 pt-5 text-center text-sm text-slate">
+          Already have an account?{" "}
+          <Link href={signInHref} className="font-semibold text-teal hover:text-navy">
+            Sign in
+          </Link>
+        </p>
+      </form>
+    </div>
+  );
+}
+
+function Tile({
+  name,
+  value,
+  checked,
+  onChange,
+  invalid,
+  stacked,
+  children,
+}: {
+  name: string;
+  value: string;
+  checked: boolean;
+  onChange: () => void;
+  invalid?: boolean;
+  stacked?: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <label
+      className={`relative flex cursor-pointer rounded-xl bg-white px-3.5 py-3 text-sm ring-1 transition has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-teal ${
+        stacked ? "flex-col gap-0.5" : "items-center gap-2.5"
+      } ${checked ? "bg-teal/6 ring-2 ring-teal" : invalid ? "ring-[#b42318]/50" : "ring-slate/25 hover:ring-teal/60"}`}
+    >
+      <input type="radio" name={name} value={value} checked={checked} onChange={onChange} className="sr-only" />
+      {children}
+      {checked && <Check className="absolute top-2 right-2 h-4 w-4 text-teal" aria-hidden="true" />}
+    </label>
+  );
+}
+
+const VERDICT = {
+  strong: { Icon: Sparkles, tone: "bg-teal/10 text-teal ring-teal/25" },
+  good: { Icon: CheckCircle2, tone: "bg-teal/10 text-teal ring-teal/25" },
+  possible: { Icon: Info, tone: "bg-[#fff4e5] text-[#9a5b00] ring-[#9a5b00]/20" },
+  pathway: { Icon: Info, tone: "bg-navy/8 text-navy ring-navy/20" },
+  not_yet: { Icon: AlertTriangle, tone: "bg-navy/8 text-navy ring-navy/20" },
+} as const;
+
+function EligibilityResultView({
+  result,
+  country,
+  level,
+  countries,
+  intakes,
+  needsDob,
+  today,
+  course,
+  portalUser,
+  applying,
+  applyError,
+  applyState,
+  onApply,
+  onEdit,
+}: {
+  result: NonNullable<NonNullable<EligibilityState>["result"]>;
+  country: string;
+  level: string;
+  countries: CountryOption[];
+  intakes: string[];
+  needsDob: boolean;
+  today: string;
+  course: string;
+  portalUser: boolean;
+  applying: boolean;
+  applyError?: string;
+  applyState: ApplyState;
+  onApply: (panel: HTMLFormElement, pick: { id?: string; name?: string } | null, headline: string) => void;
+  onEdit: (level?: string) => void;
+}) {
+  const panel = useRef<HTMLFormElement>(null);
+  const [choosing, setChoosing] = useState(false);
+  const [local, setLocal] = useState("");
+  const v = VERDICT[result.verdict];
+  const chosen = result.university ?? (result.typed ? { id: "", name: result.typed } : null);
+  const suggestLevel = result.suggestLevel ? LEVELS.find((l) => l.id === result.suggestLevel) : null;
+
+  const go = (pick: { id?: string; name?: string } | null) => {
+    setLocal("");
+    if (!panel.current) return;
+    const dob = panel.current.elements.namedItem("date_of_birth") as HTMLInputElement | null;
+    if (dob && !dob.value) {
+      setLocal("Please enter your date of birth to apply.");
+      dob.focus();
+      return;
+    }
+    if (!pick) {
+      const d = new FormData(panel.current);
+      if (!d.get("university_ref") && String(d.get("university") ?? "").trim().length < 2) {
+        setLocal("Choose a university from the list, or type its name.");
+        return;
+      }
+    }
+    onApply(panel.current, pick, result.headline);
+  };
+
+  const applyButton = (pick: { id?: string; name?: string }, text: string, primary?: boolean) =>
+    portalUser ? (
+      <Link href={applyHref({ university: pick.id || undefined, country, course: course || undefined, level })} className={primary ? btnPrimary : btnGhost}>
+        {text}
+        <ArrowRight className="h-4 w-4" aria-hidden="true" />
+      </Link>
+    ) : (
+      <button type="button" disabled={applying} onClick={() => go(pick)} className={primary ? btnPrimary : btnGhost}>
+        {applying && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />}
+        {text}
+        {!applying && <ArrowRight className="h-4 w-4" aria-hidden="true" />}
+      </button>
+    );
+
+  return (
+    <div className="grid gap-6" role="status" aria-live="polite">
+      <div className={`flex items-start gap-4 rounded-2xl p-5 ring-1 ${v.tone}`}>
+        <v.Icon className="mt-0.5 h-7 w-7 shrink-0" aria-hidden="true" />
+        <div>
+          <p className="text-xs font-bold tracking-wide uppercase opacity-80">Your indicative result</p>
+          <h2 className="mt-1 text-xl font-extrabold text-deep sm:text-2xl">{result.headline}</h2>
+          <p className="mt-1.5 leading-relaxed text-slate">{result.summary}</p>
+        </div>
+      </div>
+
+      <ul className="grid gap-2.5">
+        {result.points.map((p) => (
+          <li key={p.text} className="flex items-start gap-3 text-sm leading-relaxed text-deep">
+            {p.ok === true ? (
+              <CheckCircle2 className="mt-0.5 h-4.5 w-4.5 shrink-0 text-teal" aria-label="Meets it" />
+            ) : p.ok === false ? (
+              <XCircle className="mt-0.5 h-4.5 w-4.5 shrink-0 text-[#b42318]" aria-label="Below it" />
+            ) : (
+              <Info className="mt-0.5 h-4.5 w-4.5 shrink-0 text-[#9a5b00]" aria-label="Worth knowing" />
+            )}
+            <span>{p.text}</span>
+          </li>
+        ))}
+      </ul>
+
+      {result.requirements && (
+        <div className="rounded-2xl bg-mist p-4 text-sm leading-relaxed text-slate">
+          <p className="font-bold text-deep">
+            Typical requirements: {levelShort(level)} in {countryShort(country)}
+          </p>
+          <p className="mt-1.5">{result.requirements.academic}.</p>
+          <p className="mt-1">{result.requirements.english}.</p>
+          <p className="mt-2 text-xs">An indicative check from typical entry requirements, not a university&apos;s decision. Your counsellor confirms each university&apos;s rules with you.</p>
+        </div>
+      )}
+
+      {suggestLevel && (
+        <button type="button" onClick={() => onEdit(suggestLevel.id)} className={`${btnGhost} justify-self-start`}>
+          <PencilLine className="h-4 w-4" aria-hidden="true" />
+          Check for {suggestLevel.short} instead
+        </button>
+      )}
+
+      <form ref={panel} onSubmit={(e) => e.preventDefault()} className="grid gap-4 rounded-2xl p-5 ring-1 ring-deep/10">
+        <div>
+          <h3 className="text-lg font-extrabold text-deep">Apply with Edusphere, free</h3>
+          <p className="mt-1 text-sm leading-relaxed text-slate">
+            {portalUser
+              ? "Add the university to your application tracker, and your counsellor takes it from there."
+              : "We create your student portal account with the details you've given, add the university to your application, and your counsellor calls you."}
+          </p>
+        </div>
+        {!portalUser && needsDob && (
+          <label className={`${label} max-w-xs`}>
+            Date of birth
+            <input name="date_of_birth" type="date" max={today} className={input} />
+          </label>
+        )}
+
+        {chosen && (
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-teal/6 p-4 ring-1 ring-teal/25">
+            <span className="min-w-0">
+              <span className="block text-xs font-semibold text-teal">Your choice</span>
+              {chosen.id ? (
+                <Link href={universityHref(chosen.id)} className="font-bold text-deep hover:text-teal">
+                  {chosen.name}
+                </Link>
+              ) : (
+                <span className="font-bold text-deep">{chosen.name}</span>
+              )}
+            </span>
+            {applyButton(chosen, `Apply to ${shorten(chosen.name)}`, true)}
+          </div>
+        )}
+
+        {result.suggestions.length > 0 && (
+          <div>
+            <p className="text-sm font-semibold text-deep">{chosen ? "Other universities to consider" : "Universities that fit"}</p>
+            <ul className="mt-2.5 grid gap-2.5">
+              {result.suggestions.map((s) => (
+                <li key={s.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-white p-3.5 ring-1 ring-deep/8">
+                  <span className="min-w-0">
+                    <Link href={universityHref(s.id)} className="block font-semibold text-deep hover:text-teal">
+                      {s.name}
+                    </Link>
+                    <span className="block text-xs text-slate">
+                      {[s.place, s.type && (s.type === "public" ? "Public" : "Private"), s.feeInr ? `Tuition ≈ ${lakh(s.feeInr)} a year` : ""].filter(Boolean).join(" · ")}
+                    </span>
+                  </span>
+                  {applyButton({ id: s.id, name: s.name }, "Apply")}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        {!portalUser &&
+          (choosing ? (
+            <div className="grid gap-4 border-t border-deep/8 pt-4">
+              <UniversityFields countries={countries} intakes={intakes} fixedCountry={country} showIntake={false} initialCourse={course} />
+              <button type="button" disabled={applying} onClick={() => go(null)} className={`${btnPrimary} justify-self-start`}>
+                {applying && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />}
+                Apply to this university
+              </button>
+            </div>
+          ) : (
+            <button type="button" onClick={() => setChoosing(true)} className="justify-self-start text-sm font-semibold text-teal hover:text-navy">
+              Choose a different university
+            </button>
+          ))}
+
+        {!portalUser && <Turnstile resetKey={applyState} />}
+        <FormError message={local || applyError} />
+      </form>
+
+      <button type="button" onClick={() => onEdit()} className="justify-self-start text-sm font-semibold text-slate hover:text-deep">
+        <ArrowLeft className="mr-1 inline h-4 w-4" aria-hidden="true" />
+        Change my answers
+      </button>
+    </div>
+  );
+}
+
+const shorten = (name: string) => (name.length > 34 ? `${name.slice(0, 32).trimEnd()}…` : name);
+
+export function ApplyDone({ email, university }: { email: string; university: string }) {
+  return (
+    <div className="text-center" role="status">
+      <div className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-teal/12 text-teal">
+        <MailCheck className="h-7 w-7" aria-hidden="true" />
+      </div>
+      <h2 className="mt-4 text-xl font-extrabold text-deep">Application received</h2>
+      <p className="mx-auto mt-3 max-w-md leading-relaxed text-slate">
+        Thanks! Your counsellor will be in touch about <strong className="text-deep">{university}</strong>, usually within one working day.
+      </p>
+      <p className="mx-auto mt-3 max-w-md leading-relaxed text-slate">
+        We&apos;ve also sent a link to <strong className="text-deep">{email}</strong>. Open it to verify your email and choose a password for your student portal, where you can
+        follow every stage of your application.
+      </p>
+      <p className="mt-3 text-sm text-slate">Nothing after a few minutes? Check your spam folder.</p>
+      <p className="mt-6 text-sm text-slate">
+        Already have an account?{" "}
+        <Link href="/sign-in?next=/portal/applications" className="font-semibold text-teal hover:text-navy">
+          Sign in to see your applications
+        </Link>
+      </p>
+    </div>
+  );
+}
+#==EDU:FILE src/components/apply/UniversityFields.tsx
+"use client";
+
+import { useEffect, useId, useRef, useState } from "react";
+import { Check, Loader2, PencilLine, Search, X } from "lucide-react";
+import { hint, input, label } from "@/components/portal/ui";
+
+export type CountryOption = { id: string; name: string; flag: string };
+export type PickedUniversity = { id: string; name: string; place?: string } | null;
+type Option = { id: string; name: string; country: string; place: string; courses: number };
+
+/**
+ * Country, university, course and intake fields, shared by the apply form and the portal.
+ * The university is picked from the open-data catalogue, or typed in when it isn't listed.
+ * Sends: country, university_ref (catalogue id, or empty), university (typed name), course, intake.
+ * `fixedCountry`: the country is chosen elsewhere in the form (no country field here; remount with a
+ * new key when it changes). `optional`: the university may be left empty.
+ */
+export function UniversityFields({
+  countries,
+  intakes,
+  initialCountry = "",
+  initialUniversity = null,
+  initialTyped = "",
+  initialCourse = "",
+  initialIntake = "",
+  errorField,
+  fixedCountry,
+  optional = false,
+  showIntake = true,
+}: {
+  countries: CountryOption[];
+  intakes: string[];
+  initialCountry?: string;
+  initialUniversity?: PickedUniversity;
+  initialTyped?: string;
+  initialCourse?: string;
+  initialIntake?: string;
+  errorField?: string;
+  fixedCountry?: string;
+  optional?: boolean;
+  showIntake?: boolean;
+}) {
+  const [chosen, setCountry] = useState(initialCountry);
+  const country = fixedCountry ?? chosen;
+  const [picked, setPicked] = useState<PickedUniversity>(initialUniversity);
+  const [typing, setTyping] = useState(!initialUniversity && !!initialTyped);
+  const ids = useId();
+  const flag = countries.find((c) => c.id === country)?.flag;
+
+  return (
+    <div className="grid gap-4">
+      {fixedCountry === undefined && (
+        <label className={label}>
+          Country
+          <span className="relative">
+            {flag && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={`/flags/${flag}.svg`} alt="" className="pointer-events-none absolute top-1/2 left-3.5 h-4 w-6 -translate-y-1/2 rounded-[3px] object-cover ring-1 ring-deep/10" />
+            )}
+            <select
+              name="country"
+              required
+              value={country}
+              onChange={(e) => {
+                setCountry(e.target.value);
+                setPicked(null);
+              }}
+              aria-invalid={errorField === "country" || undefined}
+              className={`${input} ${flag ? "pl-12" : ""}`}
+            >
+              <option value="" disabled>
+                Choose a country
+              </option>
+              {countries.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+          </span>
+        </label>
+      )}
+
+      <input type="hidden" name="university_ref" value={!typing && picked ? picked.id : ""} />
+      {typing ? (
+        <label className={label}>
+          <span>
+            University name {optional && <span className="font-normal text-slate">(optional)</span>}
+          </span>
+          <input
+            name="university"
+            required={!optional}
+            minLength={2}
+            maxLength={160}
+            defaultValue={initialTyped || picked?.name || ""}
+            autoComplete="off"
+            placeholder="Type the university or college name"
+            aria-invalid={errorField === "university" || undefined}
+            className={input}
+          />
+          <span className={hint}>
+            We work with most universities, including many that aren&apos;t in the public lists.{" "}
+            <button type="button" onClick={() => setTyping(false)} className="font-semibold text-teal hover:text-navy">
+              Search the list instead
+            </button>
+          </span>
+        </label>
+      ) : picked ? (
+        <div className={label}>
+          <span id={`${ids}-uni`}>University</span>
+          <div className="flex items-center gap-3 rounded-xl border border-teal/40 bg-teal/6 px-3.5 py-3" aria-labelledby={`${ids}-uni`}>
+            <Check className="h-4.5 w-4.5 shrink-0 text-teal" aria-hidden="true" />
+            <span className="min-w-0 flex-1">
+              <span className="block font-semibold text-deep">{picked.name}</span>
+              {picked.place && <span className="block text-xs font-normal text-slate">{picked.place}</span>}
+            </span>
+            <button type="button" onClick={() => setPicked(null)} className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold text-teal ring-1 ring-teal/30 hover:bg-white">
+              <X className="h-3.5 w-3.5" aria-hidden="true" />
+              Change
+            </button>
+          </div>
+        </div>
+      ) : (
+        <UniversitySearch
+          optional={optional}
+          country={country}
+          invalid={errorField === "university"}
+          onPick={(u) => setPicked(u)}
+          onNotListed={() => setTyping(true)}
+        />
+      )}
+
+      <CourseField universityId={!typing && picked ? picked.id : ""} initial={initialCourse} />
+
+      {showIntake && (
+        <label className={label}>
+          <span>
+            Intake <span className="font-normal text-slate">(when you&apos;d like to start)</span>
+          </span>
+          <select name="intake" defaultValue={initialIntake} aria-invalid={errorField === "intake" || undefined} className={input}>
+            <option value="">Not sure yet</option>
+            {intakes.map((i) => (
+              <option key={i} value={i}>
+                {i}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
+    </div>
+  );
+}
+
+function UniversitySearch({
+  country,
+  invalid,
+  optional,
+  onPick,
+  onNotListed,
+}: {
+  country: string;
+  invalid?: boolean;
+  optional?: boolean;
+  onPick: (u: NonNullable<PickedUniversity>) => void;
+  onNotListed: () => void;
+}) {
+  const [q, setQ] = useState("");
+  const [items, setItems] = useState<Option[]>([]);
+  const [open, setOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [active, setActive] = useState(-1);
+  const box = useRef<HTMLDivElement>(null);
+  const ids = useId();
+  const listId = `${ids}-list`;
+
+  useEffect(() => {
+    if (!country) return;
+    const ctrl = new AbortController();
+    const t = setTimeout(async () => {
+      setBusy(true);
+      try {
+        const res = await fetch(`/api/catalogue?kind=universities&country=${encodeURIComponent(country)}&q=${encodeURIComponent(q)}`, { signal: ctrl.signal });
+        const json = (await res.json()) as { items: Option[] };
+        setItems(json.items ?? []);
+        setActive(-1);
+      } catch {
+        /* aborted or offline: keep the last list */
+      } finally {
+        setBusy(false);
+      }
+    }, 180);
+    return () => {
+      clearTimeout(t);
+      ctrl.abort();
+    };
+  }, [q, country]);
+
+  useEffect(() => {
+    const close = (e: MouseEvent) => {
+      if (box.current && !box.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", close);
+    return () => document.removeEventListener("mousedown", close);
+  }, []);
+
+  const total = items.length + 1; // + "not listed"
+  const choose = (i: number) => {
+    if (i === items.length) onNotListed();
+    else if (items[i]) onPick({ id: items[i].id, name: items[i].name, place: items[i].place });
+  };
+
+  return (
+    <div ref={box} className={`${label} relative`}>
+      <label htmlFor={`${ids}-q`}>
+        University {optional && <span className="font-normal text-slate">(optional: leave it empty and we&apos;ll suggest some)</span>}
+      </label>
+      <span className="relative">
+        <Search className="pointer-events-none absolute top-1/2 left-3.5 h-4.5 w-4.5 -translate-y-1/2 text-slate/70" aria-hidden="true" />
+        <input
+          id={`${ids}-q`}
+          type="text"
+          role="combobox"
+          aria-expanded={open && !!country}
+          aria-controls={listId}
+          aria-autocomplete="list"
+          aria-activedescendant={active >= 0 ? `${ids}-o${active}` : undefined}
+          aria-invalid={invalid || undefined}
+          disabled={!country}
+          value={q}
+          placeholder={country ? "Start typing a university name" : "Choose a country first"}
+          autoComplete="off"
+          onChange={(e) => {
+            setQ(e.target.value);
+            setOpen(true);
+          }}
+          onFocus={() => setOpen(true)}
+          onKeyDown={(e) => {
+            if (e.key === "ArrowDown") {
+              e.preventDefault();
+              setOpen(true);
+              setActive((a) => (a + 1) % total);
+            } else if (e.key === "ArrowUp") {
+              e.preventDefault();
+              setActive((a) => (a <= 0 ? total - 1 : a - 1));
+            } else if (e.key === "Enter" && open && active >= 0) {
+              e.preventDefault();
+              choose(active);
+            } else if (e.key === "Escape") setOpen(false);
+          }}
+          className={`${input} pl-11`}
+        />
+        {busy && <Loader2 className="absolute top-1/2 right-3.5 h-4 w-4 -translate-y-1/2 animate-spin text-slate" aria-hidden="true" />}
+      </span>
+      {open && country && (
+        <ul id={listId} role="listbox" className="absolute top-full right-0 left-0 z-30 mt-1.5 max-h-80 overflow-auto rounded-xl bg-white p-1.5 font-normal shadow-[0_18px_40px_-12px_rgba(13,34,54,0.35)] ring-1 ring-deep/10">
+          {items.map((u, i) => (
+            <li
+              key={u.id}
+              id={`${ids}-o${i}`}
+              role="option"
+              aria-selected={active === i}
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => choose(i)}
+              className={`cursor-pointer rounded-lg px-3 py-2.5 ${active === i ? "bg-mist" : "hover:bg-mist"}`}
+            >
+              <span className="block text-sm font-semibold text-deep">{u.name}</span>
+              <span className="block text-xs text-slate">{[u.place, u.courses ? `${u.courses} courses` : ""].filter(Boolean).join(" · ")}</span>
+            </li>
+          ))}
+          {!busy && items.length === 0 && <li className="px-3 py-2.5 text-sm text-slate">No match in the list.</li>}
+          <li
+            id={`${ids}-o${items.length}`}
+            role="option"
+            aria-selected={active === items.length}
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => choose(items.length)}
+            className={`mt-1 flex cursor-pointer items-center gap-2 rounded-lg border-t border-deep/8 px-3 py-2.5 text-sm font-semibold text-teal ${active === items.length ? "bg-mist" : "hover:bg-mist"}`}
+          >
+            <PencilLine className="h-4 w-4" aria-hidden="true" />
+            My university isn&apos;t listed: type its name
+          </li>
+        </ul>
+      )}
+      <span className={hint}>
+        Can&apos;t find it?{" "}
+        <button type="button" onClick={onNotListed} disabled={!country} className="font-semibold text-teal hover:text-navy disabled:text-slate">
+          Type the university name
+        </button>
+        . We&apos;re partnered with almost every university.
+      </span>
+    </div>
+  );
+}
+
+function CourseField({ universityId, initial }: { universityId: string; initial: string }) {
+  const [value, setValue] = useState(initial);
+  const [options, setOptions] = useState<string[]>([]);
+  const listId = useId();
+
+  useEffect(() => {
+    if (!universityId) return;
+    const ctrl = new AbortController();
+    const t = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/catalogue?kind=courses&u=${encodeURIComponent(universityId)}&q=${encodeURIComponent(value)}`, { signal: ctrl.signal });
+        const json = (await res.json()) as { items: { title: string }[] };
+        setOptions((json.items ?? []).map((c) => c.title));
+      } catch {
+        /* ignore */
+      }
+    }, 220);
+    return () => {
+      clearTimeout(t);
+      ctrl.abort();
+    };
+  }, [universityId, value]);
+  const shown = universityId ? options : [];
+
+  return (
+    <label className={label}>
+      <span>
+        Course <span className="font-normal text-slate">(optional)</span>
+      </span>
+      <input
+        name="course"
+        maxLength={200}
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        list={shown.length ? listId : undefined}
+        autoComplete="off"
+        placeholder="For example, MSc Data Science"
+        className={input}
+      />
+      {shown.length > 0 && (
+        <datalist id={listId}>
+          {shown.map((o) => (
+            <option key={o} value={o} />
+          ))}
+        </datalist>
+      )}
+      <span className={hint}>Not decided? Leave it blank and your counsellor will help you choose.</span>
+    </label>
+  );
+}
+#==EDU:FILE src/components/finder/Cards.tsx
+import Link from "next/link";
+import { ArrowRight, BadgeCheck, MapPin } from "lucide-react";
+import {
+  applyHref,
+  countryInfo,
+  durationText,
+  eligibilityHref,
+  lakh,
+  levelShort,
+  locationLabel,
+  universityHref,
+  type CourseHit,
+  type University,
+  type UniversityHit,
+} from "@/lib/catalogue";
+
+/** Result cards for the course finder, university pages and country pages (light style). */
+
+const fmt = (n: number) => n.toLocaleString("en-IN");
+
+export function Flag({ country, className = "h-3.5 w-5" }: { country: string; className?: string }) {
+  const f = countryInfo(country)?.flag;
+  if (!f) return null;
+  // eslint-disable-next-line @next/next/no-img-element
+  return <img src={`/flags/${f}.svg`} alt="" className={`${className} shrink-0 rounded-[2px] object-cover ring-1 ring-deep/10`} />;
+}
+
+export const placeOf = (u: University, withCountry = true) =>
+  [u.city, u.region && locationLabel(u.country, u.region), withCountry && u.country !== "europe" ? countryInfo(u.country)?.short : ""]
+    .filter((x, i, all) => x && all.indexOf(x) === i)
+    .join(", ");
+
+const SMALL = new Set(["the", "of", "and", "for", "at", "in", "de", "di", "del", "la", "le", "des", "der", "fur", "für", "y", "e"]);
