@@ -3,11 +3,29 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { ArrowRight, ChevronDown, Menu, X } from "lucide-react";
+import { ArrowRight, ChevronDown, ChevronRight, ClipboardCheck, Menu, Search, X } from "lucide-react";
 import { Logo } from "@/components/brand/Logo";
+import { eligibilityHref, POPULAR_COURSES, universityHref } from "@/lib/catalogue-shared";
 
 export type NavItem = { href: string; label: string };
-export type NavDestination = { id: string; name: string; flag: string; summary: string };
+export type StudyCountry = {
+  id: string;
+  name: string;
+  flag: string;
+  summary: string;
+  universities: number;
+  courses: number;
+  regionLabel: string;
+  locations: { value: string; label: string }[];
+  top: { id: string; name: string }[];
+};
+export type StudyMenuProps = { countries: StudyCountry[]; destinationPages: boolean; courseFinder: boolean };
+
+const fmt = (n: number) => n.toLocaleString("en-IN");
+const countryHome = (c: StudyCountry, m: StudyMenuProps) => (m.destinationPages ? `/destinations/${c.id}` : `/destinations/${c.id}/universities`);
+const listHref = (c: StudyCountry, params: Record<string, string>) => `/destinations/${c.id}/universities?${new URLSearchParams(params)}`;
+const courseHref = (c: StudyCountry, p: (typeof POPULAR_COURSES)[number]) =>
+  c.courses > 0 ? listHref(c, { level: p.level, subject: p.subject }) : eligibilityHref({ country: c.id, level: p.level, course: p.course });
 
 /**
  * Sticky header. Its layout height never changes (so the page never jumps);
@@ -15,11 +33,14 @@ export type NavDestination = { id: string; name: string; flag: string; summary: 
  * separate layer painted *under* the content (no negative z-index), which
  * Safari on iPhone renders reliably.
  */
-export function Header({ nav, destinations }: { nav: NavItem[]; destinations: NavDestination[] }) {
+export function Header({ nav, study }: { nav: NavItem[]; study: StudyMenuProps }) {
+  const destinations = study.countries;
   const pathname = usePathname();
   const [scrolled, setScrolled] = useState(false);
   const [open, setOpen] = useState(false);
   const [destOpen, setDestOpen] = useState(false);
+  const [active, setActive] = useState(destinations[0]?.id ?? "");
+  const current = destinations.find((d) => d.id === active) ?? destinations[0];
   const [menuTop, setMenuTop] = useState(72);
   const bar = useRef<HTMLDivElement>(null);
   const destRef = useRef<HTMLDivElement>(null);
@@ -98,51 +119,106 @@ export function Header({ nav, destinations }: { nav: NavItem[]; destinations: Na
           </Link>
 
           <nav aria-label="Main" className="hidden items-center gap-0.5 xl:flex">
-            {destinations.length > 0 && (
-              <div ref={destRef} className="relative" onPointerEnter={(e) => e.pointerType === "mouse" && hoverOpen(true)} onPointerLeave={(e) => e.pointerType === "mouse" && hoverOpen(false)}>
+            {destinations.length > 0 && current && (
+              <div ref={destRef} onPointerEnter={(e) => e.pointerType === "mouse" && hoverOpen(true)} onPointerLeave={(e) => e.pointerType === "mouse" && hoverOpen(false)}>
                 <button
                   type="button"
                   aria-expanded={destOpen}
-                  aria-controls="dest-menu"
+                  aria-controls="study-menu"
                   onClick={() => setDestOpen((v) => !v)}
                   className={`${linkClass("/destinations")} inline-flex items-center gap-1`}
                 >
-                  Destinations
+                  Study abroad
                   <ChevronDown className={`h-3.5 w-3.5 transition-transform duration-200 ${destOpen ? "rotate-180" : ""}`} aria-hidden="true" />
                 </button>
                 <div
-                  id="dest-menu"
-                  className={`absolute top-full left-1/2 w-[34rem] -translate-x-1/2 pt-3 transition-[opacity,transform,visibility] duration-200 ${
+                  id="study-menu"
+                  className={`absolute inset-x-5 top-full pt-2 transition-[opacity,transform,visibility] duration-200 sm:inset-x-8 ${
                     destOpen ? "visible translate-y-0 opacity-100" : "invisible -translate-y-1 opacity-0"
                   }`}
                 >
-                  <div className="rounded-3xl border border-white/10 bg-[#102a42] p-3 shadow-[0_30px_80px_-20px_rgba(0,0,0,0.8)]">
-                    <ul className="grid grid-cols-2 gap-1">
+                  <div className="grid grid-cols-[15.5rem_1fr] overflow-hidden rounded-3xl border border-white/10 bg-[#102a42] shadow-[0_30px_80px_-20px_rgba(0,0,0,0.8)]">
+                    <ul className="grid content-start gap-0.5 border-r border-white/8 bg-white/[0.02] p-3" aria-label="Countries">
                       {destinations.map((d) => (
                         <li key={d.id}>
                           <Link
-                            href={`/destinations/${d.id}`}
-                            className="group flex items-start gap-3 rounded-2xl p-3 transition hover:bg-white/[0.06]"
+                            href={countryHome(d, study)}
+                            onPointerEnter={() => setActive(d.id)}
+                            onFocus={() => setActive(d.id)}
                             onClick={() => setDestOpen(false)}
+                            aria-current={d.id === current.id ? "true" : undefined}
+                            className={`flex items-center gap-3 rounded-2xl px-3 py-2.5 transition ${d.id === current.id ? "bg-white/[0.08] text-white" : "text-white/75 hover:text-white"}`}
                           >
                             {/* eslint-disable-next-line @next/next/no-img-element */}
-                            <img src={`/flags/${d.flag}.svg`} alt="" className="flag-wave mt-0.5 h-6 w-8 shrink-0 rounded-[4px] object-cover ring-1 ring-white/20" />
-                            <span>
-                              <span className="block text-sm font-bold text-white">{d.name}</span>
-                              <span className="mt-0.5 block text-xs leading-snug text-white/55">{d.summary}</span>
+                            <img src={`/flags/${d.flag}.svg`} alt="" className="h-5 w-7 shrink-0 rounded-[3px] object-cover ring-1 ring-white/20" />
+                            <span className="min-w-0 flex-1">
+                              <span className="block truncate text-sm font-bold">{d.name}</span>
+                              <span className="block text-xs text-white/45">{fmt(d.universities)} universities</span>
                             </span>
+                            <ChevronRight className={`h-4 w-4 shrink-0 transition ${d.id === current.id ? "text-teal-light" : "opacity-0"}`} aria-hidden="true" />
                           </Link>
                         </li>
                       ))}
                     </ul>
-                    <Link
-                      href="/destinations"
-                      onClick={() => setDestOpen(false)}
-                      className="mt-2 flex items-center justify-between rounded-2xl bg-white/[0.05] px-4 py-3 text-sm font-semibold text-teal-light transition hover:bg-white/[0.09]"
-                    >
-                      Compare all destinations
-                      <ArrowRight className="h-4 w-4" aria-hidden="true" />
-                    </Link>
+                    <div className="p-6">
+                      <Link href={countryHome(current, study)} onClick={() => setDestOpen(false)} className="group inline-flex items-center gap-2 text-xl font-extrabold text-white">
+                        Study in {current.name}
+                        <ArrowRight className="h-5 w-5 text-teal-light transition-transform group-hover:translate-x-0.5" aria-hidden="true" />
+                      </Link>
+                      {current.summary && <p className="mt-1 max-w-xl text-sm leading-snug text-white/55">{current.summary}</p>}
+                      <div className="mt-5 grid grid-cols-3 gap-6">
+                        <MenuColumn title={`Top ${current.regionLabel}`}>
+                          {current.locations.map((l) => (
+                            <MenuLink key={l.value} href={listHref(current, { loc: l.value })} onClick={() => setDestOpen(false)}>
+                              {l.label}
+                            </MenuLink>
+                          ))}
+                        </MenuColumn>
+                        <MenuColumn title="Popular courses">
+                          {POPULAR_COURSES.map((p) => (
+                            <MenuLink key={p.label} href={courseHref(current, p)} onClick={() => setDestOpen(false)}>
+                              {p.label}
+                            </MenuLink>
+                          ))}
+                        </MenuColumn>
+                        <MenuColumn title="Top universities">
+                          {current.top.map((u) => (
+                            <MenuLink key={u.id} href={universityHref(u.id)} onClick={() => setDestOpen(false)}>
+                              {u.name}
+                            </MenuLink>
+                          ))}
+                        </MenuColumn>
+                      </div>
+                      <div className="mt-6 flex flex-wrap gap-2 border-t border-white/8 pt-5">
+                        <Link
+                          href={`/destinations/${current.id}/universities`}
+                          onClick={() => setDestOpen(false)}
+                          className="inline-flex items-center gap-2 rounded-full bg-white px-4 py-2 text-sm font-semibold text-deep hover:bg-mist"
+                        >
+                          All {fmt(current.universities)} universities
+                          <ArrowRight className="h-4 w-4" aria-hidden="true" />
+                        </Link>
+                        <Link
+                          href={eligibilityHref({ country: current.id })}
+                          onClick={() => setDestOpen(false)}
+                          className="inline-flex items-center gap-2 rounded-full bg-teal px-4 py-2 text-sm font-semibold text-white hover:bg-teal-light"
+                        >
+                          <ClipboardCheck className="h-4 w-4" aria-hidden="true" />
+                          Check eligibility
+                        </Link>
+                        {study.courseFinder && (
+                          <Link href="/course-finder" onClick={() => setDestOpen(false)} className="inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold text-white ring-1 ring-white/20 hover:bg-white/5">
+                            <Search className="h-4 w-4" aria-hidden="true" />
+                            Course finder
+                          </Link>
+                        )}
+                        {study.destinationPages && (
+                          <Link href="/destinations" onClick={() => setDestOpen(false)} className="inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold text-white/75 hover:text-white">
+                            Compare destinations
+                          </Link>
+                        )}
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -194,22 +270,30 @@ export function Header({ nav, destinations }: { nav: NavItem[]; destinations: Na
         <nav aria-label="Mobile" className="mx-auto flex max-w-7xl flex-col px-5 pt-5 pb-10 sm:px-8">
           {destinations.length > 0 && (
             <div className="border-b border-white/8 pb-5">
-              <Link href="/destinations" onClick={() => setOpen(false)} className="flex items-center justify-between py-2 text-xl font-bold text-white">
-                Destinations
-                <ArrowRight className="h-5 w-5 text-teal-light" aria-hidden="true" />
-              </Link>
-              <ul className="mt-3 grid grid-cols-2 gap-2">
+              <p className="py-2 text-xl font-bold text-white">Study abroad</p>
+              <ul className="mt-2 grid gap-2">
                 {destinations.map((d) => (
                   <li key={d.id}>
-                    <Link
-                      href={`/destinations/${d.id}`}
-                      onClick={() => setOpen(false)}
-                      className="flex items-center gap-2.5 rounded-2xl bg-white/[0.05] px-3 py-2.5 text-sm font-semibold text-white/90 ring-1 ring-white/8"
-                    >
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={`/flags/${d.flag}.svg`} alt="" className="h-5 w-7 shrink-0 rounded-[3px] object-cover" />
-                      <span className="truncate">{d.name}</span>
-                    </Link>
+                    <details className="group rounded-2xl bg-white/[0.05] ring-1 ring-white/8">
+                      <summary className="flex cursor-pointer list-none items-center gap-2.5 px-3 py-3 text-sm font-semibold text-white/90 [&::-webkit-details-marker]:hidden">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={`/flags/${d.flag}.svg`} alt="" className="h-5 w-7 shrink-0 rounded-[3px] object-cover" />
+                        <span className="flex-1">{d.name}</span>
+                        <ChevronDown className="h-4 w-4 transition-transform group-open:rotate-180" aria-hidden="true" />
+                      </summary>
+                      <div className="grid gap-1 px-3 pb-3 text-sm">
+                        {[
+                          { href: countryHome(d, study), label: `Study in ${d.name}` },
+                          { href: `/destinations/${d.id}/universities`, label: `All ${fmt(d.universities)} universities` },
+                          { href: eligibilityHref({ country: d.id }), label: "Check eligibility" },
+                          ...d.top.slice(0, 3).map((u) => ({ href: universityHref(u.id), label: u.name })),
+                        ].map((l) => (
+                          <Link key={l.href} href={l.href} onClick={() => setOpen(false)} className="rounded-lg px-2 py-2 text-white/75 hover:bg-white/5 hover:text-white">
+                            {l.label}
+                          </Link>
+                        ))}
+                      </div>
+                    </details>
                   </li>
                 ))}
               </ul>
@@ -243,5 +327,24 @@ export function Header({ nav, destinations }: { nav: NavItem[]; destinations: Na
         </nav>
       </div>
     </header>
+  );
+}
+
+function MenuColumn({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div className="min-w-0">
+      <p className="text-xs font-bold tracking-[0.16em] text-teal-light/80 uppercase">{title}</p>
+      <ul className="mt-3 grid gap-1">{children}</ul>
+    </div>
+  );
+}
+
+function MenuLink({ href, onClick, children }: { href: string; onClick: () => void; children: React.ReactNode }) {
+  return (
+    <li>
+      <Link href={href} onClick={onClick} className="block truncate rounded-lg py-1.5 text-sm text-white/75 transition hover:text-white">
+        {children}
+      </Link>
+    </li>
   );
 }

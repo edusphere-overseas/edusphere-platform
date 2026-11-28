@@ -1,3 +1,155 @@
+"use client";
+
+import Link from "next/link";
+import { startTransition, useActionState, useRef, useState } from "react";
+import { AlertTriangle, ArrowLeft, ArrowRight, Check, CheckCircle2, Info, Loader2, MailCheck, PencilLine, Sparkles, XCircle } from "lucide-react";
+import { applyForUniversity, type ApplyState } from "@/app/(site)/apply/actions";
+import { checkEligibility, type EligibilityState } from "@/app/(site)/check-eligibility/actions";
+import { FormError, Turnstile } from "@/components/portal/FormBits";
+import { btnGhost, btnPrimary, hint, input, label } from "@/components/portal/ui";
+import { applyHref, lakh, LEVELS, levelShort, universityHref } from "@/lib/catalogue-shared";
+import { ENGLISH_TESTS, QUALIFICATIONS, SCORE_SCALES, countryShort } from "@/lib/eligibility";
+import { consentText } from "@/lib/portal/consent";
+import { UniversityFields, type CountryOption, type PickedUniversity } from "./UniversityFields";
+
+type Mode = "eligibility" | "apply";
+type Initial = { country?: string; level?: string; university?: PickedUniversity; typed?: string; course?: string };
+
+const STEPS = ["Your plans", "Your education", "Your details"];
+const STEP_OF: Record<string, number> = {
+  country: 0,
+  level: 0,
+  university: 0,
+  intake: 0,
+  qualification: 1,
+  score: 1,
+  scale: 1,
+  test_score: 1,
+  passing_year: 1,
+};
+
+const LEVEL_HINTS: Record<string, string> = {
+  foundation: "A year before a degree",
+  diploma: "1 to 2 years, practical",
+  bachelor: "Undergraduate degree",
+  pgcert: "Shorter, after a degree",
+  master: "MS, MSc, MBA, MA",
+  doctorate: "Research degree",
+};
+
+/**
+ * The step-by-step eligibility check and apply form (three steps, one form).
+ * "eligibility": shows an indicative result, then lets the student apply in one click.
+ * "apply": creates the student's portal account and the application straight away.
+ * `portalUser`: already signed in as a student or parent, so "Apply" goes to the portal's form.
+ */
+export function StudyWizard({
+  mode,
+  countries,
+  intakes,
+  mainIntakes,
+  initial,
+  signInHref,
+  today,
+  portalUser = false,
+}: {
+  mode: Mode;
+  countries: CountryOption[];
+  intakes: string[];
+  mainIntakes: Record<string, string[]>;
+  initial: Initial;
+  signInHref: string;
+  today: string;
+  portalUser?: boolean;
+}) {
+  const form = useRef<HTMLFormElement>(null);
+  const [step, setStep] = useState(0);
+  const [country, setCountry] = useState(initial.country ?? "");
+  const [level, setLevel] = useState(initial.level ?? "");
+  const [qualification, setQualification] = useState("");
+  const [scale, setScale] = useState("percent");
+  const [test, setTest] = useState("");
+  const [intake, setIntake] = useState("");
+  const [local, setLocal] = useState<{ field: string; message: string } | null>(null);
+  const [editing, setEditing] = useState(false);
+  const [snap, setSnap] = useState({ dob: false, course: "" });
+
+  const [elig, checkAction, checking] = useActionState<EligibilityState, FormData>(async (prev, data) => {
+    const next = await checkEligibility(prev, data);
+    if (next?.field && STEP_OF[next.field] !== undefined) setStep(STEP_OF[next.field]);
+    if (next?.result) setEditing(false);
+    return next;
+  }, null);
+  const [applied, applyAction, applying] = useActionState<ApplyState, FormData>(async (prev, data) => {
+    const next = await applyForUniversity(prev, data);
+    if (next?.field && STEP_OF[next.field] !== undefined && mode === "apply") setStep(STEP_OF[next.field]);
+    return next;
+  }, null);
+
+  if (applied?.done) return <ApplyDone email={applied.done.email} university={applied.done.university} />;
+
+  const showResult = mode === "eligibility" && elig?.result && !editing;
+  const serverError = mode === "eligibility" ? elig?.error : applied?.error;
+  const errorField = local?.field ?? (mode === "eligibility" ? elig?.field : applied?.field);
+  const scaleInfo = SCORE_SCALES.find((s) => s.id === scale)!;
+  const testInfo = ENGLISH_TESTS.find((t) => t.id === test);
+  const pg = ["pgcert", "master", "doctorate"].includes(level);
+
+  const value = (name: string) => {
+    const el = form.current?.elements.namedItem(name);
+    return el && "value" in el ? String(el.value).trim() : "";
+  };
+  const fail = (field: string, message: string) => {
+    setLocal({ field, message });
+    const el = form.current?.querySelector<HTMLElement>(`[name="${field}"]`);
+    el?.focus();
+    return false;
+  };
+  const validate = (s: number) => {
+    setLocal(null);
+    if (s === 0) {
+      if (!country) return fail("country", "Please choose a country.");
+      if (!level) return fail("level", "Please choose what you'd like to study.");
+      if (mode === "apply" && !value("university_ref") && value("university").length < 2) return fail("university", "Choose a university from the list, or type its name.");
+    }
+    if (s === 1) {
+      if (!qualification) return fail("qualification", "Please choose your highest qualification.");
+      const score = Number.parseFloat(value("score"));
+      if (!(score > 0) || score > scaleInfo.max) return fail("score", `Please enter your marks (up to ${scaleInfo.max}).`);
+      if (!test) return fail("test", "Please tell us about your English test.");
+      if (testInfo && test !== "none") {
+        const t = Number.parseFloat(value("test_score"));
+        if (!(t > 0) || t > testInfo.max) return fail("test_score", `Please enter your ${testInfo.label} score (up to ${testInfo.max}).`);
+      }
+    }
+    if (s === 2) {
+      if (!value("full_name")) return fail("full_name", "Please enter your full name.");
+      if (!/^[0-9+()\-\s]{7,30}$/.test(value("phone"))) return fail("phone", "Please enter your mobile number.");
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(value("email"))) return fail("email", "Please enter a valid email address.");
+      if (mode === "apply" && !value("date_of_birth")) return fail("date_of_birth", "Please enter your date of birth.");
+      const consent = form.current?.elements.namedItem("consent") as HTMLInputElement | null;
+      if (!consent?.checked) return fail("consent", mode === "apply" ? "Please tick the consent box to send your application." : "Please tick the consent box to see your result.");
+    }
+    return true;
+  };
+
+  const onSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (!validate(step)) return;
+    if (step < 2) {
+      setStep(step + 1);
+      requestAnimationFrame(() => form.current?.scrollIntoView({ block: "start", behavior: "smooth" }));
+      return;
+    }
+    const data = new FormData(e.currentTarget);
+    setSnap({ dob: !!data.get("date_of_birth"), course: String(data.get("course") ?? "") });
+    startTransition(() => (mode === "eligibility" ? checkAction(data) : applyAction(data)));
+  };
+
+  /** Apply from the result screen: everything from the check, plus the chosen university */
+  const applyFrom = (panel: HTMLFormElement, pick: { id?: string; name?: string } | null, headline: string) => {
+    if (!form.current) return;
+    const data = new FormData(form.current);
     for (const [k, v] of new FormData(panel)) if (k !== "university_ref" && k !== "university" && k !== "course") data.set(k, v);
     if (pick) {
       data.set("university_ref", pick.id ?? "");
@@ -550,382 +702,3 @@ export function ApplyDone({ email, university }: { email: string; university: st
     </div>
   );
 }
-#==EDU:FILE src/components/apply/UniversityFields.tsx
-"use client";
-
-import { useEffect, useId, useRef, useState } from "react";
-import { Check, Loader2, PencilLine, Search, X } from "lucide-react";
-import { hint, input, label } from "@/components/portal/ui";
-
-export type CountryOption = { id: string; name: string; flag: string };
-export type PickedUniversity = { id: string; name: string; place?: string } | null;
-type Option = { id: string; name: string; country: string; place: string; courses: number };
-
-/**
- * Country, university, course and intake fields, shared by the apply form and the portal.
- * The university is picked from the open-data catalogue, or typed in when it isn't listed.
- * Sends: country, university_ref (catalogue id, or empty), university (typed name), course, intake.
- * `fixedCountry`: the country is chosen elsewhere in the form (no country field here; remount with a
- * new key when it changes). `optional`: the university may be left empty.
- */
-export function UniversityFields({
-  countries,
-  intakes,
-  initialCountry = "",
-  initialUniversity = null,
-  initialTyped = "",
-  initialCourse = "",
-  initialIntake = "",
-  errorField,
-  fixedCountry,
-  optional = false,
-  showIntake = true,
-}: {
-  countries: CountryOption[];
-  intakes: string[];
-  initialCountry?: string;
-  initialUniversity?: PickedUniversity;
-  initialTyped?: string;
-  initialCourse?: string;
-  initialIntake?: string;
-  errorField?: string;
-  fixedCountry?: string;
-  optional?: boolean;
-  showIntake?: boolean;
-}) {
-  const [chosen, setCountry] = useState(initialCountry);
-  const country = fixedCountry ?? chosen;
-  const [picked, setPicked] = useState<PickedUniversity>(initialUniversity);
-  const [typing, setTyping] = useState(!initialUniversity && !!initialTyped);
-  const ids = useId();
-  const flag = countries.find((c) => c.id === country)?.flag;
-
-  return (
-    <div className="grid gap-4">
-      {fixedCountry === undefined && (
-        <label className={label}>
-          Country
-          <span className="relative">
-            {flag && (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={`/flags/${flag}.svg`} alt="" className="pointer-events-none absolute top-1/2 left-3.5 h-4 w-6 -translate-y-1/2 rounded-[3px] object-cover ring-1 ring-deep/10" />
-            )}
-            <select
-              name="country"
-              required
-              value={country}
-              onChange={(e) => {
-                setCountry(e.target.value);
-                setPicked(null);
-              }}
-              aria-invalid={errorField === "country" || undefined}
-              className={`${input} ${flag ? "pl-12" : ""}`}
-            >
-              <option value="" disabled>
-                Choose a country
-              </option>
-              {countries.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
-              ))}
-            </select>
-          </span>
-        </label>
-      )}
-
-      <input type="hidden" name="university_ref" value={!typing && picked ? picked.id : ""} />
-      {typing ? (
-        <label className={label}>
-          <span>
-            University name {optional && <span className="font-normal text-slate">(optional)</span>}
-          </span>
-          <input
-            name="university"
-            required={!optional}
-            minLength={2}
-            maxLength={160}
-            defaultValue={initialTyped || picked?.name || ""}
-            autoComplete="off"
-            placeholder="Type the university or college name"
-            aria-invalid={errorField === "university" || undefined}
-            className={input}
-          />
-          <span className={hint}>
-            We work with most universities, including many that aren&apos;t in the public lists.{" "}
-            <button type="button" onClick={() => setTyping(false)} className="font-semibold text-teal hover:text-navy">
-              Search the list instead
-            </button>
-          </span>
-        </label>
-      ) : picked ? (
-        <div className={label}>
-          <span id={`${ids}-uni`}>University</span>
-          <div className="flex items-center gap-3 rounded-xl border border-teal/40 bg-teal/6 px-3.5 py-3" aria-labelledby={`${ids}-uni`}>
-            <Check className="h-4.5 w-4.5 shrink-0 text-teal" aria-hidden="true" />
-            <span className="min-w-0 flex-1">
-              <span className="block font-semibold text-deep">{picked.name}</span>
-              {picked.place && <span className="block text-xs font-normal text-slate">{picked.place}</span>}
-            </span>
-            <button type="button" onClick={() => setPicked(null)} className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold text-teal ring-1 ring-teal/30 hover:bg-white">
-              <X className="h-3.5 w-3.5" aria-hidden="true" />
-              Change
-            </button>
-          </div>
-        </div>
-      ) : (
-        <UniversitySearch
-          optional={optional}
-          country={country}
-          invalid={errorField === "university"}
-          onPick={(u) => setPicked(u)}
-          onNotListed={() => setTyping(true)}
-        />
-      )}
-
-      <CourseField universityId={!typing && picked ? picked.id : ""} initial={initialCourse} />
-
-      {showIntake && (
-        <label className={label}>
-          <span>
-            Intake <span className="font-normal text-slate">(when you&apos;d like to start)</span>
-          </span>
-          <select name="intake" defaultValue={initialIntake} aria-invalid={errorField === "intake" || undefined} className={input}>
-            <option value="">Not sure yet</option>
-            {intakes.map((i) => (
-              <option key={i} value={i}>
-                {i}
-              </option>
-            ))}
-          </select>
-        </label>
-      )}
-    </div>
-  );
-}
-
-function UniversitySearch({
-  country,
-  invalid,
-  optional,
-  onPick,
-  onNotListed,
-}: {
-  country: string;
-  invalid?: boolean;
-  optional?: boolean;
-  onPick: (u: NonNullable<PickedUniversity>) => void;
-  onNotListed: () => void;
-}) {
-  const [q, setQ] = useState("");
-  const [items, setItems] = useState<Option[]>([]);
-  const [open, setOpen] = useState(false);
-  const [busy, setBusy] = useState(false);
-  const [active, setActive] = useState(-1);
-  const box = useRef<HTMLDivElement>(null);
-  const ids = useId();
-  const listId = `${ids}-list`;
-
-  useEffect(() => {
-    if (!country) return;
-    const ctrl = new AbortController();
-    const t = setTimeout(async () => {
-      setBusy(true);
-      try {
-        const res = await fetch(`/api/catalogue?kind=universities&country=${encodeURIComponent(country)}&q=${encodeURIComponent(q)}`, { signal: ctrl.signal });
-        const json = (await res.json()) as { items: Option[] };
-        setItems(json.items ?? []);
-        setActive(-1);
-      } catch {
-        /* aborted or offline: keep the last list */
-      } finally {
-        setBusy(false);
-      }
-    }, 180);
-    return () => {
-      clearTimeout(t);
-      ctrl.abort();
-    };
-  }, [q, country]);
-
-  useEffect(() => {
-    const close = (e: MouseEvent) => {
-      if (box.current && !box.current.contains(e.target as Node)) setOpen(false);
-    };
-    document.addEventListener("mousedown", close);
-    return () => document.removeEventListener("mousedown", close);
-  }, []);
-
-  const total = items.length + 1; // + "not listed"
-  const choose = (i: number) => {
-    if (i === items.length) onNotListed();
-    else if (items[i]) onPick({ id: items[i].id, name: items[i].name, place: items[i].place });
-  };
-
-  return (
-    <div ref={box} className={`${label} relative`}>
-      <label htmlFor={`${ids}-q`}>
-        University {optional && <span className="font-normal text-slate">(optional: leave it empty and we&apos;ll suggest some)</span>}
-      </label>
-      <span className="relative">
-        <Search className="pointer-events-none absolute top-1/2 left-3.5 h-4.5 w-4.5 -translate-y-1/2 text-slate/70" aria-hidden="true" />
-        <input
-          id={`${ids}-q`}
-          type="text"
-          role="combobox"
-          aria-expanded={open && !!country}
-          aria-controls={listId}
-          aria-autocomplete="list"
-          aria-activedescendant={active >= 0 ? `${ids}-o${active}` : undefined}
-          aria-invalid={invalid || undefined}
-          disabled={!country}
-          value={q}
-          placeholder={country ? "Start typing a university name" : "Choose a country first"}
-          autoComplete="off"
-          onChange={(e) => {
-            setQ(e.target.value);
-            setOpen(true);
-          }}
-          onFocus={() => setOpen(true)}
-          onKeyDown={(e) => {
-            if (e.key === "ArrowDown") {
-              e.preventDefault();
-              setOpen(true);
-              setActive((a) => (a + 1) % total);
-            } else if (e.key === "ArrowUp") {
-              e.preventDefault();
-              setActive((a) => (a <= 0 ? total - 1 : a - 1));
-            } else if (e.key === "Enter" && open && active >= 0) {
-              e.preventDefault();
-              choose(active);
-            } else if (e.key === "Escape") setOpen(false);
-          }}
-          className={`${input} pl-11`}
-        />
-        {busy && <Loader2 className="absolute top-1/2 right-3.5 h-4 w-4 -translate-y-1/2 animate-spin text-slate" aria-hidden="true" />}
-      </span>
-      {open && country && (
-        <ul id={listId} role="listbox" className="absolute top-full right-0 left-0 z-30 mt-1.5 max-h-80 overflow-auto rounded-xl bg-white p-1.5 font-normal shadow-[0_18px_40px_-12px_rgba(13,34,54,0.35)] ring-1 ring-deep/10">
-          {items.map((u, i) => (
-            <li
-              key={u.id}
-              id={`${ids}-o${i}`}
-              role="option"
-              aria-selected={active === i}
-              onMouseDown={(e) => e.preventDefault()}
-              onClick={() => choose(i)}
-              className={`cursor-pointer rounded-lg px-3 py-2.5 ${active === i ? "bg-mist" : "hover:bg-mist"}`}
-            >
-              <span className="block text-sm font-semibold text-deep">{u.name}</span>
-              <span className="block text-xs text-slate">{[u.place, u.courses ? `${u.courses} courses` : ""].filter(Boolean).join(" · ")}</span>
-            </li>
-          ))}
-          {!busy && items.length === 0 && <li className="px-3 py-2.5 text-sm text-slate">No match in the list.</li>}
-          <li
-            id={`${ids}-o${items.length}`}
-            role="option"
-            aria-selected={active === items.length}
-            onMouseDown={(e) => e.preventDefault()}
-            onClick={() => choose(items.length)}
-            className={`mt-1 flex cursor-pointer items-center gap-2 rounded-lg border-t border-deep/8 px-3 py-2.5 text-sm font-semibold text-teal ${active === items.length ? "bg-mist" : "hover:bg-mist"}`}
-          >
-            <PencilLine className="h-4 w-4" aria-hidden="true" />
-            My university isn&apos;t listed: type its name
-          </li>
-        </ul>
-      )}
-      <span className={hint}>
-        Can&apos;t find it?{" "}
-        <button type="button" onClick={onNotListed} disabled={!country} className="font-semibold text-teal hover:text-navy disabled:text-slate">
-          Type the university name
-        </button>
-        . We&apos;re partnered with almost every university.
-      </span>
-    </div>
-  );
-}
-
-function CourseField({ universityId, initial }: { universityId: string; initial: string }) {
-  const [value, setValue] = useState(initial);
-  const [options, setOptions] = useState<string[]>([]);
-  const listId = useId();
-
-  useEffect(() => {
-    if (!universityId) return;
-    const ctrl = new AbortController();
-    const t = setTimeout(async () => {
-      try {
-        const res = await fetch(`/api/catalogue?kind=courses&u=${encodeURIComponent(universityId)}&q=${encodeURIComponent(value)}`, { signal: ctrl.signal });
-        const json = (await res.json()) as { items: { title: string }[] };
-        setOptions((json.items ?? []).map((c) => c.title));
-      } catch {
-        /* ignore */
-      }
-    }, 220);
-    return () => {
-      clearTimeout(t);
-      ctrl.abort();
-    };
-  }, [universityId, value]);
-  const shown = universityId ? options : [];
-
-  return (
-    <label className={label}>
-      <span>
-        Course <span className="font-normal text-slate">(optional)</span>
-      </span>
-      <input
-        name="course"
-        maxLength={200}
-        value={value}
-        onChange={(e) => setValue(e.target.value)}
-        list={shown.length ? listId : undefined}
-        autoComplete="off"
-        placeholder="For example, MSc Data Science"
-        className={input}
-      />
-      {shown.length > 0 && (
-        <datalist id={listId}>
-          {shown.map((o) => (
-            <option key={o} value={o} />
-          ))}
-        </datalist>
-      )}
-      <span className={hint}>Not decided? Leave it blank and your counsellor will help you choose.</span>
-    </label>
-  );
-}
-#==EDU:FILE src/components/finder/Cards.tsx
-import Link from "next/link";
-import { ArrowRight, BadgeCheck, MapPin } from "lucide-react";
-import {
-  applyHref,
-  countryInfo,
-  durationText,
-  eligibilityHref,
-  lakh,
-  levelShort,
-  locationLabel,
-  universityHref,
-  type CourseHit,
-  type University,
-  type UniversityHit,
-} from "@/lib/catalogue";
-
-/** Result cards for the course finder, university pages and country pages (light style). */
-
-const fmt = (n: number) => n.toLocaleString("en-IN");
-
-export function Flag({ country, className = "h-3.5 w-5" }: { country: string; className?: string }) {
-  const f = countryInfo(country)?.flag;
-  if (!f) return null;
-  // eslint-disable-next-line @next/next/no-img-element
-  return <img src={`/flags/${f}.svg`} alt="" className={`${className} shrink-0 rounded-[2px] object-cover ring-1 ring-deep/10`} />;
-}
-
-export const placeOf = (u: University, withCountry = true) =>
-  [u.city, u.region && locationLabel(u.country, u.region), withCountry && u.country !== "europe" ? countryInfo(u.country)?.short : ""]
-    .filter((x, i, all) => x && all.indexOf(x) === i)
-    .join(", ");
-
-const SMALL = new Set(["the", "of", "and", "for", "at", "in", "de", "di", "del", "la", "le", "des", "der", "fur", "für", "y", "e"]);

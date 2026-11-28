@@ -12,6 +12,8 @@ type Option = { id: string; name: string; country: string; place: string; course
  * Country, university, course and intake fields, shared by the apply form and the portal.
  * The university is picked from the open-data catalogue, or typed in when it isn't listed.
  * Sends: country, university_ref (catalogue id, or empty), university (typed name), course, intake.
+ * `fixedCountry`: the country is chosen elsewhere in the form (no country field here; remount with a
+ * new key when it changes). `optional`: the university may be left empty.
  */
 export function UniversityFields({
   countries,
@@ -22,6 +24,9 @@ export function UniversityFields({
   initialCourse = "",
   initialIntake = "",
   errorField,
+  fixedCountry,
+  optional = false,
+  showIntake = true,
 }: {
   countries: CountryOption[];
   intakes: string[];
@@ -31,8 +36,12 @@ export function UniversityFields({
   initialCourse?: string;
   initialIntake?: string;
   errorField?: string;
+  fixedCountry?: string;
+  optional?: boolean;
+  showIntake?: boolean;
 }) {
-  const [country, setCountry] = useState(initialCountry);
+  const [chosen, setCountry] = useState(initialCountry);
+  const country = fixedCountry ?? chosen;
   const [picked, setPicked] = useState<PickedUniversity>(initialUniversity);
   const [typing, setTyping] = useState(!initialUniversity && !!initialTyped);
   const ids = useId();
@@ -40,43 +49,47 @@ export function UniversityFields({
 
   return (
     <div className="grid gap-4">
-      <label className={label}>
-        Country
-        <span className="relative">
-          {flag && (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={`/flags/${flag}.svg`} alt="" className="pointer-events-none absolute top-1/2 left-3.5 h-4 w-6 -translate-y-1/2 rounded-[3px] object-cover ring-1 ring-deep/10" />
-          )}
-          <select
-            name="country"
-            required
-            value={country}
-            onChange={(e) => {
-              setCountry(e.target.value);
-              setPicked(null);
-            }}
-            aria-invalid={errorField === "country" || undefined}
-            className={`${input} ${flag ? "pl-12" : ""}`}
-          >
-            <option value="" disabled>
-              Choose a country
-            </option>
-            {countries.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
+      {fixedCountry === undefined && (
+        <label className={label}>
+          Country
+          <span className="relative">
+            {flag && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={`/flags/${flag}.svg`} alt="" className="pointer-events-none absolute top-1/2 left-3.5 h-4 w-6 -translate-y-1/2 rounded-[3px] object-cover ring-1 ring-deep/10" />
+            )}
+            <select
+              name="country"
+              required
+              value={country}
+              onChange={(e) => {
+                setCountry(e.target.value);
+                setPicked(null);
+              }}
+              aria-invalid={errorField === "country" || undefined}
+              className={`${input} ${flag ? "pl-12" : ""}`}
+            >
+              <option value="" disabled>
+                Choose a country
               </option>
-            ))}
-          </select>
-        </span>
-      </label>
+              {countries.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+          </span>
+        </label>
+      )}
 
       <input type="hidden" name="university_ref" value={!typing && picked ? picked.id : ""} />
       {typing ? (
         <label className={label}>
-          University name
+          <span>
+            University name {optional && <span className="font-normal text-slate">(optional)</span>}
+          </span>
           <input
             name="university"
-            required
+            required={!optional}
             minLength={2}
             maxLength={160}
             defaultValue={initialTyped || picked?.name || ""}
@@ -109,6 +122,7 @@ export function UniversityFields({
         </div>
       ) : (
         <UniversitySearch
+          optional={optional}
           country={country}
           invalid={errorField === "university"}
           onPick={(u) => setPicked(u)}
@@ -118,24 +132,38 @@ export function UniversityFields({
 
       <CourseField universityId={!typing && picked ? picked.id : ""} initial={initialCourse} />
 
-      <label className={label}>
-        <span>
-          Intake <span className="font-normal text-slate">(when you&apos;d like to start)</span>
-        </span>
-        <select name="intake" defaultValue={initialIntake} aria-invalid={errorField === "intake" || undefined} className={input}>
-          <option value="">Not sure yet</option>
-          {intakes.map((i) => (
-            <option key={i} value={i}>
-              {i}
-            </option>
-          ))}
-        </select>
-      </label>
+      {showIntake && (
+        <label className={label}>
+          <span>
+            Intake <span className="font-normal text-slate">(when you&apos;d like to start)</span>
+          </span>
+          <select name="intake" defaultValue={initialIntake} aria-invalid={errorField === "intake" || undefined} className={input}>
+            <option value="">Not sure yet</option>
+            {intakes.map((i) => (
+              <option key={i} value={i}>
+                {i}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
     </div>
   );
 }
 
-function UniversitySearch({ country, invalid, onPick, onNotListed }: { country: string; invalid?: boolean; onPick: (u: NonNullable<PickedUniversity>) => void; onNotListed: () => void }) {
+function UniversitySearch({
+  country,
+  invalid,
+  optional,
+  onPick,
+  onNotListed,
+}: {
+  country: string;
+  invalid?: boolean;
+  optional?: boolean;
+  onPick: (u: NonNullable<PickedUniversity>) => void;
+  onNotListed: () => void;
+}) {
   const [q, setQ] = useState("");
   const [items, setItems] = useState<Option[]>([]);
   const [open, setOpen] = useState(false);
@@ -183,7 +211,9 @@ function UniversitySearch({ country, invalid, onPick, onNotListed }: { country: 
 
   return (
     <div ref={box} className={`${label} relative`}>
-      <label htmlFor={`${ids}-q`}>University</label>
+      <label htmlFor={`${ids}-q`}>
+        University {optional && <span className="font-normal text-slate">(optional: leave it empty and we&apos;ll suggest some)</span>}
+      </label>
       <span className="relative">
         <Search className="pointer-events-none absolute top-1/2 left-3.5 h-4.5 w-4.5 -translate-y-1/2 text-slate/70" aria-hidden="true" />
         <input

@@ -6,6 +6,7 @@ import { Ticker } from "@/components/layout/Ticker";
 import { WhatsAppButton } from "@/components/layout/WhatsAppButton";
 import { JsonLd } from "@/components/seo/JsonLd";
 import { site } from "@/config/site";
+import { studyMenu } from "@/lib/catalogue";
 import { getSiteContent, whatsappHref } from "@/lib/content";
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -28,7 +29,13 @@ export default async function SiteLayout({ children }: LayoutProps<"/">) {
   ]
     .filter((n) => n.show)
     .map(({ href, label }) => ({ href, label }));
-  const destinations = c.sections.destinations ? c.destinations.map(({ id, name, flag, summary }) => ({ id, name, flag, summary })) : [];
+  // The "Study abroad" menu: each catalogue country, with its destination page's summary
+  const menu = c.sections.destinations || c.sections.courseFinder ? await studyMenu() : [];
+  const study = {
+    countries: menu.map((m) => ({ ...m, summary: c.destinations.find((d) => d.id === m.id)?.summary ?? "" })),
+    destinationPages: c.sections.destinations,
+    courseFinder: c.sections.courseFinder,
+  };
 
   const sameAs = c.socialLinks.map((l) => l.url).filter((u) => u.startsWith("https://"));
   const organization = {
@@ -64,7 +71,7 @@ export default async function SiteLayout({ children }: LayoutProps<"/">) {
       </a>
       <Intro />
       {c.sections.ticker && <Ticker items={c.ticker} />}
-      <Header nav={nav} destinations={destinations} />
+      <Header nav={nav} study={study} />
       <main id="main">{children}</main>
       <Footer content={c} />
       <WhatsAppButton href={whatsappHref(c.whatsappNumber, c.whatsappMessage)} />

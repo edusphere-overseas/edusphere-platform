@@ -1,7 +1,7 @@
 "use server";
 
 import { randomBytes } from "node:crypto";
-import { describeChoice, readUniversityChoice } from "@/lib/apply";
+import { describeChoice, describeEducation, educationForProfile, readEducation, readUniversityChoice } from "@/lib/apply";
 import { CONSENT_VERSION } from "@/lib/portal/consent";
 import { sendEmail, staffInbox } from "@/lib/portal/email";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -9,9 +9,11 @@ import { portalConfigured, siteOrigin } from "@/lib/supabase/env";
 import { createClient } from "@/lib/supabase/server";
 
 /**
- * "Apply" from the course finder, for visitors without an account. One form:
+ * "Apply" from the course finder, the university pages and the eligibility check, for visitors
+ * without an account. One form:
  *  1. creates their portal account (they verify their email, then choose a password),
- *  2. adds the university to their application tracker (stage "shortlist"),
+ *  2. adds the university to their application tracker (stage "shortlist") and saves their
+ *     education and English test to their profile,
  *  3. puts the request in the enquiry inbox (source "course_finder") and emails the team.
  */
 
@@ -50,6 +52,10 @@ export async function applyForUniversity(_: ApplyState, form: FormData): Promise
 
   const choice = await readUniversityChoice(form);
   if (!choice.ok) return { error: choice.error, field: choice.field, values };
+  const edu = readEducation(form, new Date().getUTCFullYear());
+  if (!edu.ok) return { error: edu.error, field: edu.field, values };
+  const education = edu.value;
+  const checked = str(form, "eligibility", 160);
   if (!values.full_name) return { error: "Please enter your full name.", field: "full_name", values };
   const dob = new Date(values.date_of_birth + "T00:00:00Z");
   if (!/^\d{4}-\d{2}-\d{2}$/.test(values.date_of_birth) || isNaN(+dob) || dob > new Date() || dob < new Date("1940-01-02")) {
@@ -97,7 +103,15 @@ export async function applyForUniversity(_: ApplyState, form: FormData): Promise
   const isNew = !!user && (user.identities?.length ?? 0) > 0;
 
   const interest = `${c.university} (${c.countryName})`.slice(0, 200);
-  const details = [c.course && `Course: ${c.course}`, c.intake && `Intake: ${c.intake}`, `Date of birth: ${values.date_of_birth}`].filter(Boolean).join("\n");
+  const details = [
+    c.course && `Course: ${c.course}`,
+    c.intake && `Intake: ${c.intake}`,
+    `Date of birth: ${values.date_of_birth}`,
+    ...describeEducation(education),
+    checked && `Eligibility check: ${checked}`,
+  ]
+    .filter(Boolean)
+    .join("\n");
 
   try {
     if (isNew && user) {
@@ -114,12 +128,12 @@ export async function applyForUniversity(_: ApplyState, form: FormData): Promise
         }),
         admin
           .from("student_profiles")
-          .update({ preferred_countries: [c.country], preferred_course: c.course || null, preferred_intake: c.intake || null })
+          .update({ preferred_countries: [c.country], preferred_course: c.course || null, preferred_intake: c.intake || null, ...educationForProfile(education) })
           .eq("user_id", user.id),
       ]);
       if (app.error) console.error("[apply] could not add the application:", app.error.message);
       const lead = { source: "course_finder", name: values.full_name, email: values.email, phone: values.phone, interest };
-      const message = `${details}\n\nApplied through the course finder. A portal account was created (email not verified yet) and the university is on their application tracker.`;
+      const message = `${details}\n\nApplied through the website. A portal account was created (email not verified yet) and the university is on their application tracker.`;
       const { error: leadError } = await admin.from("leads").insert({ ...lead, profile_id: user.id, message });
       // Applied before without verifying: their account already has an enquiry
       if (leadError?.code === "23505") await admin.from("leads").insert({ ...lead, message });
@@ -132,7 +146,7 @@ export async function applyForUniversity(_: ApplyState, form: FormData): Promise
         email: values.email,
         phone: values.phone,
         interest,
-        message: `${details}\n\nApplied through the course finder. This email already has a portal account${
+        message: `${details}\n\nApplied through the website. This email already has a portal account${
           existing ? ` (${existing.role ?? "no role yet"})` : ""
         }: add the university to their application tracker if the request is theirs.`,
       });
@@ -144,13 +158,15 @@ export async function applyForUniversity(_: ApplyState, form: FormData): Promise
         to: staff,
         replyTo: values.email,
         subject: `New application request: ${values.full_name} for ${c.university}`,
-        heading: "New application request from the course finder",
+        heading: "New application request from the website",
         lines: [
           `${values.full_name} · ${values.phone} · ${values.email}`,
           describeChoice(c),
+          ...describeEducation(education),
+          checked ? `Eligibility check: ${checked}` : "",
           isNew ? "Their portal account has been created and the university is on their application tracker." : "This email already had a portal account.",
           "It's in the enquiry inbox of the staff dashboard.",
-        ],
+        ].filter(Boolean),
         button: { label: "Open enquiries", path: "/staff/enquiries" },
       });
     }

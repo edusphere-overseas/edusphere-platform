@@ -392,7 +392,8 @@ async function australia() {
     const id = `au-${i.code}`;
     const n = count.get(id) || 0;
     if (n < 1) continue;
-    uni.push({ i: id, n: providerName(i), c: "australia", r: stateOf.get(i.code) || "", t: "", w: website(i.web), k: Math.round(n), cur: "AUD" });
+    const ty = /government/i.test(i.type) ? "public" : /private/i.test(i.type) ? "private" : undefined;
+    uni.push({ i: id, n: providerName(i), c: "australia", r: stateOf.get(i.code) || "", t: "", w: website(i.web), k: Math.round(n), cur: "AUD", ty });
   }
   const keep = new Set(uni.map((u) => u.i));
   universities.australia = uni;
@@ -450,7 +451,7 @@ async function usaApi() {
   const key = process.env.SCORECARD_API_KEY || "DEMO_KEY";
   const p = "latest.programs.cip_4_digit";
   const fields = [
-    "id", "school.name", "school.city", "school.state", "school.school_url", "latest.student.size", "latest.cost.tuition.out_of_state",
+    "id", "school.name", "school.city", "school.state", "school.school_url", "school.ownership", "latest.student.size", "latest.cost.tuition.out_of_state",
     `${p}.code`, `${p}.title`, `${p}.credential.level`, `${p}.counts.ipeds_awards1`, `${p}.counts.ipeds_awards2`,
   ].join(",");
   const levels = { 3: "bachelor", 5: "master", 6: "doctorate" };
@@ -477,7 +478,7 @@ async function usaApi() {
       const id = `us-${r.id}`;
       const name = clean(r["school.name"]);
       if (!name) continue;
-      uni.push({ i: id, n: name, c: "usa", r: clean(r["school.state"]), t: titleCase(r["school.city"]), w: website(r["school.school_url"]), k: Math.round(num(r["latest.student.size"])), f: Math.round(num(r["latest.cost.tuition.out_of_state"])) || undefined, cur: "USD" });
+      uni.push({ i: id, n: name, c: "usa", r: clean(r["school.state"]), t: titleCase(r["school.city"]), w: website(r["school.school_url"]), k: Math.round(num(r["latest.student.size"])), f: Math.round(num(r["latest.cost.tuition.out_of_state"])) || undefined, cur: "USD", ty: r["school.ownership"] === 1 ? "public" : r["school.ownership"] === 2 ? "private" : undefined });
       for (const pr of r[p] ?? []) {
         const level = levels[pr.credential?.level];
         if (!level) continue;
@@ -522,7 +523,7 @@ async function usaBulk() {
     if (r.highdeg && Number(r.highdeg) < 3) continue;
     const size = num(r.ugds);
     if (size < 1000) continue;
-    uni.push({ i: `us-${r.id}`, n: clean(r.name), c: "usa", r: r.state, t: titleCase(r.city), w: website(r.url), k: Math.round(size), f: Math.round(num(r.fee)) || undefined, cur: "USD" });
+    uni.push({ i: `us-${r.id}`, n: clean(r.name), c: "usa", r: r.state, t: titleCase(r.city), w: website(r.url), k: Math.round(size), f: Math.round(num(r.fee)) || undefined, cur: "USD", ty: r.control === "1" ? "public" : "private" });
   }
   const keep = new Set(uni.map((u) => u.i));
 
@@ -587,7 +588,9 @@ async function ukSponsors() {
     const id = `uk-s-${norm(name).slice(0, 34)}`;
     if (byId.has(id)) continue;
     const city = clean(r.city);
-    byId.set(id, { i: id, n: name, c: "uk", r: "", t: /^various$/i.test(city) ? "" : titleCase(city), w: "", k: k * 1000 + (/universit/i.test(name) ? 500 : 0) });
+    const sponsorType = r.type.toLowerCase();
+    const ty = sponsorType === "publicly funded college" ? "public" : sponsorType === "higher education institution (hei)" ? undefined : "private";
+    byId.set(id, { i: id, n: name, c: "uk", r: "", t: /^various$/i.test(city) ? "" : titleCase(city), w: "", k: k * 1000 + (/universit/i.test(name) ? 500 : 0), ty });
   }
   if (byId.size < 100) throw new Error(`Student sponsor register: only ${byId.size} sponsors`);
   universities.uk = [...byId.values()];
@@ -697,7 +700,7 @@ async function canada() {
   }
   if (byKey.size < 100) throw new Error(`IRCC DLI list: only ${byKey.size} institutions`);
   // Public institutions and those with work-permit-eligible programmes first
-  universities.canada = [...byKey.values()].map((u) => ({ ...u, k: (u.pub ? 1000 : 0) + (u.p ? 500 : 0) + u.k }));
+  universities.canada = [...byKey.values()].map((u) => ({ ...u, k: (u.pub ? 1000 : 0) + (u.p ? 500 : 0) + u.k, ty: u.pub ? "public" : "private" }));
   return { universities: byKey.size };
 }
 
@@ -713,7 +716,7 @@ const EUROPE = {
 };
 
 async function wikidata(countryQid, classes) {
-  const query = `SELECT ?u ?uLabel ?cityLabel ?website ?students WHERE {
+  const query = `SELECT ?u ?uLabel ?cityLabel ?website ?students ?type WHERE {
   VALUES ?class { ${classes.map((c) => `wd:${c}`).join(" ")} }
   ?u wdt:P31 ?type . ?type wdt:P279* ?class .
   ?u wdt:P17 wd:${countryQid} .
@@ -733,17 +736,22 @@ async function wikidata(countryQid, classes) {
     if (!u.t && b.cityLabel?.value && !/^Q\d+$/.test(b.cityLabel.value)) u.t = b.cityLabel.value;
     if (!u.w && b.website?.value) u.w = b.website.value;
     u.k = Math.max(u.k, Math.round(num(b.students?.value)));
+    const type = b.type?.value?.split("/").pop();
+    if (type === PUBLIC_UNIVERSITY) u.ty = "public";
+    else if (type === PRIVATE_UNIVERSITY && !u.ty) u.ty = "private";
     byId.set(qid, u);
   }
   return [...byId.values()];
 }
 
 const UNIVERSITY = "Q3918";
+const PUBLIC_UNIVERSITY = "Q875538";
+const PRIVATE_UNIVERSITY = "Q902104";
 const APPLIED_SCIENCES = "Q1371037";
 
 async function newZealand() {
   const list = await wikidata("Q664", [UNIVERSITY]);
-  universities["new-zealand"] = list.map((u) => ({ i: `nz-${u.qid}`, n: u.n, c: "new-zealand", r: "", t: u.t, w: u.w, k: u.k }));
+  universities["new-zealand"] = list.map((u) => ({ i: `nz-${u.qid}`, n: u.n, c: "new-zealand", r: "", t: u.t, w: u.w, k: u.k, ty: u.ty }));
   return { universities: list.length };
 }
 
@@ -754,7 +762,7 @@ async function europe() {
     try {
       const list = await wikidata(qid, [UNIVERSITY, APPLIED_SCIENCES]);
       counts[name] = list.length;
-      list.forEach((u) => out.push({ i: `eu-${u.qid}`, n: u.n, c: "europe", r: name, t: u.t, w: u.w, k: u.k }));
+      list.forEach((u) => out.push({ i: `eu-${u.qid}`, n: u.n, c: "europe", r: name, t: u.t, w: u.w, k: u.k, ty: u.ty }));
     } catch (e) {
       counts[name] = `failed: ${e.message}`;
     }
@@ -778,6 +786,18 @@ await source("canada", ["canada"], false, canada);
 await source("new-zealand", ["new-zealand"], false, newZealand);
 await source("europe", ["europe"], false, europe);
 
+// Rupees per unit of each currency, for "about ₹X lakh a year" (European Central Bank rates via Frankfurter)
+const INR_FALLBACK = { USD: 88, GBP: 117, AUD: 58, CAD: 63, EUR: 102, NZD: 51 };
+let inr = previous("universities.json")?.inr ?? INR_FALLBACK;
+try {
+  const fx = await getJson("https://api.frankfurter.app/latest?from=INR&to=USD,GBP,AUD,CAD,EUR,NZD", { headers: { accept: "application/json" } });
+  const next = Object.fromEntries(Object.entries(fx.rates ?? {}).map(([k, v]) => [k, Math.round((1 / v) * 100) / 100]));
+  if (Object.keys(next).length >= 5) inr = { ...next, date: fx.date };
+  report.rates = { ok: true, date: fx.date };
+} catch (e) {
+  report.rates = { ok: false, error: String(e.message).slice(0, 200), kept: inr.date ?? "fallback" };
+}
+
 const all = Object.values(universities)
   .flat()
   .filter((u) => u.n)
@@ -791,7 +811,7 @@ if (!ok) {
   process.exit(1);
 }
 
-writeFileSync(path.join(OUT, "universities.json"), JSON.stringify({ generatedAt: report.generatedAt, items: all }) + "\n");
+writeFileSync(path.join(OUT, "universities.json"), JSON.stringify({ generatedAt: report.generatedAt, inr, items: all }) + "\n");
 for (const [country, list] of Object.entries(courses)) {
   list.sort((a, b) => a[0].localeCompare(b[0]) || a[1].localeCompare(b[1]));
   writeFileSync(path.join(OUT, `courses-${country}.json`), JSON.stringify({ generatedAt: report.generatedAt, items: list }) + "\n");

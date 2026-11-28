@@ -10,7 +10,7 @@ import { PageHero } from "@/components/pages/PageHero";
 import { JsonLd } from "@/components/seo/JsonLd";
 import { Reveal } from "@/components/ui/Reveal";
 import { SanityImage } from "@/components/ui/SanityImage";
-import { UniversityRow } from "@/components/finder/Rows";
+import { UniversityCard } from "@/components/finder/Cards";
 import { applyHref, catalogueSummary, countryInfo, topUniversities } from "@/lib/catalogue";
 import { getLibrary, getSiteContent, whatsappHref } from "@/lib/content";
 import { formatDate, shortName } from "@/lib/format";
@@ -274,7 +274,7 @@ export default async function DestinationPage({ params }: PageProps<"/destinatio
         </div>
       </section>
 
-      {catalogue && top && counts && top.items.length > 0 && (
+      {catalogue && top && counts && top.length > 0 && (
         <section className="border-t border-white/8 py-16 sm:py-20">
           <div className="mx-auto max-w-7xl px-5 sm:px-8">
             <div className="flex flex-wrap items-end justify-between gap-4">
@@ -297,9 +297,9 @@ export default async function DestinationPage({ params }: PageProps<"/destinatio
                 </Link>
               </div>
             </div>
-            <ul className="mt-8 grid gap-3 md:grid-cols-2 lg:grid-cols-3">
-              {top.items.map((u) => (
-                <UniversityRow key={u.id} u={u} coursesLink={c.sections.courseFinder && counts.courses > 0 && u.courses ? `/course-finder?country=${d.id}&u=${u.id}` : undefined} />
+            <ul className="mt-8 grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+              {top.map((h) => (
+                <UniversityCard key={h.u.id} hit={h} />
               ))}
             </ul>
           </div>
