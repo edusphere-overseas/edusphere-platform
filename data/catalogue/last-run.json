@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-25T22:55:03.525Z",
+  "generatedAt": "2026-11-28T02:55:16.535Z",
   "sources": {
     "australia": {
       "ok": true,
@@ -31,7 +31,7 @@
         "Estimated Total Course Cost",
         "Expired"
       ],
-      "seconds": 2
+      "seconds": 4
     },
     "usa": {
       "ok": true,
@@ -46,58 +46,30 @@
       "ok": true,
       "universities": 368,
       "courses": 0,
-      "file": "https://assets.publishing.service.gov.uk/media/6b06c0aa1467fac8f01bd64e/SP_-_Student_and_Child_Student_Web_Register_-_2026-11-25.csv",
+      "file": "https://assets.publishing.service.gov.uk/media/6b095b11c49f083f621bd81d/SP_-_Student_and_Child_Student_Web_Register_-_2026-11-27.csv",
       "coursesFrom": "none",
       "discoverUniError": "403 Forbidden for https://www.hesa.ac.uk/kisdata",
-      "seconds": 21
+      "seconds": 20
     },
     "canada": {
       "ok": true,
       "universities": 1099,
-      "seconds": 2
+      "seconds": 3
     },
     "new-zealand": {
-      "ok": true,
-      "universities": 23,
-      "seconds": 1
+      "ok": false,
+      "error": "429 We suspect this request is automated: if so, please respect our robot policy. If you think you were incorrectly blocked, please contact noc@wikimedia.org reporting this message (01f0bde) for https://query.wikidata.org/sparql?format=json&query=SELECT%20%3Fu%20%3FuLabel%20%3FcityLabel%20%3Fwebsite%20%3Fstudents%20%3Ftype%20WHERE%20%7B%0A%20%20VALUES%20%3Fclass%20%7B%20wd%3AQ3918%20%7D%0A%20%20%3Fu%20wdt%3AP31%20%3Ftype%20.%20%3Ftype%20wdt%3AP279*%20%3Fclass%20.%0A%20%20%3Fu%20wdt%3AP17%20wd%3AQ664%20.%0A%20%20%3Fu%20wdt%3AP856%20%3Fwebsite%20.%0A%20%20FILTER%20NOT%20EXISTS%20%7B%20%3Fu%20wdt%3AP576%20%3Fended%20%7D%0A%20%20OPTIONAL%20%7B%20%3Fu%20wdt%3AP131%20%3Fcity%20%7D%0A%20%20OPTIONAL%20%7B%20%3Fu%20wdt%3AP2196%20%3Fstudents%20%7D%0A%20%20SERVICE%20wikibase%3Alabel%20%7B%20bd%3AserviceParam%20wikibase%3Alanguage%20%22en%22.%20%7D%0A%7D",
+      "keptPrevious": true
     },
     "europe": {
-      "ok": true,
-      "universities": 1930,
-      "byCountry": {
-        "Germany": 471,
-        "France": 174,
-        "Ireland": 51,
-        "Netherlands": 25,
-        "Spain": 177,
-        "Italy": 237,
-        "Sweden": 22,
-        "Finland": 28,
-        "Denmark": 24,
-        "Norway": 23,
-        "Poland": 144,
-        "Austria": 47,
-        "Belgium": 31,
-        "Switzerland": 55,
-        "Portugal": 46,
-        "Czech Republic": 36,
-        "Hungary": 47,
-        "Lithuania": 21,
-        "Latvia": 18,
-        "Estonia": 11,
-        "Malta": 6,
-        "Cyprus": 20,
-        "Greece": 36,
-        "Slovakia": 24,
-        "Slovenia": 9,
-        "Croatia": 25,
-        "Romania": 82,
-        "Bulgaria": 37,
-        "Luxembourg": 2,
-        "Iceland": 9
-      },
-      "seconds": 508
+      "ok": false,
+      "error": "Wikidata Europe: only 9 universities",
+      "keptPrevious": true
     }
+  },
+  "rates": {
+    "ok": true,
+    "date": "2026-11-27"
   },
   "counts": {
     "australia": {
